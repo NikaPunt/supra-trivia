@@ -7,6 +7,7 @@ Everything the app limits, so nothing is a surprise. All of these are enforced b
 |---|---|
 | Points per question | 0 to 1000, in steps of 0.5 |
 | Wager (Final wager and Final Jeopardy) | a whole number from 0 to the question's maximum (1 to 1000). Anything else is refused and changes nothing |
+| Wager with **capped by team score** on | at most the team's banked points, rounded down, never below 0; the question's own maximum is not used |
 | Final Jeopardy wager | kept by the server; locked the moment the question is shown; whatever a phone sends with its answer is ignored |
 | Confidence values | each value in the pool can be used once per player (team). A skipped question spends nothing; a wrong answer still spends its stake. A pool has 2 to 10 values |
 | A host's manual award | up to twice what the question is worth, and never less than 10 (so 10 on a 4-point question, 40 on a 20-point wager). More is refused with a message, which catches typing 100 for 1. Raise the question's points in the builder if you really want more |

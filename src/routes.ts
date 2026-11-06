@@ -6,7 +6,7 @@ import type { Ctx } from "./context.js";
 import type { Db } from "./db.js";
 import type { HostDirectory } from "./hosts.js";
 import type { GameStore } from "./store.js";
-import { LOGIN_COOKIE, SESSION_COOKIE, finishLogin, LoginError, signSession, startLogin, verifySession, type Session } from "./auth.js";
+import { LOGIN_COOKIE, SESSION_COOKIE, SESSION_TTL_S, finishLogin, LoginError, signSession, startLogin, verifySession, type Session } from "./auth.js";
 import { modules, roundsSchema, settingsSchema } from "./modules/index.js";
 import { loadSample } from "./sample.js";
 import { registerSessionRoutes } from "./sessions.js";
@@ -18,7 +18,7 @@ declare module "fastify" {
   }
 }
 
-const trivia = z.object({ title: z.string().min(1).max(120), settings: settingsSchema.default({ maxGuesses: 3, timeLimit: 180 }), rounds: roundsSchema });
+const trivia = z.object({ title: z.string().min(1).max(120), settings: settingsSchema.default({ maxGuesses: 3, timeLimit: 180, wagerCap: false }), rounds: roundsSchema });
 /** Enough for any real use; stops a runaway script or a stuck button filling the database. */
 export const MAX_TRIVIAS_PER_HOST = 100;
 export const idParam = z.object({ id: z.uuid() });
@@ -64,7 +64,7 @@ export function registerRoutes(app: FastifyInstance, cfg: Config, db: Db, hosts:
       const session = await finishLogin(cfg, hosts, req.cookies[LOGIN_COOKIE], req.query as any);
       reply
         .clearCookie(LOGIN_COOKIE, { path: "/auth" })
-        .setCookie(SESSION_COOKIE, await signSession(cfg, session), { ...cookieOpts, maxAge: 8 * 3600 })
+        .setCookie(SESSION_COOKIE, await signSession(cfg, session), { ...cookieOpts, maxAge: SESSION_TTL_S })
         .redirect("/host.html");
     } catch (e) {
       req.log.warn({ err: (e as Error).message }, "login failed");

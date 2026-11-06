@@ -32,7 +32,7 @@ function toApi() {
   const s = state.settings;
   return {
     title: state.title,
-    settings: { maxGuesses: Number(s.maxGuesses), timeLimit: Number(s.timeLimit ?? 180), ...(s.theme && s.theme.secret?.trim() ? { theme: { secret: s.theme.secret.trim(), hint: s.theme.hint ?? "", formal: s.theme.formal ?? "", bonus: Number(s.theme.bonus ?? 4) } } : {}) },
+    settings: { maxGuesses: Number(s.maxGuesses), timeLimit: Number(s.timeLimit ?? 180), wagerCap: !!s.wagerCap, ...(s.theme && s.theme.secret?.trim() ? { theme: { secret: s.theme.secret.trim(), hint: s.theme.hint ?? "", formal: s.theme.formal ?? "", bonus: Number(s.theme.bonus ?? 4) } } : {}) },
     rounds: state.rounds.map((r) => ({
       title: r.title,
       modules: r.modules.map((m) => ({
@@ -76,7 +76,14 @@ function fieldInput(m, f) {
   return h("input", { type: "text", value: v ?? "", placeholder: ph, oninput: on((x) => x) });
 }
 
-const fieldRow = (m, f) => h("div", {}, h("label", {}, f.label + (f.help ? ` (${f.help})` : "")), fieldInput(m, f));
+/** With "wager capped by team score" on, a question's own maximum wager is not used, so its box is greyed out. */
+const fieldRow = (m, f) => {
+  const off = f.key === "maxWager" && !!state.settings.wagerCap;
+  const input = fieldInput(m, f);
+  if (off) input.disabled = true;
+  return h("div", { class: off ? "off" : "" }, h("label", {}, f.label + (f.help ? ` (${f.help})` : "")), input,
+    off ? h("p", { class: "muted" }, "Not used: wagers are capped by each team's score (set at the top of this trivia).") : null);
+};
 
 const describeGuesses = (n) => (n === 0 ? "unlimited guesses" : `${n} guess${n === 1 ? "" : "es"}`);
 const describeTime = (n) => (n === 0 ? "no timer" : n >= 60 ? `${n} seconds (${+(n / 60).toFixed(1)} minutes)` : `${n} seconds`);
@@ -225,7 +232,9 @@ function render() {
       h("p", { class: "muted" }, "Players never see whether a guess was right until you reveal. You can always award points by hand, including half marks."),
       h("label", { for: "tl" }, "Time per question in seconds (0 = no timer)"),
       h("input", { id: "tl", type: "number", min: 0, max: 3600, step: 5, value: state.settings.timeLimit, oninput: (e) => { state.settings.timeLimit = e.target.value; }, onchange: (e) => { if (e.target.value === "") state.settings.timeLimit = 180; render(); } }),
-      h("p", { class: "muted" }, "Answers close by themselves when time runs out: 180 is 3 minutes. You can close sooner, add time while a question is open, or give one question its own time under More options.")),
+      h("p", { class: "muted" }, "Answers close by themselves when time runs out: 180 is 3 minutes. You can close sooner, add time while a question is open, or give one question its own time under More options."),
+      h("label", { class: "check" }, h("input", { type: "checkbox", checked: !!state.settings.wagerCap, onchange: (e) => { state.settings.wagerCap = e.target.checked; render(); } }), " Wager capped by team score"),
+      h("p", { class: "muted" }, "A team can wager at most the points it has so far, and each question's own maximum wager is ignored. Teams on zero cannot wager. Off by default: a wager is anything from 0 up to the question's maximum.")),
     themeCard(),
     h("div", { class: "builder" },
       h("aside", { class: "palette card" }, h("h2", {}, "Question types"), h("p", { class: "muted" }, "Drag onto a round, or click to add to the last round."),

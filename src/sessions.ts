@@ -16,7 +16,7 @@ const MAX_ACTIVE_PER_HOST = 5;
 
 const sessionSettings = (raw: string) => {
   const s = settingsSchema.parse(JSON.parse(raw));
-  return { maxGuesses: s.maxGuesses, timeLimit: s.timeLimit, theme: s.theme };
+  return { maxGuesses: s.maxGuesses, timeLimit: s.timeLimit, wagerCap: s.wagerCap, theme: s.theme };
 };
 
 /** Server-sent events: the client is told something changed and refetches its own view. */

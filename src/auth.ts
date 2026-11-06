@@ -5,7 +5,8 @@ import type { HostDirectory, Role } from "./hosts.js";
 
 export const SESSION_COOKIE = "trivia_session";
 export const LOGIN_COOKIE = "trivia_login";
-const SESSION_TTL_S = 8 * 3600;
+/** Hosts stay signed in for 30 days. Removing someone from the hosts file still locks them out at once. */
+export const SESSION_TTL_S = 30 * 24 * 3600;
 const LOGIN_TTL_S = 10 * 60;
 const GOOGLE_AUTH = "https://accounts.google.com/o/oauth2/v2/auth";
 const GOOGLE_TOKEN = "https://oauth2.googleapis.com/token";

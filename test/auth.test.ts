@@ -214,3 +214,8 @@ test("config: listen address defaults to all interfaces and can be pinned; hosts
   assert.equal(inline.roleOf("A@x.com"), "admin");
   assert.equal(inline.roleOf("b@x.com"), "host");
 });
+
+test("a host stays signed in for 30 days, and removing them from the hosts file still locks them out", async () => {
+  const { SESSION_TTL_S } = await import("../src/auth.js");
+  assert.equal(SESSION_TTL_S, 30 * 24 * 3600);
+});

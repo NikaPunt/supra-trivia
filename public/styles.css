@@ -127,6 +127,11 @@ header.bar {
 .scene + h1, .scene + .toast { margin-top: 1rem; }
 
 /* ---- surfaces ---- */
+.mod .off input { opacity: .5; }
+label.check { display: flex; align-items: center; gap: 8px; margin-top: 12px; }
+.hostcard { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.hostcard p { margin: 2px 0 0; }
+.hostcard:empty { display: none; }
 .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 0.9rem 1rem; margin: 0.75rem 0; }
 .banner { background: var(--accent); color: var(--accent-ink); padding: 0.5rem 1rem; text-align: center; font-weight: 700; }
 .theme-card { border-color: var(--accent); border-width: 1.5px; }

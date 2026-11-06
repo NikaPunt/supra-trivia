@@ -20,4 +20,6 @@
 ```
 Gmail addresses are matched ignoring dots, `+tags` and `googlemail.com` (Google treats them as one inbox); other domains match exactly.
 The file is re-read when it changes. If an edit makes it invalid JSON, the last good list stays in force, so a typo cannot lock you out or let anyone in.
+A host stays signed in for 30 days on that browser, and the home page then shows a **Go to my trivias** button instead of asking them to log in again. Logging out ends it.
+
 Removing someone takes effect on their next request: roles are looked up from the file each time, never trusted from the login cookie.
