@@ -1,4 +1,4 @@
-import { $, api, h, live, mount, questionBlock } from "./common.js";
+import { $, api, h, live, mount, questionBlock, revealBlock, scene } from "./common.js";
 const id = new URLSearchParams(location.search).get("id");
 
 function board(s) {
@@ -14,15 +14,13 @@ function themeBanner(s) {
 }
 
 function render(s) {
-  if (s.phase === "lobby") return mount($("#app"), h("h1", {}, s.title), h("p", {}, `Join at ${location.host}`), h("div", { class: "code" }, s.code), h("p", {}, `${s.players} joined`), themeBanner(s));
-  if (s.phase === "ended") return mount($("#app"), h("h1", {}, "Thanks for playing!"), themeBanner(s), board(s));
+  if (s.phase === "lobby") return mount($("#app"), scene(), h("h1", {}, s.title), h("p", {}, `Join at ${location.host}`), h("div", { class: "code" }, s.code), h("p", { class: "muted" }, `${s.players} at the table`), themeBanner(s));
+  if (s.phase === "ended") return mount($("#app"), scene(), h("div", { class: "toast" }, "გაუმარჯოს!"), themeBanner(s), board(s));
   const it = s.item;
-  mount($("#app"), h("div", { class: "muted" }, `${it.round} · ${s.number}/${s.total} · room ${s.code}`),
-    it.roundSubtitle ? h("div", { class: "muted" }, it.roundSubtitle) : null,
-    questionBlock(it).map((n, i) => n),
+  mount($("#app"),
+    questionBlock(it, `${it.round} · ${s.number}/${s.total} · room ${s.code}`),
     it.public.options ? h("ol", {}, it.public.options.map((o) => h("li", {}, o))) : null,
-    s.phase === "revealed" ? [h("p", {}, h("strong", {}, "Answer: "), it.solution), it.funFact ? h("p", { class: "muted" }, it.funFact) : null]
-      : h("p", { class: "muted" }, s.phase === "closed" ? "Answers closed" : `${s.answered}/${s.players} locked in`),
+    s.phase === "revealed" ? revealBlock(it) : h("p", { class: "muted" }, s.phase === "closed" ? "Answers closed" : `${s.answered}/${s.players} locked in`),
     themeBanner(s), board(s));
 }
 

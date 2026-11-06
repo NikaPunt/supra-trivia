@@ -5,6 +5,7 @@ Host your own live trivia night. The **host** builds a trivia from modules and r
 - Hosts sign in with Google; only emails in `config/hosts.json` are accepted. The project owner is an **admin** with control over all sessions: [docs/ROLES.md](docs/ROLES.md).
 - How to write a good trivia: [docs/GUIDELINES.md](docs/GUIDELINES.md) and [docs/THEME_BANK.md](docs/THEME_BANK.md). The app is built around them.
 - Question types: [docs/MODULES.md](docs/MODULES.md).
+- Look and feel (after Niko Pirosmani): [docs/DESIGN.md](docs/DESIGN.md).
 - Deployment (Debian, Docker, Nginx Proxy Manager, `trivia.example.com`): [docs/DEPLOY.md](docs/DEPLOY.md).
 - Scoring, guess limits and manual points: [docs/SCORING.md](docs/SCORING.md).
 - Known bugs: [docs/BUGS.md](docs/BUGS.md).

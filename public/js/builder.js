@@ -13,7 +13,7 @@ state.settings ??= { maxGuesses: 3 };
 
 // The editor keeps friendly shapes (lists as arrays of raw lines, numbers as typed); toApi() cleans them for the server.
 const defaultFor = (f) => (f.kind === "list" || f.kind === "numlist" ? (Array.isArray(f.default) ? [...f.default] : [""]) : (f.default ?? ""));
-const blank = (type) => ({ type, section: undefined, maxGuesses: undefined, config: Object.fromEntries(byType[type].fields.map((f) => [f.key, defaultFor(f)])) });
+const blank = (type) => ({ type, open: true, section: undefined, maxGuesses: undefined, config: Object.fromEntries(byType[type].fields.map((f) => [f.key, defaultFor(f)])) });
 
 function cleanConfig(def, config) {
   const out = {};
@@ -94,14 +94,22 @@ function card(r, i, m) {
   el.addEventListener("drop", (e) => { e.preventDefault(); e.stopPropagation(); drop(r, i); });
   const move = (d) => () => { const a = state.rounds[r].modules; const j = i + d; if (j < 0 || j >= a.length) return; [a[i], a[j]] = [a[j], a[i]]; render(); };
   const warn = warnings(m);
+  const toggle = () => { m.open = !m.open; render(); };
+  const q = String(m.config.question ?? "").trim();
   mount(el,
-    h("div", { class: "head" }, h("strong", { class: "grow" }, `⠿ ${i + 1}. ${def.label}`), h("button", { onclick: move(-1), "aria-label": "Move up" }, "↑"), h("button", { onclick: move(1), "aria-label": "Move down" }, "↓"),
+    h("div", { class: "head" }, h("strong", { class: "grow" }, `⠿ ${i + 1}. ${def.label}`),
+      h("button", { onclick: toggle, "aria-expanded": m.open ? "true" : "false" }, m.open ? "Done" : "Edit"),
+      h("button", { onclick: move(-1), "aria-label": "Move up" }, "↑"), h("button", { onclick: move(1), "aria-label": "Move down" }, "↓"),
       h("button", { class: "danger", onclick: () => { state.rounds[r].modules.splice(i, 1); render(); }, "aria-label": "Remove" }, "✕")),
-    h("div", {}, h("label", {}, "Section (e.g. Hodgepodge, Before & After, Confidence Set)"), h("input", { type: "text", maxlength: 60, value: m.section ?? "", oninput: (e) => { m.section = e.target.value; } })),
-    def.fields.map((f) => h("div", {}, h("label", {}, f.label + (f.help ? ` (${f.help})` : "")), fieldInput(m, f))),
-    h("div", {}, h("label", {}, "Max guesses for this question (blank = trivia default, 0 = unlimited)"),
-      h("input", { type: "number", min: 0, max: 50, value: m.maxGuesses ?? "", oninput: (e) => { m.maxGuesses = e.target.value === "" ? undefined : Number(e.target.value); } })),
-    warn.length ? h("details", {}, h("summary", { class: "warnline" }, `${warn.length} suggestion${warn.length > 1 ? "s" : ""}`), warn.map((x) => h("div", { class: "warnline" }, x))) : null);
+    m.open ? [
+      h("div", {}, h("label", {}, "Section (e.g. Hodgepodge, Before & After, Confidence Set)"), h("input", { type: "text", maxlength: 60, value: m.section ?? "", oninput: (e) => { m.section = e.target.value; } })),
+      def.fields.map((f) => h("div", {}, h("label", {}, f.label + (f.help ? ` (${f.help})` : "")), fieldInput(m, f))),
+      h("div", {}, h("label", {}, "Max guesses for this question (blank = trivia default, 0 = unlimited)"),
+        h("input", { type: "number", min: 0, max: 50, value: m.maxGuesses ?? "", oninput: (e) => { m.maxGuesses = e.target.value === "" ? undefined : Number(e.target.value); } })),
+      warn.length ? h("details", {}, h("summary", { class: "warnline" }, `${warn.length} suggestion${warn.length > 1 ? "s" : ""}`), warn.map((x) => h("div", { class: "warnline" }, x))) : null,
+    ] : h("div", { class: "sum", onclick: toggle },
+      h("span", {}, q || "(no question yet)"), m.section ? h("span", { class: "badge" }, m.section) : null, m.config.tier ? h("span", { class: "badge" }, m.config.tier) : null,
+      warn.length ? h("span", { class: "warnline" }, `${warn.length} suggestion${warn.length > 1 ? "s" : ""}`) : null));
   return el;
 }
 

@@ -1,4 +1,5 @@
-import { $, api } from "./common.js";
+import { $, api, scene } from "./common.js";
+$("#hero").append(scene());
 $("#code").value = new URLSearchParams(location.search).get("code") ?? "";
 $("#join").addEventListener("submit", async (e) => {
   e.preventDefault();

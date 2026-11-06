@@ -1,4 +1,4 @@
-import { $, api, describeAnswer, h, hostHeader, live, mount, questionBlock } from "./common.js";
+import { $, api, describeAnswer, h, hostHeader, live, mount, questionBlock, revealBlock } from "./common.js";
 await hostHeader($("#bar"));
 const id = new URLSearchParams(location.search).get("id");
 
@@ -51,11 +51,11 @@ function render(s) {
   mount($("#banner"), s.hostEmail !== s.you ? h("div", { class: "banner" }, `Admin control: this session belongs to ${s.hostEmail}. Your actions are logged.`) : null);
   const it = s.item;
   mount($("#app"),
-    h("div", { class: "card row" }, h("div", {}, h("div", { class: "muted" }, "Room code"), h("div", { class: "code" }, s.code)),
+    h("div", { class: "card row" }, h("div", {}, h("div", { class: "eyebrow" }, "Room code"), h("div", { class: "code" }, s.code)),
       h("div", { class: "grow" }, h("strong", {}, s.title), h("div", { class: "muted" }, `${s.phase} · ${s.players} players · ${s.maxGuesses === 0 ? "unlimited" : s.maxGuesses} guesses each · join at ${location.origin}`))),
     controls(s),
-    it ? h("div", { class: "card" }, h("div", { class: "muted" }, `${it.round} · ${it.label} · ${s.number}/${s.total}${s.roundEnd ? " · last of round: the scoreboard shows on reveal" : ""}`),
-      questionBlock({ ...it, public: it.public }), h("p", {}, h("strong", {}, "Answer: "), it.solution), it.funFact ? h("p", { class: "muted" }, it.funFact) : null) : null,
+    it ? questionBlock(it, `${it.round} · ${it.label} · ${s.number}/${s.total}${s.roundEnd ? " · last of round: the scoreboard shows on reveal" : ""}`) : null,
+    it ? revealBlock(it) : null,
     it ? h("div", { class: "card" }, h("h2", {}, `Answers (${s.answers.length})`),
       s.answers.length ? h("table", {}, s.answers.map((a) => h("tr", {}, h("td", {}, a.nickname),
         h("td", {}, describeAnswer(it, a.value), a.status === "pending" && a.suggest !== null ? h("span", { class: a.suggest > 0 ? "badge" : "muted" }, a.suggest > 0 ? "  looks right" : "  no match") : null),

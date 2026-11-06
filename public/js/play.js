@@ -1,4 +1,4 @@
-import { $, api, h, live, mount, questionBlock } from "./common.js";
+import { $, api, describeAnswer, h, live, mount, questionBlock, revealBlock, scene } from "./common.js";
 
 // Typed text survives re-renders caused by live updates.
 const drafts = { answer: "", theme: "", stake: "", key: "" };
@@ -78,22 +78,24 @@ function inputFor(state) {
 function render(state) {
   const key = `${state.number}:${state.phase === "lobby"}`;
   if (drafts.key !== key) { drafts.answer = ""; drafts.stake = ""; drafts.key = key; }
-  const head = h("div", { class: "row" }, h("strong", {}, state.me), h("span", { class: "grow" }), h("span", { class: "muted" }, `Room ${state.code}`));
-  if (state.phase === "lobby") return mount($("#app"), head, h("div", { class: "card" }, h("h1", {}, state.title), h("p", {}, `Waiting for the host to start… ${state.players} joined.`)), themeCard(state));
-  if (state.phase === "ended") return mount($("#app"), head, h("h1", {}, "That's a wrap!"), themeCard(state), board(state));
+  const head = h("div", { class: "row" }, h("strong", {}, state.me), h("span", { class: "grow" }), h("span", { class: "eyebrow" }, `Room ${state.code}`));
+  if (state.phase === "lobby") return mount($("#app"), head, scene(), h("h1", {}, state.title), h("p", { class: "muted" }, `Waiting for the host to begin. ${state.players} at the table.`), themeCard(state));
+  if (state.phase === "ended") return mount($("#app"), head, scene(), h("div", { class: "toast" }, "გაუმარჯოს!"), h("p", { class: "muted" }, "Gaumarjos! That's a wrap."), themeCard(state), board(state));
   const it = state.item;
   const mine = state.myAnswers;
   mount($("#app"), head,
-    h("div", { class: "card" },
-      h("div", { class: "muted" }, `${it.round} · ${state.number}/${state.total}`),
-      it.roundSubtitle ? h("div", { class: "muted" }, it.roundSubtitle) : null,
-      questionBlock(it),
-      state.phase === "open" ? null : h("p", { class: "muted" }, state.phase === "closed" ? "Answers are closed." : "Revealed."),
-      inputFor(state),
-      state.guessesLeft !== null ? h("p", { class: "muted" }, `Guesses left: ${state.guessesLeft}`) : null,
-      mine.length && !it.input.multi && mine[0].status ? h("p", {}, mine[0].points > 0 ? `+${mine[0].points} points` : mine[0].points < 0 ? `${mine[0].points} points` : "No points this time.") : null,
-      it.solution ? h("p", {}, h("strong", {}, "Answer: "), it.solution) : null,
-      it.funFact ? h("p", { class: "muted" }, it.funFact) : null),
+    questionBlock(it, `${it.round} · ${state.number}/${state.total}`),
+    state.phase === "revealed"
+      ? h("div", { class: "card" }, h("div", { class: "eyebrow" }, "Your answer"),
+          mine.length
+            ? h("div", { class: "yours" }, h("strong", {}, describeAnswer(it, mine[0].value)),
+                h("span", {}, mine[0].points > 0 ? `+${mine[0].points} points` : mine[0].points < 0 ? `${mine[0].points} points` : "No points"))
+            : h("p", { class: "muted" }, "You didn't answer this one."))
+      : h("div", { class: "card" },
+          state.phase === "closed" ? h("p", { class: "muted" }, "Answers are closed.") : null,
+          inputFor(state),
+          state.guessesLeft !== null ? h("p", { class: "muted" }, `Guesses left: ${state.guessesLeft}`) : null),
+    revealBlock(it),
     themeCard(state), board(state));
 }
 
