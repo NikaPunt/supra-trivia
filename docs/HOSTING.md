@@ -18,6 +18,14 @@ Every question has a countdown, **3 minutes by default**, and answers close by t
 - Phones and the projector show the countdown next to the round name. It turns red and pulses in the last 10 seconds. Answers sent a moment after time is up are refused.
 - If the server restarts mid-question, a question whose time ran out closes straight away when it comes back.
 
+## Pausing
+For an interruption, press **Pause** while a question is open.
+- The clock freezes with the time that was left, and the time spent paused is not taken from the players.
+- Answers are refused while paused. Phones show a **Paused** note, the projector shows a big **PAUSED** banner, and both show the frozen time. Answers already given are kept.
+- **Resume** carries on from what was left. **Add 30 seconds** still works while paused. **Close answers** also ends the pause.
+- It works on questions with no timer too, as a way to hold everyone for a moment.
+- It survives a server restart, and a paused question is never closed by the timer.
+
 ## The console
 Three tabs keep each job separate:
 - **Question**: the step button, the question, the answer, and the answers coming in with the grading buttons. It says how many have answered, and "everyone is in" when all have.

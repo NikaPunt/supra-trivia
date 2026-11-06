@@ -89,11 +89,15 @@ export function syncClock(timer) { if (timer) skew = timer.now - Date.now(); }
 /** The state without the server clock reading, so two fetches that differ only by the time compare as equal. */
 export const stable = (state) => JSON.stringify(state, (k, v) => (k === "now" ? undefined : v));
 
-const clock = (ms) => { const s = Math.max(0, Math.ceil(ms / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
+export const clock = (ms) => { const s = Math.max(0, Math.ceil(ms / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
+
+/** What to show beside the round name: the timer, or just "Paused" when a question without a timer is on hold. */
+export const timerOf = (s) => s.timer ?? (s.paused ? { paused: true } : null);
 
 /** A live m:ss countdown. It updates itself, so the page never has to be redrawn for it. */
 export function clockEl(timer) {
   if (!timer) return null;
+  if (timer.paused) return h("span", { class: "clock paused", role: "timer" }, timer.left != null ? `Paused · ${clock(timer.left)}` : "Paused");
   const el = h("span", { class: "clock", role: "timer" });
   const tick = () => {
     if (!el.isConnected && el.dataset.ready) return clearInterval(id);

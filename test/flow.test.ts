@@ -99,3 +99,87 @@ test("a question that ran out of time while the server was down closes when it s
   await sleep(150);
   assert.equal(afterRestart.get(g.id)!.phase, "closed");
 });
+
+// ---- pause ----
+
+test("pause freezes the clock and refuses answers; resume carries on with the time that was left", async () => {
+  const { g, a } = make(60);
+  const leftBefore = g.deadline! - Date.now();
+  act(g, { action: "pause" });
+  assert.equal(g.paused, true);
+  assert.equal(g.deadline, null, "no deadline while paused, so nothing can close the question");
+  assert.ok(Math.abs(g.pausedLeft! - leftBefore) < 500, "the time that was left is kept");
+
+  const v = playerView(g, a.id);
+  assert.equal(v.paused, true);
+  assert.equal(v.timer!.paused, true);
+  assert.ok(Math.abs(v.timer!.left! - leftBefore) < 500, "every screen is told how much time is frozen");
+  assert.throws(() => submit(g, a.id, { text: "a" }), /paused/, "players cannot answer meanwhile");
+
+  const kept = g.pausedLeft!;
+  await sleep(250); // the interruption: this must not cost the players any time
+  assert.equal(g.pausedLeft, kept, "the frozen time does not drain");
+  act(g, { action: "extend" });
+  assert.equal(g.pausedLeft! - kept, 30_000, "adding time works while paused");
+  act(g, { action: "resume" });
+  assert.equal(g.paused, false);
+  assert.ok(Math.abs(g.deadline! - Date.now() - (kept + 30_000)) < 100, "the clock restarts from what was left, plus what was added");
+  submit(g, a.id, { text: "a" }); // answering works again
+});
+
+test("pause only applies to an open question, once, and can be ended by closing", () => {
+  const { g } = make(60);
+  assert.throws(() => act(g, { action: "resume" }), /nothing is paused/);
+  act(g, { action: "pause" });
+  assert.throws(() => act(g, { action: "pause" }), /already paused/);
+  act(g, { action: "close" });
+  assert.equal(g.phase, "closed");
+  assert.equal(g.paused, false, "closing ends the pause");
+  assert.equal(g.pausedLeft, null);
+  assert.throws(() => act(g, { action: "pause" }), /only an open question/);
+  act(g, { action: "reveal" });
+  assert.throws(() => act(g, { action: "pause" }), /only an open question/);
+  act(g, { action: "next" });
+  assert.equal(g.paused, false, "the next question never starts paused");
+});
+
+test("a question with no timer can still be paused: answers wait, nothing else changes", () => {
+  const { g, a } = make(0);
+  act(g, { action: "pause" });
+  assert.equal(g.pausedLeft, null);
+  assert.equal(playerView(g, a.id).timer, null, "no countdown to show");
+  assert.equal(playerView(g, a.id).paused, true, "but everyone still sees it is paused");
+  assert.throws(() => submit(g, a.id, { text: "a" }), /paused/);
+  assert.throws(() => act(g, { action: "extend" }), /no timer/);
+  act(g, { action: "resume" });
+  assert.equal(g.deadline, null);
+  submit(g, a.id, { text: "a" });
+});
+
+test("the server's automatic close waits while paused, then closes after the remaining time", async () => {
+  const store = new GameStore(openDb(":memory:"));
+  const { g } = make(1);
+  store.save(g);
+  await sleep(300);
+  act(g, { action: "pause" }); store.save(g);
+  await sleep(1300); // well past the original one second
+  assert.equal(g.phase, "open", "still open: the pause held it");
+  act(g, { action: "resume" }); store.save(g);
+  await sleep(400);
+  assert.equal(g.phase, "open", "about 700ms were left, so it is not closed yet");
+  await sleep(600);
+  assert.equal(g.phase, "closed", "and it closes once those 700ms have run");
+});
+
+test("a paused game stays paused across a server restart", () => {
+  const db = openDb(":memory:");
+  const first = new GameStore(db);
+  const { g } = make(60);
+  first.save(g);
+  act(g, { action: "pause" }); first.save(g);
+  const second = new GameStore(db);
+  const loaded = second.get(g.id)!;
+  assert.equal(loaded.paused, true);
+  assert.equal(loaded.phase, "open");
+  assert.ok(loaded.pausedLeft! > 50_000);
+});

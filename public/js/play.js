@@ -1,4 +1,4 @@
-import { $, api, describeAnswer, enterIfChanged, h, keepAwake, live, mount, questionBlock, revealBlock, scene, stable, syncClock, themeNote } from "./common.js";
+import { $, api, describeAnswer, enterIfChanged, h, keepAwake, live, mount, questionBlock, revealBlock, scene, stable, syncClock, themeNote, timerOf } from "./common.js";
 
 // Typed text survives re-renders caused by live updates.
 const drafts = { answer: "", theme: "", stake: "", key: "", seen: "" };
@@ -76,7 +76,7 @@ function inputFor(state) {
     try { await api("/api/play/answer", { method: "POST", body: { value } }); err.textContent = ""; await refresh(); }
     catch (e) { err.textContent = e.message; }
   };
-  const open = state.phase === "open" && state.guessesLeft !== 0;
+  const open = state.phase === "open" && state.guessesLeft !== 0 && !state.paused;
   const mine = state.myAnswers;
   // If a teammate changed the team's answer, show it instead of whatever was half-typed here.
   const serverVal = mine.length ? JSON.stringify(mine[0].value) : "";
@@ -114,7 +114,8 @@ function render(state) {
   const it = state.item;
   const mine = state.myAnswers;
   mount($("#app"),
-    questionBlock(it, state.timer),
+    questionBlock(it, timerOf(state)),
+    state.paused ? h("div", { class: "note paused-note" }, h("b", {}, "Paused"), h("p", {}, "The host will carry on in a moment. Your answer is safe.")) : null,
     state.phase === "revealed"
       ? h("div", { class: "card" }, h("div", { class: "eyebrow" }, "Your answer"),
           mine.length

@@ -1,4 +1,4 @@
-import { $, api, describeAnswer, enterIfChanged, h, hostHeader, keepAwake, live, mount, questionBlock, revealBlock, stable, syncClock } from "./common.js";
+import { $, api, clock, describeAnswer, enterIfChanged, h, hostHeader, keepAwake, live, mount, questionBlock, revealBlock, stable, syncClock, timerOf } from "./common.js";
 await hostHeader($("#bar"));
 const id = new URLSearchParams(location.search).get("id");
 
@@ -22,10 +22,18 @@ function controls(s) {
   switch (s.phase) {
     case "lobby":
       return h("div", { class: "steps" }, btn("Start the game", { action: "begin" }, "primary"), h("p", { class: "muted" }, `${live.length} at the table`));
-    case "open":
+    case "open": {
+      const all = done === live.length && live.length;
+      const extend = s.timer ? btn("Add 30 seconds", { action: "extend", seconds: 30 }) : null;
+      if (s.paused) {
+        return h("div", { class: "steps" },
+          h("div", { class: "row" }, btn("Resume", { action: "resume" }, "primary"), btn("Close answers", { action: "close" }), extend),
+          h("p", { class: "paused-text" }, s.timer?.left != null ? `Paused with ${clock(s.timer.left)} left. Answers are on hold.` : "Paused. Answers are on hold."));
+      }
       return h("div", { class: "steps" },
-        h("div", { class: "row" }, btn("Close answers", { action: "close" }, "primary"), s.timer ? btn("Add 30 seconds", { action: "extend", seconds: 30 }) : null),
-        h("p", { class: done === live.length && live.length ? "ready" : "muted" }, `${done} of ${live.length} answered${done === live.length && live.length ? ": everyone is in" : ""}`));
+        h("div", { class: "row" }, btn("Close answers", { action: "close" }, "primary"), btn("Pause", { action: "pause" }), extend),
+        h("p", { class: all ? "ready" : "muted" }, `${done} of ${live.length} answered${all ? ": everyone is in" : ""}`));
+    }
     case "closed":
       return h("div", { class: "steps" },
         h("div", { class: "row" }, btn("Reveal the answer", { action: "reveal" }, "primary"), btn("Reopen answers", { action: "reopen" })),
@@ -129,13 +137,13 @@ function render(s) {
     : tab === "players" ? playersPanel(s)
     : [
         controls(s),
-        it ? h("div", {}, h("div", { class: "eyebrow", style: "margin-top:1.1rem" }, `${it.label}${s.roundEnd ? " · last of round: the scoreboard shows on reveal" : ""}`), questionBlock(it, s.timer)) : null,
+        it ? h("div", {}, h("div", { class: "eyebrow", style: "margin-top:1.1rem" }, `${it.label}${s.roundEnd ? " · last of round: the scoreboard shows on reveal" : ""}`), questionBlock(it, timerOf(s))) : null,
         it ? revealBlock(it) : null,
         it ? answersCard(s, it) : null,
       ];
   mount($("#app"),
     h("div", { class: "card row" }, h("div", {}, h("div", { class: "eyebrow" }, "Room code"), h("div", { class: "code" }, s.code)),
-      h("div", { class: "grow" }, h("strong", {}, s.title), h("div", { class: "muted" }, `${s.phase} · ${s.players} players · ${s.maxGuesses === 0 ? "unlimited" : s.maxGuesses} guesses each · join at ${location.origin}`),
+      h("div", { class: "grow" }, h("strong", {}, s.title), h("div", { class: "muted" }, `${s.paused ? "paused" : s.phase} · ${s.players} players · ${s.maxGuesses === 0 ? "unlimited" : s.maxGuesses} guesses each · join at ${location.origin}`),
         h("p", {}, h("a", { class: "btn", href: `/deck.html?id=${id}`, target: "_blank", rel: "noopener" }, "Open the projector view")))),
     tabBar(s),
     h("div", { role: "tabpanel", id: "panel", "aria-labelledby": `tab-${tab}` }, panel),

@@ -1,4 +1,4 @@
-import { $, api, enterIfChanged, h, keepAwake, live, mount, questionBlock, revealBlock, scene, stable, syncClock, themeNote } from "./common.js";
+import { $, api, enterIfChanged, h, keepAwake, live, mount, questionBlock, revealBlock, scene, stable, syncClock, themeNote, timerOf } from "./common.js";
 const id = new URLSearchParams(location.search).get("id");
 // The projector scales with the screen, so a 4K display is not a small column on a big black field.
 document.documentElement.classList.add("deck");
@@ -17,7 +17,8 @@ function render(s) {
   }
   const it = s.item;
   mount($("#app"),
-    questionBlock(it, s.timer),
+    questionBlock(it, timerOf(s)),
+    s.paused ? h("div", { class: "paused-banner" }, "Paused") : null,
     it.public.options ? h("ol", {}, it.public.options.map((o) => h("li", {}, o))) : null,
     s.phase === "revealed" ? revealBlock(it) : h("p", { class: "muted" }, s.phase === "closed" ? "Answers closed" : `${s.answered}/${s.players} locked in`),
     themeNote(s.theme), board(s), foot(s));

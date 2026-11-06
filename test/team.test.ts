@@ -197,3 +197,22 @@ test("theme guesses: the team earns the bonus once, however many of its phones g
   assert.equal(after.theme.bonuses[0].points, 4, "one bonus for the team, not one per guess or per phone");
   await app.close();
 });
+
+test("pause over HTTP: the host pauses, every phone is told, answers wait, resume lets them through", async () => {
+  const { app, host, id, act, phone, say, view } = await setup();
+  const A = await phone("device-aaaa-1111"), B = await phone("device-bbbb-2222");
+  assert.equal((await act({ action: "pause" })).statusCode, 200);
+  for (const p of [A, B]) {
+    const v = await view(p);
+    assert.equal(v.paused, true, "both phones see the pause");
+  }
+  const refused = await say(A, "nepal");
+  assert.equal(refused.statusCode, 409);
+  assert.match(refused.json().error, /paused/);
+  assert.equal((await act({ action: "resume" })).statusCode, 200);
+  assert.equal((await view(B)).paused, false);
+  assert.equal((await say(B, "nepal")).statusCode, 200);
+  const hv = (await app.inject({ url: `/api/sessions/${id}`, headers: host })).json();
+  assert.equal(hv.paused, false);
+  await app.close();
+});

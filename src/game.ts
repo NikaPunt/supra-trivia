@@ -60,8 +60,12 @@ export interface Game {
   maxGuesses: number;
   /** Seconds per question before answers close by themselves (0 = no timer). A question can override it. Absent in older games: no timer. */
   timeLimit?: number;
-  /** When the open question closes by itself, as epoch milliseconds. Null when there is no timer running. */
+  /** When the open question closes by itself, as epoch milliseconds. Null when there is no timer running (or it is paused). */
   deadline?: number | null;
+  /** The host has paused the open question: the clock is frozen and answers are refused. */
+  paused?: boolean;
+  /** Milliseconds that were left on the clock when it was paused, or null if the question has no timer. */
+  pausedLeft?: number | null;
   phase: Phase;
   /** Index into the flattened list of items; -1 in the lobby. */
   cursor: number;
@@ -91,7 +95,7 @@ export interface Game {
 }
 
 export type Action =
-  | { action: "begin" | "close" | "reopen" | "reveal" | "next" | "end" | "theme_reveal" }
+  | { action: "begin" | "close" | "reopen" | "reveal" | "next" | "end" | "theme_reveal" | "pause" | "resume" }
   /** Gives the open question more time. */
   | { action: "extend"; seconds?: number }
   | { action: "kick"; playerId: string }
@@ -212,6 +216,7 @@ export function submit(g: Game, playerId: string, value: unknown, device?: strin
   const p = g.players.find((x) => x.id === playerId);
   if (!p || p.kicked) throw new GameError("you are not in this session", 403);
   if (g.phase !== "open") throw new GameError("answers are closed", 409);
+  if (g.paused) throw new GameError("the game is paused for a moment", 409);
   // The server closes the question when time runs out; this covers the instant before it does.
   if (g.deadline && Date.now() > g.deadline + 1500) throw new GameError("time is up", 409);
   const it = currentItem(g)!;
@@ -322,6 +327,8 @@ function startTimer(g: Game): void {
   const it = currentItem(g);
   const s = it ? secondsFor(g, it) : 0;
   g.deadline = s > 0 ? Date.now() + s * 1000 : null;
+  g.paused = false;
+  g.pausedLeft = null;
 }
 
 const inPlay = (g: Game) => g.phase === "open" || g.phase === "closed" || g.phase === "revealed";
@@ -349,6 +356,8 @@ export function act(g: Game, a: Action): void {
       need(g.phase === "open", "question is not open");
       g.phase = "closed";
       g.deadline = null;
+      g.paused = false; // closing also ends a pause
+      g.pausedLeft = null;
       break;
     case "reopen":
       need(g.phase === "closed", "only a closed question can be reopened");
@@ -361,11 +370,26 @@ export function act(g: Game, a: Action): void {
       g.phase = "revealed";
       break;
     case "extend": {
-      need(g.phase === "open" && !!g.deadline, "no timer is running on this question");
+      need(g.phase === "open" && (!!g.deadline || (!!g.paused && g.pausedLeft != null)), "no timer is running on this question");
       const add = Math.min(Math.max(a.seconds ?? 30, 5), 600) * 1000;
-      g.deadline = Math.min(g.deadline! + add, Date.now() + 30 * 60 * 1000);
+      if (g.paused) g.pausedLeft = Math.min(g.pausedLeft! + add, 30 * 60 * 1000);
+      else g.deadline = Math.min(g.deadline! + add, Date.now() + 30 * 60 * 1000);
       break;
     }
+    // Pause freezes the clock and refuses answers, for an interruption; resume carries on with the time that was left.
+    case "pause":
+      need(g.phase === "open", "only an open question can be paused");
+      need(!g.paused, "already paused");
+      g.pausedLeft = g.deadline ? Math.max(0, g.deadline - Date.now()) : null;
+      g.deadline = null;
+      g.paused = true;
+      break;
+    case "resume":
+      need(g.phase === "open" && !!g.paused, "nothing is paused");
+      g.deadline = g.pausedLeft != null ? Date.now() + g.pausedLeft : null;
+      g.paused = false;
+      g.pausedLeft = null;
+      break;
     case "next":
       need(g.phase === "revealed", g.phase === "open" || g.phase === "closed" ? "reveal the answer first" : "session is not running");
       finishItem(g);
@@ -459,7 +483,10 @@ const base = (g: Game) => ({
   code: g.code, title: g.title, phase: g.phase, number: g.cursor + 1, total: items(g).length,
   players: g.players.filter((p) => !p.kicked).length,
   // `now` is the server's clock, so a phone with a wrong clock still counts down correctly.
-  timer: g.phase === "open" && g.deadline ? { deadline: g.deadline, now: Date.now() } : null,
+  timer: g.phase === "open" && (g.deadline || (g.paused && g.pausedLeft != null))
+    ? { deadline: g.deadline ?? null, left: g.paused ? g.pausedLeft ?? undefined : undefined, paused: !!g.paused, now: Date.now() }
+    : null,
+  paused: g.phase === "open" && !!g.paused,
 });
 
 function guessesLeft(g: Game, playerId: string): number | null {

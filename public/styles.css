@@ -390,3 +390,9 @@ body.deck .note b { font-size: max(15px, 1.15em); }
 body.deck .note p { font-size: max(13px, 1em); }
 body.deck .board .where { font-size: max(14px, clamp(1.2rem, 2.2vw, 2.2rem)); }
 body.deck .rank, body.deck .card h2 { font-size: max(13px, 1em); }
+
+/* paused */
+.clock.paused { color: var(--accent-text); font-weight: 700; }
+.paused-note { border-style: dashed; }
+.paused-banner { font: 700 clamp(2rem, 6vw, 4rem)/1.1 var(--display); font-variation-settings: var(--vs); color: var(--accent-text); border: 2px dashed var(--accent); border-radius: var(--radius); padding: 0.6rem 1.2rem; margin: 1rem 0; text-align: center; letter-spacing: 0.08em; text-transform: uppercase; }
+.steps .paused-text { color: var(--accent-text); font-weight: 700; }
