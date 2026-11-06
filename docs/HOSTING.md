@@ -1,5 +1,8 @@
 # Running a game
 
+## Starting from an old trivia
+On the dashboard, **Duplicate** next to any of your trivias makes a copy called "... (copy)" and opens it in the builder. The copy has everything: rounds, questions, answers, sections, the secret theme, the guess limit and the time limits. It is yours alone, and editing it never changes the original or any game already played from it. An admin copying someone else's trivia gets their own copy, and that is logged.
+
 ## The order of play
 Each question moves through four steps, always in this order, and the console only ever offers the next one:
 

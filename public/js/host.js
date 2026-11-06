@@ -11,6 +11,11 @@ async function render() {
     h("div", { class: "row" }, h("h1", { class: "grow" }, "Your trivias"), h("a", { class: "btn primary", href: "/builder.html" }, "New trivia")),
     trivias.length ? trivias.map((t) => h("div", { class: "card row" }, h("span", { class: "grow" }, t.title),
       h("a", { class: "btn", href: `/builder.html?id=${t.id}` }, "Edit"),
+      h("button", { title: "Make a copy to edit", onclick: async (e) => {
+        e.target.disabled = true;
+        try { const c = await api(`/api/trivias/${t.id}/duplicate`, { method: "POST" }); location.href = `/builder.html?id=${c.id}`; }
+        catch (err) { e.target.disabled = false; alert(err.message); }
+      } }, "Duplicate"),
       h("button", { class: "primary", onclick: async () => {
         try { const s = await api(`/api/trivias/${t.id}/sessions`, { method: "POST" }); location.href = `/session.html?id=${s.id}`; }
         catch (e) { alert(e.message); }

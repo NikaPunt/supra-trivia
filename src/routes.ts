@@ -129,6 +129,22 @@ export function registerRoutes(app: FastifyInstance, cfg: Config, db: Db, hosts:
     return { ok: true };
   });
 
+  // A copy to edit, so nobody has to start from scratch. It belongs to whoever makes it (an admin copying someone's trivia gets their own).
+  app.post("/api/trivias/:id/duplicate", { preHandler: requireHost }, async (req, reply) => {
+    const row = load(req);
+    if (!row) return reply.code(404).send({ error: "not found" });
+    const parsed = roundsSchema.safeParse(JSON.parse(row.rounds)); // also folds trivias saved with the older clue boxes
+    const rounds = JSON.stringify(parsed.success ? parsed.data : JSON.parse(row.rounds));
+    const title = `${row.title.slice(0, 120 - " (copy)".length)} (copy)`;
+    const id = randomUUID();
+    const now = Date.now();
+    db.prepare("INSERT INTO trivias (id, host_email, title, rounds, created_at, updated_at, settings) VALUES (?, ?, ?, ?, ?, ?, ?)").run(
+      id, req.host_session!.email, title, rounds, now, now, row.settings,
+    );
+    touchOthers(req, row, "trivia.duplicate");
+    return reply.code(201).send({ id, title });
+  });
+
   app.delete("/api/trivias/:id", { preHandler: requireHost }, async (req, reply) => {
     const row = load(req);
     if (!row) return reply.code(404).send({ error: "not found" });
