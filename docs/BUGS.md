@@ -11,12 +11,11 @@
 | BUG-005 | The screen flickered on every update and updates felt slow | Full re-render on each event; no check that the live stream worked | Re-render only when state changes; lists patched in place while typing; pings detect a dead stream and fall back to polling | `flow`, browser runs |
 | BUG-006 | Projector sized wrongly on 4K and TVs, and zooming it shrank the host console | Browser zoom is shared per site | The projector fits itself with its own A-, Fit and A+ controls and never needs browser zoom | browser runs at 7 sizes in all 4 looks |
 | BUG-007 | Console tabs overflowed on small phones | Fixed tab widths | Tabs share the width | browser runs |
-| BUG-008 | The 0.1 converter (since removed) silently dropped clue content | It validated fine but copied only part of each question | Rebuilt to keep cast and year, puzzle boards, tracks and steps | `sample` |
-| BUG-009 | Cleaning up legacy fields removed Final Jeopardy's category | The cleanup ignored question type | Made type-aware | `boundaries`, `sample` |
-| BUG-010 | The host could press Next before answers were closed and revealed | Step buttons were not tied to the question's phase | Strict waterfall in the engine: open, close, reveal, next. The server refuses out-of-order steps | `flow`, `game` |
-| BUG-011 | Teammates' phones could show different answers and overwrite each other | Per-device state | A team is one player: shared answer, guesses, history and theme guesses | `team` |
-| BUG-012 | Huge numbers, unlimited trivias per host and typo-sized manual awards were accepted | Missing bounds | Number limit 1e15, 100 trivias per host, manual awards capped, 5 active sessions per host, 100 players per session | `limits`, `boundaries` |
-| BUG-013 | A used confidence value could be spent again, and wagers could be out of range | Trusted the phone | The server refuses spent or invented values and any wager outside 0 to the maximum | `boundaries` |
+| BUG-008 | Cleaning up legacy fields removed Final Jeopardy's category | The cleanup ignored question type | Made type-aware | `boundaries`, `sample` |
+| BUG-009 | The host could press Next before answers were closed and revealed | Step buttons were not tied to the question's phase | Strict waterfall in the engine: open, close, reveal, next. The server refuses out-of-order steps | `flow`, `game` |
+| BUG-010 | Teammates' phones could show different answers and overwrite each other | Per-device state | A team is one player: shared answer, guesses, history and theme guesses | `team` |
+| BUG-011 | Huge numbers, unlimited trivias per host and typo-sized manual awards were accepted | Missing bounds | Number limit 1e15, 100 trivias per host, manual awards capped, 5 active sessions per host, 100 players per session | `limits`, `boundaries` |
+| BUG-012 | A used confidence value could be spent again, and wagers could be out of range | Trusted the phone | The server refuses spent or invented values and any wager outside 0 to the maximum | `boundaries` |
 
 ## How bugs are handled
 1. Reproduce it with a failing test.
