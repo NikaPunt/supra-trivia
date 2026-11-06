@@ -19,6 +19,22 @@ export function openDb(path: string): Db {
       updated_at INTEGER NOT NULL
     );
     CREATE INDEX IF NOT EXISTS trivias_host ON trivias(host_email);
+    CREATE TABLE IF NOT EXISTS games (
+      id         TEXT PRIMARY KEY,
+      code       TEXT NOT NULL,
+      host_email TEXT NOT NULL,
+      ended      INTEGER NOT NULL DEFAULT 0,
+      state      TEXT NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS audit (
+      id     INTEGER PRIMARY KEY AUTOINCREMENT,
+      at     INTEGER NOT NULL,
+      actor  TEXT NOT NULL,
+      action TEXT NOT NULL,
+      target TEXT NOT NULL,
+      detail TEXT
+    );
   `);
   return db;
 }

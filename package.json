@@ -17,6 +17,7 @@
     "@fastify/cookie": "^11.1.5",
     "@fastify/helmet": "^13.2.0",
     "@fastify/rate-limit": "^11.2.2",
+    "@fastify/static": "^10.1.10",
     "better-sqlite3": "^12.11.1",
     "fastify": "^5.12.8",
     "jose": "^6.2.15",

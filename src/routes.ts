@@ -1,10 +1,15 @@
-import type { FastifyInstance, FastifyRequest } from "fastify";
+import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import type { Config } from "./config.js";
+import type { Ctx } from "./context.js";
 import type { Db } from "./db.js";
+import type { HostDirectory } from "./hosts.js";
+import type { GameStore } from "./store.js";
 import { LOGIN_COOKIE, SESSION_COOKIE, finishLogin, LoginError, signSession, startLogin, verifySession, type Session } from "./auth.js";
 import { modules, roundsSchema } from "./modules/index.js";
+import { registerSessionRoutes } from "./sessions.js";
+import { registerPlayRoutes } from "./play.js";
 
 declare module "fastify" {
   interface FastifyRequest {
@@ -13,15 +18,15 @@ declare module "fastify" {
 }
 
 const trivia = z.object({ title: z.string().min(1).max(120), rounds: roundsSchema });
-const idParam = z.object({ id: z.uuid() });
+export const idParam = z.object({ id: z.uuid() });
 
-export function registerRoutes(app: FastifyInstance, cfg: Config, db: Db) {
+export function registerRoutes(app: FastifyInstance, cfg: Config, db: Db, hosts: HostDirectory, store: GameStore) {
   const secure = cfg.BASE_URL.startsWith("https://");
-  const cookieOpts = { httpOnly: true, secure, sameSite: "lax" as const, path: "/" };
+  const cookieOpts = { httpOnly: true as const, secure, sameSite: "lax" as const, path: "/" };
 
   app.decorateRequest("host_session", null);
   app.addHook("onRequest", async (req: FastifyRequest) => {
-    req.host_session = await verifySession(cfg, req.cookies[SESSION_COOKIE]);
+    req.host_session = await verifySession(cfg, hosts, req.cookies[SESSION_COOKIE]);
   });
 
   // CSRF: state-changing requests must come from our own origin.
@@ -30,9 +35,19 @@ export function registerRoutes(app: FastifyInstance, cfg: Config, db: Db) {
     if (req.headers.origin !== cfg.BASE_URL) return reply.code(403).send({ error: "bad origin" });
   });
 
-  const requireHost = async (req: FastifyRequest, reply: any) => {
+  const requireHost = async (req: FastifyRequest, reply: FastifyReply) => {
     if (!req.host_session) return reply.code(401).send({ error: "login required" });
   };
+  const requireAdmin = async (req: FastifyRequest, reply: FastifyReply) => {
+    if (!req.host_session) return reply.code(401).send({ error: "login required" });
+    if (req.host_session.role !== "admin") return reply.code(403).send({ error: "admin only" });
+  };
+  const audit = (actor: string, action: string, target: string, detail?: unknown) => {
+    db.prepare("INSERT INTO audit (at, actor, action, target, detail) VALUES (?, ?, ?, ?, ?)").run(
+      Date.now(), actor, action, target, detail === undefined ? null : JSON.stringify(detail),
+    );
+  };
+  const ctx: Ctx = { cfg, db, hosts, store, cookieOpts, requireHost, requireAdmin, audit };
 
   app.get("/healthz", async () => ({ ok: true }));
 
@@ -43,11 +58,11 @@ export function registerRoutes(app: FastifyInstance, cfg: Config, db: Db) {
 
   app.get("/auth/callback", { config: { rateLimit: { max: 10, timeWindow: "1 minute" } } }, async (req, reply) => {
     try {
-      const session = await finishLogin(cfg, req.cookies[LOGIN_COOKIE], req.query as any);
+      const session = await finishLogin(cfg, hosts, req.cookies[LOGIN_COOKIE], req.query as any);
       reply
         .clearCookie(LOGIN_COOKIE, { path: "/auth" })
         .setCookie(SESSION_COOKIE, await signSession(cfg, session), { ...cookieOpts, maxAge: 8 * 3600 })
-        .redirect("/");
+        .redirect("/host.html");
     } catch (e) {
       req.log.warn({ err: (e as Error).message }, "login failed");
       reply.code(e instanceof LoginError ? 403 : 502).send({ error: "login failed" });
@@ -59,14 +74,18 @@ export function registerRoutes(app: FastifyInstance, cfg: Config, db: Db) {
   app.get("/api/me", async (req) => ({ host: req.host_session }));
 
   app.get("/api/modules", { preHandler: requireHost }, async () =>
-    modules.map((m) => ({ type: m.type, label: m.label, description: m.description })),
+    modules.map((m) => ({ type: m.type, label: m.label, description: m.description, fields: m.fields, input: m.input })),
   );
 
-  app.get("/api/trivias", { preHandler: requireHost }, async (req) =>
-    db
-      .prepare("SELECT id, title, updated_at FROM trivias WHERE host_email = ? ORDER BY updated_at DESC")
-      .all(req.host_session!.email),
-  );
+  // ---- trivias: hosts see their own; admins can see and manage everyone's ----
+
+  app.get("/api/trivias", { preHandler: requireHost }, async (req) => {
+    const u = req.host_session!;
+    const all = u.role === "admin" && (req.query as any).all === "1";
+    return db
+      .prepare(`SELECT id, title, host_email AS owner, updated_at FROM trivias ${all ? "" : "WHERE host_email = ?"} ORDER BY updated_at DESC`)
+      .all(...(all ? [] : [u.email]));
+  });
 
   app.post("/api/trivias", { preHandler: requireHost }, async (req, reply) => {
     const body = trivia.safeParse(req.body);
@@ -79,32 +98,42 @@ export function registerRoutes(app: FastifyInstance, cfg: Config, db: Db) {
     return reply.code(201).send({ id });
   });
 
-  const load = (req: FastifyRequest) => {
-    const { id } = idParam.parse(req.params);
-    return db.prepare("SELECT * FROM trivias WHERE id = ? AND host_email = ?").get(id, req.host_session!.email) as
-      | { id: string; title: string; rounds: string }
-      | undefined;
+  type Row = { id: string; host_email: string; title: string; rounds: string };
+  const load = (req: FastifyRequest): Row | undefined => {
+    const u = req.host_session!;
+    const row = db.prepare("SELECT * FROM trivias WHERE id = ?").get(idParam.parse(req.params).id) as Row | undefined;
+    return row && (u.role === "admin" || row.host_email === u.email) ? row : undefined;
+  };
+  const touchOthers = (req: FastifyRequest, row: Row, action: string) => {
+    if (row.host_email !== req.host_session!.email) audit(req.host_session!.email, action, `trivia:${row.id}`, { owner: row.host_email });
   };
 
   app.get("/api/trivias/:id", { preHandler: requireHost }, async (req, reply) => {
     const row = load(req);
     if (!row) return reply.code(404).send({ error: "not found" });
-    return { id: row.id, title: row.title, rounds: JSON.parse(row.rounds) };
+    return { id: row.id, title: row.title, owner: row.host_email, rounds: JSON.parse(row.rounds) };
   });
 
   app.put("/api/trivias/:id", { preHandler: requireHost }, async (req, reply) => {
-    if (!load(req)) return reply.code(404).send({ error: "not found" });
+    const row = load(req);
+    if (!row) return reply.code(404).send({ error: "not found" });
     const body = trivia.safeParse(req.body);
     if (!body.success) return reply.code(400).send({ error: body.error.message });
     db.prepare("UPDATE trivias SET title = ?, rounds = ?, updated_at = ? WHERE id = ?").run(
-      body.data.title, JSON.stringify(body.data.rounds), Date.now(), idParam.parse(req.params).id,
+      body.data.title, JSON.stringify(body.data.rounds), Date.now(), row.id,
     );
+    touchOthers(req, row, "trivia.edit");
     return { ok: true };
   });
 
   app.delete("/api/trivias/:id", { preHandler: requireHost }, async (req, reply) => {
-    if (!load(req)) return reply.code(404).send({ error: "not found" });
-    db.prepare("DELETE FROM trivias WHERE id = ?").run(idParam.parse(req.params).id);
+    const row = load(req);
+    if (!row) return reply.code(404).send({ error: "not found" });
+    db.prepare("DELETE FROM trivias WHERE id = ?").run(row.id);
+    touchOthers(req, row, "trivia.delete");
     return { ok: true };
   });
+
+  registerSessionRoutes(app, ctx, load);
+  registerPlayRoutes(app, ctx);
 }

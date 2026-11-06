@@ -11,7 +11,8 @@ The app runs as a Docker container on an internal network. Only Nginx Proxy Mana
 ## 2. Configure
 ```bash
 cp .env.example .env
-# set SESSION_SECRET (openssl rand -base64 48), Google credentials and HOST_ALLOWLIST
+# set SESSION_SECRET (openssl rand -base64 48) and the Google credentials
+cp config/hosts.example.json config/hosts.json   # then list your admin and host emails
 ```
 
 ## 3. Start
@@ -26,12 +27,14 @@ Add an `A` record: `trivia.example.com` -> your public IP. If the record is on C
 ## 5. NPM proxy host
 - Domain: `trivia.example.com`
 - Scheme `http`, Forward host `trivia`, port `3000`
-- Enable: **Block Common Exploits**, **Websockets Support**
+- Enable: **Block Common Exploits**
+- Live updates use server-sent events, which work through NPM as-is (the app sends `X-Accel-Buffering: no`).
 - SSL tab: request a Let's Encrypt cert, enable **Force SSL** and **HSTS**
 
 Fail2ban and CrowdSec already watch the NPM log directory, so the new host's logs are covered. Check the new `proxy-host-N_access.log` is in that directory.
 
 ## Hardening checklist
 - Container runs non-root, read-only root filesystem, all capabilities dropped, no published ports.
-- Hosts must be on `HOST_ALLOWLIST`. Players never need accounts.
+- Hosts must be listed in `config/hosts.json` (gitignored, applied immediately, no restart). Players never need accounts.
+- Admins (you) can see and control every trivia and session from `/admin.html`; those actions land in the audit log.
 - Back up `data/trivia.db` (SQLite) regularly.

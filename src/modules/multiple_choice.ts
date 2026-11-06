@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { TriviaModule } from "./types.js";
+import { pointsField, type TriviaModule } from "./types.js";
 
 const config = z
   .object({
@@ -15,7 +15,17 @@ export const multipleChoice: TriviaModule<z.infer<typeof config>, z.infer<typeof
   type: "multiple_choice",
   label: "Multiple choice",
   description: "Players pick one of 2-6 options.",
+  fields: [
+    { key: "question", label: "Question", kind: "textarea" },
+    { key: "options", label: "Options", kind: "list", help: "One per line, 2 to 6" },
+    { key: "correct", label: "Correct option number", kind: "index", default: 0, help: "1 is the first option" },
+    pointsField,
+  ],
+  input: { kind: "choice", key: "choice" },
   configSchema: config,
   answerSchema: answer,
   score: (c, a) => (a.choice === c.correct ? c.points : 0),
+  points: (c) => c.points,
+  publicView: (c) => ({ question: c.question, options: c.options }),
+  solution: (c) => c.options[c.correct] ?? "",
 };

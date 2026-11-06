@@ -6,8 +6,10 @@ services:
     env_file: .env
     environment:
       DB_PATH: /data/trivia.db
+      HOSTS_FILE: /config/hosts.json
     volumes:
       - ./data:/data
+      - ./config:/config:ro
     read_only: true
     tmpfs:
       - /tmp

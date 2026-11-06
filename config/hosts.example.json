@@ -1,0 +1,4 @@
+{
+  "admins": ["owner@example.com"],
+  "hosts": ["friend@example.com"]
+}

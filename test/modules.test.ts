@@ -25,3 +25,10 @@ test("roundsSchema rejects unknown module types and bad config", () => {
     true,
   );
 });
+
+test("numeric_closest gives points to the nearest guess, ties share", () => {
+  const m = getModule("numeric_closest")!;
+  const c = m.configSchema.parse({ question: "q", value: 100, points: 3 });
+  const r = m.scoreAll!(c, [{ playerId: "a", value: { value: 90 } }, { playerId: "b", value: { value: 110 } }, { playerId: "c", value: { value: 50 } }]);
+  assert.deepEqual([r.get("a"), r.get("b"), r.get("c")], [3, 3, 0]);
+});

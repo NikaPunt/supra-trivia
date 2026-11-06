@@ -1,6 +1,7 @@
 import { createRemoteJWKSet, jwtVerify, SignJWT } from "jose";
 import { createHash, randomBytes } from "node:crypto";
 import type { Config } from "./config.js";
+import type { HostDirectory, Role } from "./hosts.js";
 
 export const SESSION_COOKIE = "trivia_session";
 export const LOGIN_COOKIE = "trivia_login";
@@ -13,15 +14,14 @@ const googleKeys = createRemoteJWKSet(new URL("https://www.googleapis.com/oauth2
 const key = (cfg: Config) => new TextEncoder().encode(cfg.SESSION_SECRET);
 const b64url = (b: Buffer) => b.toString("base64url");
 
-export const isAllowedHost = (cfg: Config, email: string) =>
-  cfg.HOST_ALLOWLIST.includes(email.trim().toLowerCase());
-
 export interface Session {
   email: string;
   name: string;
+  /** Always taken from the hosts file, never from the token. */
+  role: Role;
 }
 
-export async function signSession(cfg: Config, s: Session): Promise<string> {
+export async function signSession(cfg: Config, s: Pick<Session, "email" | "name">): Promise<string> {
   return new SignJWT({ name: s.name })
     .setProtectedHeader({ alg: "HS256" })
     .setSubject(s.email)
@@ -30,13 +30,14 @@ export async function signSession(cfg: Config, s: Session): Promise<string> {
     .sign(key(cfg));
 }
 
-/** Returns the session only if the signature and expiry are valid and the email is still allowlisted. */
-export async function verifySession(cfg: Config, token: string | undefined): Promise<Session | null> {
+/** Returns the session only if the signature and expiry are valid and the email is still in the hosts file. */
+export async function verifySession(cfg: Config, hosts: HostDirectory, token: string | undefined): Promise<Session | null> {
   if (!token) return null;
   try {
     const { payload } = await jwtVerify(token, key(cfg), { algorithms: ["HS256"] });
-    if (!payload.sub || !isAllowedHost(cfg, payload.sub)) return null;
-    return { email: payload.sub, name: String(payload.name ?? payload.sub) };
+    const role = payload.sub ? hosts.roleOf(payload.sub) : null;
+    if (!payload.sub || !role) return null;
+    return { email: payload.sub, name: String(payload.name ?? payload.sub), role };
   } catch {
     return null;
   }
@@ -77,6 +78,7 @@ export class LoginError extends Error {}
 
 export async function finishLogin(
   cfg: Config,
+  hosts: HostDirectory,
   loginCookie: string | undefined,
   query: { code?: string; state?: string },
 ): Promise<Session> {
@@ -113,6 +115,34 @@ export async function finishLogin(
   if (payload.nonce !== login.nonce) throw new LoginError("nonce mismatch");
   const email = String(payload.email ?? "").toLowerCase();
   if (payload.email_verified !== true || !email) throw new LoginError("email not verified");
-  if (!isAllowedHost(cfg, email)) throw new LoginError("not on the host allowlist");
-  return { email, name: String(payload.name ?? email) };
+  const role = hosts.roleOf(email);
+  if (!role) throw new LoginError("not on the host allowlist");
+  return { email, name: String(payload.name ?? email), role };
 }
+
+export const PLAYER_COOKIE = "trivia_player";
+const PLAYER_TTL_S = 12 * 3600;
+
+export interface PlayerToken {
+  sid: string;
+  pid: string;
+}
+
+export async function signPlayer(cfg: Config, t: PlayerToken): Promise<string> {
+  return new SignJWT({ sid: t.sid, pid: t.pid })
+    .setProtectedHeader({ alg: "HS256" })
+    .setAudience("player")
+    .setExpirationTime(`${PLAYER_TTL_S}s`)
+    .sign(key(cfg));
+}
+
+export async function verifyPlayer(cfg: Config, token: string | undefined): Promise<PlayerToken | null> {
+  if (!token) return null;
+  try {
+    const { payload } = await jwtVerify(token, key(cfg), { algorithms: ["HS256"], audience: "player" });
+    return { sid: String(payload.sid), pid: String(payload.pid) };
+  } catch {
+    return null;
+  }
+}
+export const PLAYER_MAX_AGE = PLAYER_TTL_S;

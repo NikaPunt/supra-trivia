@@ -1,0 +1,11 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Trivia</title><link rel="stylesheet" href="/styles.css"></head>
+<body><main>
+<h1>Join a trivia</h1>
+<form id="join" class="card">
+  <label for="code">Room code</label><input id="code" autocomplete="off" autocapitalize="characters" maxlength="10" required>
+  <label for="nick">Your nickname</label><input id="nick" autocomplete="off" maxlength="24" required>
+  <p class="err" id="err"></p>
+  <button class="primary">Join</button>
+</form>
+<p class="muted">Hosting a trivia? <a href="/auth/login">Log in</a></p>
+</main><script type="module" src="/js/index.js"></script></body></html>
