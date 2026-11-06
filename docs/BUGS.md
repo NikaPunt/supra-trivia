@@ -13,7 +13,7 @@
 | BUG-007 | The screen flickered on every update and updates felt slow | Full re-render on each event; no check that the live stream worked | Re-render only when state changes; lists patched in place while typing; pings detect a dead stream and fall back to polling | `flow`, browser runs |
 | BUG-008 | Projector sized wrongly on 4K and TVs, and zooming it shrank the host console | Browser zoom is shared per site | The projector fits itself with its own A-, Fit and A+ controls and never needs browser zoom | browser runs at 7 sizes in all 4 looks |
 | BUG-009 | Console tabs overflowed on small phones | Fixed tab widths | Tabs share the width | browser runs |
-| BUG-010 | The converter silently dropped clue content from 0.1 trivias | It validated fine but copied only part of each question | Rebuilt to keep cast and year, puzzle boards, tracks and steps | `sample` |
+| BUG-010 | The 0.1 converter (since removed) silently dropped clue content | It validated fine but copied only part of each question | Rebuilt to keep cast and year, puzzle boards, tracks and steps | `sample` |
 | BUG-011 | Cleaning up legacy fields removed Final Jeopardy's category | The cleanup ignored question type | Made type-aware | `boundaries`, `sample` |
 | BUG-012 | The host could press Next before answers were closed and revealed | Step buttons were not tied to the question's phase | Strict waterfall in the engine: open, close, reveal, next. The server refuses out-of-order steps | `flow`, `game` |
 | BUG-013 | Teammates' phones could show different answers and overwrite each other | Per-device state | A team is one player: shared answer, guesses, history and theme guesses | `team` |

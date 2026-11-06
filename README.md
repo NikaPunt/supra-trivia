@@ -22,5 +22,3 @@ cp config/hosts.example.json config/hosts.json   # your email under admins
 npm run dev
 npm test
 ```
-
-`tools/convert-v01.mjs` converts Trivia 0.1 files; `tools/backup.sh` backs up the database (see [docs/DEPLOY.md](docs/DEPLOY.md)).

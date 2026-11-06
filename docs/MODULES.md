@@ -43,12 +43,6 @@ The **secret overall theme** is not a question type: it is a setting of the whol
 
 The builder is generic: it reads `fields` from `/api/modules`, so drag-and-drop, forms and validation work for new types automatically.
 
-## Bringing over a 0.1 trivia
-```bash
-node tools/convert-v01.mjs path/to/questions.json > my-trivia.json
-```
-Then use **Import JSON** in the builder. The converter keeps rounds, sections, the question (the clues and the ask become one text, including numbered steps, the cast and year, puzzle boards and track lists), accepted answers, fun facts, confidence sets (each led by its category), Final Jeopardy and the secret theme. Trivias saved with the older separate clue boxes are folded into one question automatically.
-
 ## Confidence sets and sections
 A confidence set is **a run of confidence questions in a row, in the same round, with the same section name**. They share one list of values, each spendable once per team. There is no separate "pool name":
 - A **different section name**, a **question of another type** in between, or a **new round** starts a new set. Two sets named "Confidence Set" with a question between them are two independent sets.

@@ -159,13 +159,7 @@ Use `https://your-app.fly.dev` as the redirect URI in step 1, or add your own do
 The app uses the `X-Forwarded-For` header from your proxy to tell visitors apart for rate limiting, and it assumes only the proxy can reach it. Docker setups here publish no ports; non-Docker setups should set `HOST=127.0.0.1`. Do not expose the app's port to the internet directly.
 
 ## Backups
-The database holds your trivias and sessions. [`tools/backup.sh`](../tools/backup.sh) takes a consistent copy while the app is running, plus the hosts file and `.env`, and keeps the newest 30:
-```bash
-DEST=/path/to/backups tools/backup.sh
-# nightly with cron:
-30 3 * * *  DEST=/path/to/backups /path/to/Trivia/tools/backup.sh
-```
-The backup contains your secrets, so keep it somewhere only you can read. To restore, stop the app and put `trivia.db` back at `DB_PATH`.
+Everything worth keeping is the `data/` folder (the database), plus your `.env` and hosts file. Copy them however you like; the backup holds your secrets, so keep it private. To restore, stop the app and put `trivia.db` back at `DB_PATH`.
 
 ## Updating
 Docker: `git pull && docker compose up -d --build` (use the same `-f` file you started with). Existing data is kept; the database only ever gains columns.

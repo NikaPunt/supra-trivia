@@ -202,7 +202,7 @@ export function brand(href = "/") {
 export async function hostHeader(el, { requireHost = true } = {}) {
   const { host } = await api("/api/me");
   if (!host && requireHost) { location.href = "/auth/login"; return null; }
-  mount(el, brand("/host.html"), h("span", { class: "grow" }),
+  mount(el, brand("/"), h("a", { href: "/host.html", class: "btn" }, "My trivias"), h("span", { class: "grow" }),
     host.role === "admin" ? h("a", { href: "/admin.html", class: "btn" }, "Admin") : null,
     designPicker(), h("span", { class: "muted" }, host.name), h("span", { class: `badge ${host.role}` }, host.role),
     h("button", { onclick: async () => { await api("/auth/logout", { method: "POST" }); location.href = "/"; } }, "Log out"));
