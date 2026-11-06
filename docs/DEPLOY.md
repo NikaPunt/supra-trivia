@@ -18,7 +18,9 @@ cp config/hosts.example.json config/hosts.json   # then list your admin and host
 ## 3. Start
 `docker-compose.yml` joins the external Docker network that NPM is on. Find it with `docker inspect <npm-container> --format '{{json .NetworkSettings.Networks}}'` and set `PROXY_NETWORK` in `.env` (default `proxy`).
 ```bash
+mkdir -p data      # must be owned by you (uid 1000) BEFORE first start; otherwise Docker creates it as root and the app cannot write its database
 docker compose up -d --build
+docker compose logs -f trivia
 ```
 
 ## 4. DNS
