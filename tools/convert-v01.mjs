@@ -48,7 +48,8 @@ function convert(q) {
     case "confidence":
       return { type: "confidence", section, config: { ...base, poolId: q.poolId || "confidence", poolValues: q.poolValues ?? [8, 6, 4, 2] } };
     case "jeopardy":
-      return { type: "wager", section, config: { ...base, maxWager: q.points ?? 20 } };
+      // Players wager on the category alone, then the question is shown. Any note in brackets after the category is dropped.
+      return { type: "jeopardy", section, config: { ...base, category: String(q.category ?? "Final").replace(/\s*\(.*\)\s*$/, "").trim() || "Final", maxWager: q.points ?? 20 } };
     default:
       return { type: "text_qa", section, config: { ...base, points: q.points ?? 1 } };
   }

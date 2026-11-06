@@ -17,6 +17,8 @@ Each question moves through four steps, always in this order, and the console on
 3. **Revealed.** The answer shows, scores update, and the only button is **Next question** (or **Next round**, or **Finish the game**).
 4. Next question opens.
 
+**Final Jeopardy** questions add one step at the start: players see only the category and place their wagers, you press **Show the question** when you are ready (the console says how many have wagered), and from then on it runs as above. The answer clock starts when the question is shown.
+
 You cannot reveal before closing, or move on before revealing. The server enforces it too, so a stale tab or a second host window cannot skip a step.
 
 ## The timer

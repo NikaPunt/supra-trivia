@@ -6,7 +6,7 @@ import { roundsSchema, settingsSchema } from "./modules/index.js";
 
 const id = z.object({ id: z.uuid() });
 const actionSchema = z.union([
-  z.object({ action: z.enum(["begin", "close", "reopen", "reveal", "next", "end", "theme_reveal", "pause", "resume"]) }),
+  z.object({ action: z.enum(["begin", "close", "reopen", "reveal", "next", "end", "theme_reveal", "pause", "resume", "showclue"]) }),
   z.object({ action: z.literal("kick"), playerId: z.uuid() }),
   z.object({ action: z.literal("extend"), seconds: z.number().int().min(5).max(600).optional() }),
   z.object({ action: z.literal("review"), answerId: z.uuid(), points: z.number().min(-1000).max(1000).multipleOf(0.5) }),

@@ -7,7 +7,7 @@ import { openDb } from "../src/db.js";
 import { buildApp } from "../src/app.js";
 import { loadSample } from "../src/sample.js";
 import { getModule } from "../src/modules/index.js";
-import { act, hostView, items, joinPlayer, newGame, playerView, submit, submitTheme } from "../src/game.js";
+import { act, hostView, items, joinPlayer, newGame, playerView, setWager, submit, submitTheme } from "../src/game.js";
 
 const env = { BASE_URL: "https://t.example.com", SESSION_SECRET: "x".repeat(40), GOOGLE_CLIENT_ID: "i", GOOGLE_CLIENT_SECRET: "s" };
 const hosts = HostDirectory.fromLists({ admins: ["owner@example.com"], hosts: ["a@example.com", "b@example.com"] });
@@ -21,7 +21,7 @@ test("the sample is a valid trivia: the Spooky OOs night, 29 questions, a secret
   assert.equal(s.rounds.length, 2);
   assert.ok(s.settings.theme?.secret.includes("OO"));
   const sections = [...new Set(all.map((m) => m.section))];
-  assert.deepEqual(sections, ["Hodgepodge", "Before & After", "Three Actors and a Year", "Confidence Set", "Vanna", "Who Charted?", "Final Wager"]);
+  assert.deepEqual(sections, ["Hodgepodge", "Before & After", "Three Actors and a Year", "Confidence Set", "Vanna", "Who Charted?", "Final Jeopardy"]);
   const text = JSON.stringify(s);
   assert.ok(!/\bRIP\b|not dead just not here/i.test(text), "the private in-joke from the original is not in the sample everyone gets");
 });
@@ -44,7 +44,7 @@ test("every question accepts its own listed answer and nothing is graded wrong b
   for (const r of loadSample()!.rounds) for (const m of r.modules) {
     const mod = getModule(m.type)!;
     const c = m.config as any;
-    const ans = { text: c.answers[0], bet: c.poolValues?.[0], wager: c.maxWager };
+    const ans = { text: c.answers[0], bet: c.poolValues?.[0], wager: c.maxWager }; // Final Jeopardy takes its wager from the server, but the module scores the same way
     assert.ok(mod.score(c, ans) > 0, `${m.type} accepts "${c.answers[0]}"`);
     assert.equal(new Set(c.answers.map((a: string) => a.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim())).size, c.answers.length, "no answers that differ only by case");
   }
@@ -62,6 +62,15 @@ test("the whole sample can be played from lobby to final scoreboard", () => {
     headers.push(`${v.round}: ${v.section} ${v.pos.n}/${v.pos.of}`);
     const c = items(g)[i]!.config as any;
     const mod = getModule(items(g)[i]!.type)!;
+    // Final Jeopardy: wager on the category first, then the host shows the question.
+    if (mod.twoStep) {
+      assert.equal(playerView(g, ann.id).item!.stage, "wager");
+      assert.ok(!JSON.stringify(playerView(g, ann.id)).includes(c.answers[0]), "the answer is nowhere in what players receive");
+      setWager(g, ann.id, c.maxWager);
+      setWager(g, bob.id, 0);
+      act(g, { action: "showclue" });
+      assert.equal(playerView(g, ann.id).item!.stage, "clue");
+    }
     // Ann answers correctly, staking the best value she has left; Bob answers wrongly with the smallest stake.
     const pa = playerView(g, ann.id).stake, pb = playerView(g, bob.id).stake;
     const stake = (st: typeof pa, pick: "best" | "least") => (st?.options ? (pick === "best" ? Math.max(...st.options) : Math.min(...st.options)) : st ? (pick === "best" ? st.max : 0) : undefined);
@@ -78,7 +87,7 @@ test("the whole sample can be played from lobby to final scoreboard", () => {
   }
   assert.equal(g.phase, "ended");
   assert.equal(headers[0], "Round 1: Hodgepodge 1/6");
-  assert.ok(headers.includes("Round 1: Before & After 2/2") && headers.includes("Round 1: Three Actors and a Year 1/2") && headers.includes("Round 2: Vanna 2/2") && headers.includes("Round 2: Who Charted? 1/2") && headers.includes("Round 2: Final Wager 1/1"));
+  assert.ok(headers.includes("Round 1: Before & After 2/2") && headers.includes("Round 1: Three Actors and a Year 1/2") && headers.includes("Round 2: Vanna 2/2") && headers.includes("Round 2: Who Charted? 1/2") && headers.includes("Round 2: Final Jeopardy 1/1"));
   assert.equal(headers.filter((h) => h.startsWith("Round 1: Confidence Set")).length, 4);
   const board = hostView(g).leaderboard;
   assert.equal(board[0]!.nickname, "Ann");

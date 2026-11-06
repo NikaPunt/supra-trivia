@@ -62,6 +62,10 @@ export interface Game {
   timeLimit?: number;
   /** When the open question closes by itself, as epoch milliseconds. Null when there is no timer running (or it is paused). */
   deadline?: number | null;
+  /** For a two-step question (Final Jeopardy): the host has shown the question, so players can answer. */
+  clueShown?: boolean;
+  /** For a two-step question: the wager each player has locked in on the category alone. Cleared with the question. */
+  wagers?: Record<string, number>;
   /** The host has paused the open question: the clock is frozen and answers are refused. */
   paused?: boolean;
   /** Milliseconds that were left on the clock when it was paused, or null if the question has no timer. */
@@ -95,7 +99,7 @@ export interface Game {
 }
 
 export type Action =
-  | { action: "begin" | "close" | "reopen" | "reveal" | "next" | "end" | "theme_reveal" | "pause" | "resume" }
+  | { action: "begin" | "close" | "reopen" | "reveal" | "next" | "end" | "theme_reveal" | "pause" | "resume" | "showclue" }
   /** Gives the open question more time. */
   | { action: "extend"; seconds?: number }
   | { action: "kick"; playerId: string }
@@ -221,7 +225,10 @@ export function submit(g: Game, playerId: string, value: unknown, device?: strin
   if (g.deadline && Date.now() > g.deadline + 1500) throw new GameError("time is up", 409);
   const it = currentItem(g)!;
   const mod = getModule(it.type)!;
-  const parsed = mod.answerSchema.safeParse(value);
+  if (mod.twoStep && !g.clueShown) throw new GameError("the question has not been shown yet", 409);
+  // For Final Jeopardy the wager was locked in earlier and is kept here; whatever the phone sends for it is ignored.
+  const input = mod.twoStep ? { text: (value as { text?: unknown } | null)?.text, wager: g.wagers?.[playerId] ?? 0 } : value;
+  const parsed = mod.answerSchema.safeParse(input);
   if (!parsed.success) throw new GameError("invalid answer");
 
   const st = stakeFor(g, it, playerId);
@@ -241,6 +248,20 @@ export function submit(g: Game, playerId: string, value: unknown, device?: strin
   g.attempts[playerId] = used + 1;
   g.answers.push({ id: randomUUID(), playerId, value: parsed.data, status: "pending", points: 0, at: Date.now() });
   (g.guessLog ??= []).push({ playerId, value: parsed.data, at: Date.now(), device });
+}
+
+/** Locks in (or changes) a player's wager on a two-step question, before its question is shown. */
+export function setWager(g: Game, playerId: string, value: unknown): void {
+  const p = g.players.find((x) => x.id === playerId);
+  if (!p || p.kicked) throw new GameError("you are not in this session", 403);
+  const it = currentItem(g);
+  const two = twoStepOf(it);
+  if (g.phase !== "open" || !it || !two) throw new GameError("there is no wager to place right now", 409);
+  if (g.clueShown) throw new GameError("the question is already showing, so wagers are locked", 409);
+  if (g.paused) throw new GameError("the game is paused for a moment", 409);
+  const max = two.max(it.config);
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 0 || value > max) throw new GameError(`a wager is a whole number from 0 to ${max}`);
+  (g.wagers ??= {})[playerId] = value;
 }
 
 function scorePending(g: Game): void {
@@ -282,6 +303,8 @@ function finishItem(g: Game): void {
   g.answers = [];
   g.attempts = {};
   g.guessLog = [];
+  g.wagers = {};
+  g.clueShown = false;
 }
 
 // ---- the secret overall theme ----
@@ -323,9 +346,21 @@ const everyoneGotTheme = (g: Game) => {
 const secondsFor = (g: Game, it: Item) => it.timeLimit ?? g.timeLimit ?? 0;
 
 /** Starts the countdown for the question that has just opened. */
+const twoStepOf = (it: Item | null) => (it ? getModule(it.type)?.twoStep : undefined);
+/** True once players can see the question: always, except while a two-step question is waiting for its wagers. */
+const clueOpen = (g: Game) => !twoStepOf(currentItem(g)) || !!g.clueShown;
+
+/** Resets the per-question state for a question that has just opened. */
+function openItem(g: Game): void {
+  g.clueShown = !twoStepOf(currentItem(g));
+  g.wagers = {};
+  startTimer(g);
+}
+
 function startTimer(g: Game): void {
   const it = currentItem(g);
-  const s = it ? secondsFor(g, it) : 0;
+  // A two-step question has no clock until its question is shown.
+  const s = it && clueOpen(g) ? secondsFor(g, it) : 0;
   g.deadline = s > 0 ? Date.now() + s * 1000 : null;
   g.paused = false;
   g.pausedLeft = null;
@@ -349,15 +384,23 @@ export function act(g: Game, a: Action): void {
       need(g.phase === "lobby", "already started");
       g.cursor = 0;
       g.phase = "open";
-      startTimer(g);
+      openItem(g);
       break;
     // The order is a waterfall: open, close, reveal, next. Each step needs the one before it.
     case "close":
       need(g.phase === "open", "question is not open");
+      need(clueOpen(g), "show the question first");
       g.phase = "closed";
       g.deadline = null;
       g.paused = false; // closing also ends a pause
       g.pausedLeft = null;
+      break;
+    case "showclue":
+      need(g.phase === "open" && !!twoStepOf(currentItem(g)), "this question has no wager step");
+      need(!g.clueShown, "the question is already shown");
+      need(!g.paused, "resume first");
+      g.clueShown = true;
+      startTimer(g); // the answer clock starts now
       break;
     case "reopen":
       need(g.phase === "closed", "only a closed question can be reopened");
@@ -396,7 +439,7 @@ export function act(g: Game, a: Action): void {
       if (g.cursor + 1 < items(g).length) {
         g.cursor++;
         g.phase = "open";
-        startTimer(g);
+        openItem(g);
         // The theme is public from round two on, as in the first Tuesday trivia.
         if (items(g)[g.cursor]!.roundIdx >= 1) revealTheme(g);
       } else finishGame(g);
@@ -416,6 +459,7 @@ export function act(g: Game, a: Action): void {
       delete g.scores[p.id];
       delete g.themeBonus[p.id];
       delete g.attempts[p.id];
+      if (g.wagers) delete g.wagers[p.id];
       break;
     }
     case "review": {
@@ -462,6 +506,7 @@ function itemMeta(g: Game, full: boolean) {
   if (!it || !inPlay(g)) return null;
   const mod = getModule(it.type)!;
   const revealed = full || g.phase === "revealed";
+  const shown = g.phase !== "open" || clueOpen(g); // players can see the question
   return {
     type: it.type,
     label: mod.label,
@@ -469,8 +514,11 @@ function itemMeta(g: Game, full: boolean) {
     section: it.section,
     pos: groupPos(g),
     input: mod.input,
-    stakeKey: mod.stake?.(it.config, [])?.key,
-    public: mod.publicView(it.config),
+    stakeKey: mod.stake?.(it.config, [])?.key ?? (mod.twoStep ? "wager" : undefined),
+    // Two-step questions: "wager" until the host shows the question, then "clue".
+    ...(mod.twoStep ? { stage: shown ? "clue" : "wager", wagerMax: mod.twoStep.max(it.config) } : {}),
+    // The host always sees the whole question; everyone else sees it only once it has been shown.
+    public: mod.publicView(it.config, full || shown),
     ...(revealed ? { solution: mod.solution(it.config), funFact: it.config.funFact } : {}),
     ...(full ? { config: it.config, points: mod.points(it.config), maxGuesses: it.maxGuesses ?? null } : {}),
   };
@@ -514,6 +562,7 @@ export function playerView(g: Game, playerId: string, device?: string) {
       .filter((a) => a.playerId === playerId)
       .map((a) => ({ value: a.value, ...(g.phase === "revealed" ? { status: a.status, points: a.points } : {}) })),
     guessesLeft: guessesLeft(g, playerId),
+    myWager: g.wagers?.[playerId] ?? null,
     // Everything this team has tried on this question, oldest first. `you` is true for guesses sent from this phone.
     guessLog: (g.guessLog ?? [])
       .filter((e) => e.playerId === playerId)
@@ -540,6 +589,7 @@ export function deckView(g: Game) {
     item: itemMeta(g, false),
     theme: themePublic(g),
     answered: new Set(g.answers.map((a) => a.playerId)).size,
+    wagered: g.players.filter((p) => !p.kicked && g.wagers?.[p.id] !== undefined).length,
     leaderboard: board?.slice(0, 10).map((r) => ({ nickname: r.nickname, points: r.points })) ?? null,
   };
 }
@@ -556,6 +606,7 @@ export function hostView(g: Game) {
     maxGuesses: g.maxGuesses,
     item: itemMeta(g, true),
     roundEnd: inPlay(g) ? isRoundEnd(g) : false,
+    wagers: twoStepOf(it) ? g.players.filter((p) => !p.kicked).map((p) => ({ nickname: p.nickname, wager: g.wagers?.[p.id] ?? null })) : null,
     playerList: g.players.map((p) => ({ id: p.id, nickname: p.nickname, kicked: p.kicked, answered: answered.has(p.id), hasPin: !!p.pin })),
     answers: g.answers.map((a) => ({
       id: a.id, playerId: a.playerId, nickname: nick.get(a.playerId) ?? "?", value: a.value, status: a.status, points: a.points,

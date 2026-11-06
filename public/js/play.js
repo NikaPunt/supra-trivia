@@ -1,7 +1,7 @@
 import { $, api, describeAnswer, enterIfChanged, h, keepAwake, live, mount, questionBlock, revealBlock, scene, stable, syncClock, themeNote, timerOf } from "./common.js";
 
 // Typed text survives re-renders caused by live updates.
-const drafts = { answer: "", theme: "", stake: "", key: "", seen: "" };
+const drafts = { answer: "", theme: "", stake: "", key: "", seen: "", wager: "", seenWager: "" };
 
 function board(state) {
   if (!state.leaderboard) return null;
@@ -64,8 +64,33 @@ function guessHistory(state) {
       h("span", { class: "muted" }, [e.current ? "locked in" : "", showWho ? (e.you ? "you" : "a teammate") : ""].filter(Boolean).join(" · ")))));
 }
 
+/** Final Jeopardy, step one: the category is showing and each team locks in a wager, until the host shows the question. */
+function wagerInput(state) {
+  const max = state.item.wagerMax;
+  const mine = state.myWager;
+  if (drafts.seenWager !== String(mine)) { drafts.seenWager = String(mine); drafts.wager = ""; } // a teammate's wager replaces a half-typed one
+  const err = h("p", { class: "err" });
+  const field = h("input", { type: "number", inputmode: "numeric", min: 0, max, step: 1, placeholder: `0 to ${max}`, "aria-label": "Your wager", disabled: state.paused, autocomplete: "off",
+    value: drafts.wager || (mine ?? "") });
+  field.addEventListener("input", () => { drafts.wager = field.value; });
+  const send = async () => {
+    const n = Number(field.value);
+    if (field.value === "" || !Number.isInteger(n) || n < 0 || n > max) { err.textContent = `A wager is a whole number from 0 to ${max}.`; return; }
+    try { await api("/api/play/wager", { method: "POST", body: { value: n } }); err.textContent = ""; drafts.wager = ""; await refresh(); }
+    catch (e) { err.textContent = e.message; }
+  };
+  field.addEventListener("keydown", (e) => { if (e.key === "Enter") send(); });
+  return h("div", {},
+    h("p", { class: "muted" }, `Wager up to ${max} points. A right answer wins it and a wrong one loses it.`),
+    field,
+    h("div", { class: "row", style: "margin-top:8px" }, h("button", { class: "primary", disabled: state.paused, onclick: send }, mine === null ? "Lock in wager" : "Change wager")),
+    mine !== null ? h("p", {}, `Your wager: ${mine} point${mine === 1 ? "" : "s"}. You can change it until the question is shown.`) : null,
+    err);
+}
+
 function inputFor(state) {
   const { item } = state;
+  if (item.stage === "wager") return wagerInput(state);
   const err = h("p", { class: "err" });
   const st = stakeInput(state.stake);
   const send = async (value) => {
@@ -86,6 +111,7 @@ function inputFor(state) {
     return h("div", {}, st?.node, h("div", { class: "choices" }, item.public.options.map((o, i) =>
       h("button", { class: i === cur ? "picked" : "", disabled: !open, onclick: () => send({ [item.input.key]: i }) }, o))), err);
   }
+  const wagerNote = item.stage === "clue" ? h("p", { class: "muted" }, state.myWager === null ? "You did not wager, so this answer is worth nothing either way." : `Your wager: ${state.myWager} point${state.myWager === 1 ? "" : "s"}, locked in.`) : null;
   const field = h("input", { type: item.input.kind === "number" ? "number" : "text", step: "any", maxlength: 200, disabled: !open, autocomplete: "off", "aria-label": "Your answer",
     value: drafts.answer || (mine[0]?.value[item.input.key] ?? "") });
   field.addEventListener("input", () => { drafts.answer = field.value; });
@@ -94,14 +120,14 @@ function inputFor(state) {
     if (raw) send({ [item.input.key]: item.input.kind === "number" ? Number(raw) : raw });
   };
   field.addEventListener("keydown", (e) => { if (e.key === "Enter") submit(); });
-  return h("div", {}, st?.node, field, h("div", { class: "row", style: "margin-top:8px" }, h("button", { class: "primary", disabled: !open, onclick: submit }, mine.length ? "Change answer" : "Lock in")), err);
+  return h("div", {}, wagerNote, st?.node, field, h("div", { class: "row", style: "margin-top:8px" }, h("button", { class: "primary", disabled: !open, onclick: submit }, mine.length ? "Change answer" : "Lock in")), err);
 }
 
 const foot = (state) => h("div", { class: "ft" }, h("span", {}, state.me), h("span", {}, `Room ${state.code}`));
 
 function render(state) {
   const key = `${state.number}:${state.phase === "lobby"}`;
-  if (drafts.key !== key) { drafts.answer = ""; drafts.stake = ""; drafts.seen = ""; drafts.key = key; }
+  if (drafts.key !== key) { drafts.answer = ""; drafts.stake = ""; drafts.seen = ""; drafts.wager = ""; drafts.seenWager = ""; drafts.key = key; }
   if (state.phase === "lobby") {
     return mount($("#app"), scene(), h("h1", {}, state.title), h("p", { class: "muted" }, `Waiting for the host to begin. ${state.players} at the table.`), themeCard(state), foot(state));
   }
@@ -126,7 +152,7 @@ function render(state) {
       : h("div", { class: "card" },
           state.phase === "closed" ? h("p", { class: "muted" }, "Answers are closed.") : null,
           inputFor(state),
-          guessHistory(state) ?? (state.guessesLeft !== null ? h("p", { class: "muted" }, `Guesses left: ${state.guessesLeft}`) : null)),
+          it.stage === "wager" ? null : (guessHistory(state) ?? (state.guessesLeft !== null ? h("p", { class: "muted" }, `Guesses left: ${state.guessesLeft}`) : null))),
     revealBlock(it),
     themeCard(state), board(state), foot(state));
 }
@@ -162,7 +188,7 @@ async function refresh() {
     const typing = document.activeElement?.closest?.("#app") && /INPUT|SELECT/.test(document.activeElement.tagName);
     if (typing && shellOf(state) === lastShell) { patch(state); lastRaw = raw; return; }
     // Don't yank the keyboard away mid-typing when nothing that matters changed.
-    const sig = JSON.stringify([state.phase, state.number, state.guessesLeft, state.theme?.revealed, state.theme?.guessesLeft, state.myAnswers.map((a) => a.value), state.guessLog.length, state.leaderboard?.length, state.stake?.options]);
+    const sig = JSON.stringify([state.phase, state.number, state.guessesLeft, state.theme?.revealed, state.theme?.guessesLeft, state.myAnswers.map((a) => a.value), state.myWager, state.item?.stage, state.guessLog.length, state.leaderboard?.length, state.stake?.options]);
     if (sig === lastSig && document.activeElement?.closest("#app") && /INPUT|SELECT/.test(document.activeElement.tagName)) return;
     lastSig = sig;
     lastRaw = raw;

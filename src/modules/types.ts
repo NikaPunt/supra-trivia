@@ -57,8 +57,10 @@ export interface TriviaModule<C = any, A = any> {
   stake?(config: C, used: number[]): Stake;
   /** Questions sharing a pool can each spend a given stake value only once per player. */
   pool?(config: C): string | undefined;
-  /** What players may see while the question is live. Must never contain the answer. */
-  publicView(config: C): Record<string, unknown>;
+  /** Two-step questions (Final Jeopardy): players wager on the category alone, then the host shows the question. */
+  twoStep?: { max(config: C): number };
+  /** What players may see while the question is live. Must never contain the answer. `clueShown` is false until a two-step question is shown. */
+  publicView(config: C, clueShown?: boolean): Record<string, unknown>;
   /** The answer, shown after the reveal. */
   solution(config: C): string;
 }

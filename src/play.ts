@@ -2,7 +2,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import type { Ctx } from "./context.js";
 import { PLAYER_COOKIE, PLAYER_MAX_AGE, signPlayer, verifyPlayer } from "./auth.js";
-import { GameError, joinPlayer, playerView, submit, submitTheme, type Game } from "./game.js";
+import { GameError, joinPlayer, playerView, setWager, submit, submitTheme, type Game } from "./game.js";
 import { openStream } from "./sessions.js";
 
 const join = z.object({ code: z.string().min(3).max(10), nickname: z.string().min(1).max(40), pin: z.string().max(4).optional() });
@@ -58,6 +58,18 @@ export function registerPlayRoutes(app: FastifyInstance, ctx: Ctx) {
     if (!s) return;
     try {
       submit(s.g, s.pid, (req.body as any)?.value, deviceOf(req));
+      store.save(s.g);
+      return { ok: true };
+    } catch (e) {
+      return fail(reply, e);
+    }
+  });
+
+  app.post("/api/play/wager", { config: { rateLimit: { max: 30, timeWindow: "1 minute" } } }, async (req, reply) => {
+    const s = await me(req, reply);
+    if (!s) return;
+    try {
+      setWager(s.g, s.pid, (req.body as any)?.value);
       store.save(s.g);
       return { ok: true };
     } catch (e) {

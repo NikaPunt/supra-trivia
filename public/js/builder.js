@@ -164,6 +164,12 @@ const EXAMPLES = [
     why: "Each player spends each value once, on the question they feel surest about.",
   },
   {
+    type: "Final Jeopardy",
+    q: "Category: Inventors\n\nBorn in Edinburgh in 1847, he was awarded the first US patent for the telephone in 1876.\n\nWho is he?",
+    a: "Alexander Graham Bell\nBell",
+    why: "Players see only the category and wager first; you show the question afterwards. The wager shows how sure a team is of the subject.",
+  },
+  {
     type: "Final wager",
     q: "He is the only person to have served as both US president and Chief Justice.\n\nWho is he?",
     a: "William Howard Taft\nTaft",

@@ -439,8 +439,8 @@
           }
         },
         {
-          "type": "wager",
-          "section": "Final Wager",
+          "type": "jeopardy",
+          "section": "Final Jeopardy",
           "config": {
             "question": "In the Mafia-style hit reality TV show The Traitors, the secretly chosen murderers often need to perform a murder in plain sight. For example, in Season 4, Episode 7, when a player touched THIS item worn by Lisa Rinna, they were officially murdered by the Traitors. Lisa cleverly lured the victim into her trap by innocently claiming she needed help fastening the item as it was poking her.\n\nWhat item worn by Lisa Rinna did the victim touch?",
             "answers": [
@@ -450,6 +450,7 @@
               "a broach"
             ],
             "funFact": "",
+            "category": "Reality TV",
             "maxWager": 20
           }
         }

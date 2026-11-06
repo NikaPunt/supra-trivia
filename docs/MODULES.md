@@ -16,7 +16,8 @@ The header above a question reads `Round 1: Hodgepodge · 1/6`. The count is ove
 | **Multiple choice** (`multiple_choice`) | 2-6 options. Good for Odd One Out and Two Truths & a Lie |
 | **Closest number** (`numeric_closest`) | The closest guess wins, ties share. The classic tie-breaking **Separator** ("closest without going over" style triangulation) |
 | **Confidence set** (`confidence`) | Questions sharing a *pool name* and values (e.g. 8, 6, 4, 2). Each player spends each value once, on the question they feel surest about. Right earns the value |
-| **Final wager** (`wager`) | Players wager up to a maximum. Right wins the wager, wrong loses it |
+| **Final wager** (`wager`) | Players wager up to a maximum and answer in the same step. Right wins the wager, wrong loses it |
+| **Final Jeopardy** (`jeopardy`) | The same scoring, but the wager comes first. Players see only the **category** and lock in a wager (they can change it until you show the question); then you press **Show the question**, the answer clock starts, and they answer. The wager is kept by the server, so it cannot be altered once the question is up |
 
 The **secret overall theme** is not a question type: it is a setting of the whole trivia (see [SCORING.md](SCORING.md)).
 

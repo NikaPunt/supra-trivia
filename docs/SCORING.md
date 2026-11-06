@@ -15,6 +15,12 @@
 Players never see whether an answer was right, what it earned, or any scoreboard until the host reveals the question. They only see their guesses left.
 **Scoreboards appear only at the end of each round and at the end of the game**, as in the 0.1 philosophy, so no one can watch their score move mid-round.
 
+## Limits that cannot be got around
+- A **confidence value** can be spent once per player (once per team) within its pool, whatever the phone sends. Used values stop being offered, and the server refuses a spent or invented one. A skipped question spends nothing; a wrong answer still spends its stake.
+- A **wager** is a whole number from 0 to the question's maximum. Anything else (negative, fractional, too big, text, missing) is refused by the server and changes nothing.
+- In **Final Jeopardy** the wager is held by the server; any wager sent along with an answer is ignored, and wagers are locked once the question is shown.
+These are covered by automated tests, including forged requests and thousands of random actions.
+
 ## Manual marking
 For any answer the host clicks **Right**, **Half**, **Wrong**, or types any amount in steps of 0.5 and presses **Set**. For a confidence stake or a wager the buttons show what they award (e.g. Right +15, Wrong -15). This works while the question is open, closed or revealed and overrides automatic scoring. The host console also flags pending answers as "looks right" or "no match".
 

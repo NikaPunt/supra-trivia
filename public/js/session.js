@@ -23,6 +23,13 @@ function controls(s) {
     case "lobby":
       return h("div", { class: "steps" }, btn("Start the game", { action: "begin" }, "primary"), h("p", { class: "muted" }, `${live.length} at the table`));
     case "open": {
+      // Final Jeopardy, step one: players are wagering on the category alone.
+      if (s.item?.stage === "wager") {
+        const wagered = (s.wagers ?? []).filter((w) => w.wager !== null).length;
+        return h("div", { class: "steps" },
+          h("div", { class: "row" }, s.paused ? btn("Resume", { action: "resume" }, "primary") : [btn("Show the question", { action: "showclue" }, "primary"), btn("Pause", { action: "pause" })]),
+          h("p", { class: wagered === live.length && live.length ? "ready" : "muted" }, `${wagered} of ${live.length} have wagered${wagered === live.length && live.length ? ": everyone is in" : ""}`));
+      }
       const all = done === live.length && live.length;
       const extend = s.timer ? btn("Add 30 seconds", { action: "extend", seconds: 30 }) : null;
       if (s.paused) {
@@ -55,6 +62,13 @@ function award(a) {
     a.full > 0 ? h("button", { onclick: set(a, a.full / 2) }, `Half (${fmt(a.full / 2)})`) : null,
     h("button", { class: "danger", onclick: set(a, a.wrong) }, `Wrong (${fmt(a.wrong)})`), custom,
     h("button", { onclick: () => { if (custom.value !== "") set(a, Number(custom.value))(); } }, "Set"));
+}
+
+/** During Final Jeopardy's wager step: who has wagered and how much (only the host sees the amounts). */
+function wagersCard(s) {
+  return h("div", { class: "card" }, h("h2", {}, "Wagers"),
+    h("p", { class: "muted" }, "Players can see only the category and can change their wager until you show the question."),
+    h("table", { class: "stack" }, s.wagers.map((w) => h("tr", {}, h("td", {}, w.nickname), h("td", {}, w.wager === null ? h("span", { class: "muted" }, "not yet") : `${w.wager} points`)))));
 }
 
 function answersCard(s, it) {
@@ -139,7 +153,7 @@ function render(s) {
         controls(s),
         it ? h("div", {}, h("div", { class: "eyebrow", style: "margin-top:1.1rem" }, `${it.label}${s.roundEnd ? " · last of round: the scoreboard shows on reveal" : ""}`), questionBlock(it, timerOf(s))) : null,
         it ? revealBlock(it) : null,
-        it ? answersCard(s, it) : null,
+        it ? (it.stage === "wager" ? wagersCard(s) : answersCard(s, it)) : null,
       ];
   mount($("#app"),
     h("div", { class: "card row" }, h("div", {}, h("div", { class: "eyebrow" }, "Room code"), h("div", { class: "code" }, s.code)),

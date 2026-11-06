@@ -20,7 +20,7 @@ function render(s) {
     questionBlock(it, timerOf(s)),
     s.paused ? h("div", { class: "paused-banner" }, "Paused") : null,
     it.public.options ? h("ol", {}, it.public.options.map((o) => h("li", {}, o))) : null,
-    s.phase === "revealed" ? revealBlock(it) : h("p", { class: "muted" }, s.phase === "closed" ? "Answers closed" : `${s.answered}/${s.players} locked in`),
+    s.phase === "revealed" ? revealBlock(it) : h("p", { class: "muted" }, s.phase === "closed" ? "Answers closed" : it.stage === "wager" ? `${s.wagered}/${s.players} wagered` : `${s.answered}/${s.players} locked in`),
     themeNote(s.theme), board(s), foot(s));
 }
 

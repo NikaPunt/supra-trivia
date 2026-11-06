@@ -5,8 +5,9 @@ import { multipleChoice } from "./multiple_choice.js";
 import { numericClosest } from "./numeric_closest.js";
 import { confidence } from "./confidence.js";
 import { wager } from "./wager.js";
+import { jeopardy } from "./jeopardy.js";
 
-export const modules: TriviaModule[] = [textQa, multipleChoice, numericClosest, confidence, wager];
+export const modules: TriviaModule[] = [textQa, multipleChoice, numericClosest, confidence, wager, jeopardy];
 const byType = new Map(modules.map((m) => [m.type, m]));
 export const getModule = (type: string) => byType.get(type);
 
@@ -14,7 +15,7 @@ export const getModule = (type: string) => byType.get(type);
  * Older trivias had separate clue, answer type, category and tier boxes. Questions are one box now, so fold the
  * clues into the question (clues first, the ask last) and drop the rest.
  */
-function upgradeLegacy(config: unknown): unknown {
+function upgradeLegacy(type: string, config: unknown): unknown {
   if (!config || typeof config !== "object") return config;
   const c = { ...(config as Record<string, unknown>) };
   const clues = [c.clue1, c.clue2].filter((x): x is string => typeof x === "string" && x.trim() !== "");
@@ -22,7 +23,8 @@ function upgradeLegacy(config: unknown): unknown {
     const ask = typeof c.question === "string" ? c.question.trim() : "";
     c.question = [clues.map((x) => x.trim()).join(" "), ask].filter(Boolean).join("\n\n");
   }
-  for (const k of ["clue1", "clue2", "answerType", "category", "tier"]) delete c[k];
+  // Final Jeopardy has a real "category"; on every other type it was only an old tag.
+  for (const k of ["clue1", "clue2", "answerType", "tier", ...(type === "jeopardy" ? [] : ["category"])]) delete c[k];
   return c;
 }
 
@@ -42,7 +44,7 @@ const moduleInstance = z
       ctx.addIssue({ code: "custom", message: `unknown module type: ${m.type}` });
       return z.NEVER;
     }
-    const parsed = mod.configSchema.safeParse(upgradeLegacy(m.config));
+    const parsed = mod.configSchema.safeParse(upgradeLegacy(m.type, m.config));
     if (!parsed.success) {
       ctx.addIssue({ code: "custom", message: `${m.type}: ${parsed.error.message}` });
       return z.NEVER;
