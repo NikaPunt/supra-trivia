@@ -7,6 +7,7 @@ const config = z.object({
   question: z.string().min(1).max(QUESTION_MAX),
   answers: z.array(z.string().min(1).max(200)).min(1).max(20),
   maxWager: z.number().int().min(1).max(1000).default(20),
+  capByScore: z.boolean().default(false),
 });
 const answer = z.object({ text: z.string().min(1).max(200), wager: z.number().int().min(0).max(1000) });
 
@@ -17,12 +18,13 @@ const answer = z.object({ text: z.string().min(1).max(200), wager: z.number().in
 export const jeopardy: TriviaModule<z.infer<typeof config>, z.infer<typeof answer>> = {
   type: "jeopardy",
   label: "Final Jeopardy",
-  description: "Players see the category and wager first; you then show the question. Right wins the wager, wrong loses it.",
+  description: "Wager first, on the category alone; then you show the question and they answer. Right wins the wager, wrong loses it.",
   fields: [
     { key: "category", label: "Category", kind: "text", placeholder: "Reality TV" },
     { key: "question", label: "Question (hidden until you show it)", kind: "textarea", placeholder: "In the Mafia-style reality show The Traitors, a murder is carried out by touching one worn item.\n\nWhat item was it?" },
     { key: "answers", label: "Answer", kind: "list", help: "the answer first, then any other spellings, one per line", placeholder: "Brooch" },
     { key: "maxWager", label: "Maximum wager", kind: "number", default: 20 },
+    { key: "capByScore", label: "Wager capped by team score", kind: "checkbox", default: false, help: "a team can wager at most the points it has so far; the maximum above is then ignored" },
     ...detailFields,
   ],
   input: { kind: "text", key: "text" },

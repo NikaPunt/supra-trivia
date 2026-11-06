@@ -288,16 +288,17 @@ test("forged requests: hostile stakes and wagers are refused with a clean error,
 
 // ---------------------------------------------------------------- wager capped by team score
 
-const capGame = (modules: object[], wagerCap: boolean) => {
-  const g = newGame({ hostEmail: "h@example.com", triviaId: "t", title: "T", rounds: roundsSchema.parse([{ title: "R", modules }]), code: "ABCDE", maxGuesses: 3, wagerCap });
+const capGame = (modules: object[]) => {
+  const g = newGame({ hostEmail: "h@example.com", triviaId: "t", title: "T", rounds: roundsSchema.parse([{ title: "R", modules }]), code: "ABCDE", maxGuesses: 3 });
   const ann = joinPlayer(g, "Ann").player, bob = joinPlayer(g, "Bob").player;
   act(g, { action: "begin" });
   return { g, ann, bob };
 };
+const capped = <T extends { config: object }>(m: T) => ({ ...m, config: { ...m.config, capByScore: true } });
 const plain = (answer: string, points = 5) => ({ type: "text_qa", config: { question: "q", answers: [answer], points } });
 
-test("wager cap on: a wager can be at most the team's score, whatever the question's own maximum", () => {
-  const { g, ann, bob } = capGame([plain("a"), plain("b"), wagerQ(50), wagerQ(50)], true);
+test("capped by team score: a wager can be at most the team's score, whatever the question's own maximum", () => {
+  const { g, ann, bob } = capGame([plain("a"), plain("b"), capped(wagerQ(50)), capped(wagerQ(50))]);
   submit(g, ann.id, { text: "a" }); // Ann scores 5, Bob scores nothing
   act(g, { action: "close" }); act(g, { action: "reveal" }); act(g, { action: "next" });
   submit(g, ann.id, { text: "b" });
@@ -312,8 +313,8 @@ test("wager cap on: a wager can be at most the team's score, whatever the questi
   assert.equal(playerView(g, ann.id).stake?.max, 20, "the cap follows her score, not the question maximum of 50");
 });
 
-test("wager cap on: Final Jeopardy wagers are capped by score too, and a fractional score rounds down", () => {
-  const { g, ann, bob } = capGame([plain("a", 4.5), jeop(50)], true);
+test("capped by team score: Final Jeopardy wagers are capped by score too, and a fractional score rounds down", () => {
+  const { g, ann, bob } = capGame([plain("a", 4.5), capped(jeop(50))]);
   submit(g, ann.id, { text: "a" });
   act(g, { action: "close" }); act(g, { action: "reveal" }); act(g, { action: "next" }); // Ann 4.5, Bob 0
   assert.equal(playerView(g, ann.id).item.wagerMax, 4, "4.5 points allows a wager of 4");
@@ -325,8 +326,13 @@ test("wager cap on: Final Jeopardy wagers are capped by score too, and a fractio
   assert.equal(g.wagers?.[ann.id], 4);
 });
 
-test("wager cap off (the default): the question's own maximum applies, whatever the score", () => {
-  const { g, bob } = capGame([wagerQ(20)], false);
-  assert.equal(playerView(g, bob.id).stake?.max, 20);
+test("capped by score is off by default, and only applies to the question that asks for it", () => {
+  const { g, ann, bob } = capGame([plain("a"), wagerQ(20), capped(wagerQ(20))]);
+  submit(g, ann.id, { text: "a" });
+  act(g, { action: "close" }); act(g, { action: "reveal" }); act(g, { action: "next" }); // Ann 5, Bob 0
+  assert.equal(playerView(g, bob.id).stake?.max, 20, "an ordinary wager is not tied to the score");
   submit(g, bob.id, { text: "yes", wager: 20 });
+  act(g, { action: "close" }); act(g, { action: "reveal" }); act(g, { action: "next" }); // Bob wins 20
+  assert.equal(playerView(g, bob.id).stake?.max, 20, "capped by his new score of 20");
+  assert.equal(playerView(g, ann.id).stake?.max, 5, "capped by her 5");
 });

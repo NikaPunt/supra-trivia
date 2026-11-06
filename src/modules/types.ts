@@ -5,7 +5,7 @@ export interface Field {
   key: string;
   label: string;
   /** `list` is one text per line; `numlist` one number per line; `index` is 1-based for hosts and stored 0-based. */
-  kind: "text" | "textarea" | "number" | "list" | "numlist" | "index" | "select";
+  kind: "text" | "textarea" | "number" | "list" | "numlist" | "index" | "select" | "checkbox";
   default?: unknown;
   help?: string;
   options?: string[];

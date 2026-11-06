@@ -60,8 +60,6 @@ export interface Game {
   maxGuesses: number;
   /** Seconds per question before answers close by themselves (0 = no timer). A question can override it. Absent in older games: no timer. */
   timeLimit?: number;
-  /** A wager may be at most the team's current score (set in the builder). Absent in older games: no cap. */
-  wagerCap?: boolean;
   /** When the open question closes by itself, as epoch milliseconds. Null when there is no timer running (or it is paused). */
   deadline?: number | null;
   /** For a two-step question (Final Jeopardy): the host has shown the question, so players can answer. */
@@ -162,11 +160,11 @@ export function isRoundEnd(g: Game): boolean {
   return !!cur && all[g.cursor + 1]?.roundIdx !== cur.roundIdx;
 }
 
-export function newGame(o: { hostEmail: string; triviaId: string; title: string; rounds: Rounds; code: string; maxGuesses: number; timeLimit?: number; wagerCap?: boolean; theme?: Theme }): Game {
+export function newGame(o: { hostEmail: string; triviaId: string; title: string; rounds: Rounds; code: string; maxGuesses: number; timeLimit?: number; theme?: Theme }): Game {
   if (items(o).length === 0) throw new GameError("this trivia has no questions yet");
   return {
     id: randomUUID(), code: o.code, hostEmail: o.hostEmail, triviaId: o.triviaId, title: o.title,
-    rounds: o.rounds, maxGuesses: o.maxGuesses, timeLimit: o.timeLimit ?? 0, wagerCap: !!o.wagerCap, deadline: null, phase: "lobby", cursor: -1, players: [], answers: [], attempts: {}, guessLog: [],
+    rounds: o.rounds, maxGuesses: o.maxGuesses, timeLimit: o.timeLimit ?? 0, deadline: null, phase: "lobby", cursor: -1, players: [], answers: [], attempts: {}, guessLog: [],
     poolUsed: {}, scores: {}, theme: o.theme ?? null, themeRevealed: false, themeGuesses: [], themeBonus: {},
     history: [], createdAt: Date.now(), endedAt: null,
   };
@@ -215,11 +213,11 @@ export const guessLimit = (g: Game, it: Item) => it.maxGuesses ?? g.maxGuesses;
 /** The points a team has banked so far (finished questions, plus the theme bonus once it is public). */
 const teamScore = (g: Game, playerId: string) => (g.scores[playerId] ?? 0) + (g.themeRevealed ? (g.themeBonus[playerId] ?? 0) : 0);
 
-/** The most this team may wager on the item: the question's own maximum, or with the cap on, its whole points of score (never below 0). */
+/** The most this team may wager on the item: the question's own maximum, or, if the question is set to cap by score, its whole points of score (never below 0). */
 export const wagerMax = (g: Game, it: Item, playerId: string): number => {
   const two = getModule(it.type)!.twoStep;
   const own = two ? two.max(it.config) : ((getModule(it.type)!.stake?.(it.config, []) ?? {}).max ?? 0);
-  return g.wagerCap ? Math.max(0, Math.floor(teamScore(g, playerId))) : own;
+  return it.config.capByScore === true ? Math.max(0, Math.floor(teamScore(g, playerId))) : own;
 };
 
 const stakeFor = (g: Game, it: Item, playerId: string) => {

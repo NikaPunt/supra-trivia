@@ -23,8 +23,8 @@ For any answer the host clicks **Right**, **Half**, **Wrong**, or types any amou
 
 ## Confidence sets and wagers
 - **Confidence set:** all questions with the same pool name share a set of values (e.g. 8, 6, 4, 2). Each player spends each value once. A value is spent once the question finishes, even if their answer was wrong. A question they never answered spends nothing.
-- **Final wager:** the wager can be 0 up to the maximum. Right wins it, wrong loses it.
-- **Wager capped by team score** (a checkbox in the builder, off by default): a team can wager at most the whole points it has banked, and each question's own maximum is ignored (its box is greyed out). A team on zero can only wager 0. This applies to both Final wager and Final Jeopardy. The cap tells a team its own score, though not anyone else's, a little before the round-end scoreboard.
+- **Final wager (non-Jeopardy):** the team sends answer and wager together. The wager can be 0 up to the maximum. Right wins it, wrong loses it.
+- **Wager capped by team score** (a checkbox on each Final wager or Final Jeopardy block, off by default): a team can wager at most the whole points it has banked, and that block's own maximum is ignored (its box is greyed out). A team on zero can only wager 0. Other wager blocks are unaffected. The cap tells a team its own score, though not anyone else's, a little before the round-end scoreboard.
 
 ## The secret overall theme
 - Set in the builder under **Overall theme**: the theme itself, a hint, and a formal explanation.

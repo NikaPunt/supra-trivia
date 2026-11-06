@@ -62,7 +62,7 @@ These rules are advice for whoever writes the trivia. The app deliberately keeps
 - **Answer** takes extra accepted spellings, one per line, so a right answer is never marked wrong. The host console also flags answers that look right.
 - Put the **two clues** in the question text, the enthusiast angle first, and end with the ask on its own line: "Which Asian country is this?"
 - **Section** (under More options) groups a run of questions, so a Hodgepodge of six reads "Round 1: Hodgepodge, 1/6".
-- **Confidence set** and **Final wager** are question types; the **secret theme** is a setting of the whole trivia.
+- **Confidence set** and **Final wager (non-Jeopardy)** and **Final Jeopardy** are question types; the **secret theme** is a setting of the whole trivia.
 - Scoreboards appear at the end of each round and the end of the game.
 - Players can set a 4-digit PIN to get back in if their phone locks.
 - The builder warns past 50 questions.

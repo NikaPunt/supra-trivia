@@ -18,7 +18,7 @@ declare module "fastify" {
   }
 }
 
-const trivia = z.object({ title: z.string().min(1).max(120), settings: settingsSchema.default({ maxGuesses: 3, timeLimit: 180, wagerCap: false }), rounds: roundsSchema });
+const trivia = z.object({ title: z.string().min(1).max(120), settings: settingsSchema.default({ maxGuesses: 3, timeLimit: 180 }), rounds: roundsSchema });
 /** Enough for any real use; stops a runaway script or a stuck button filling the database. */
 export const MAX_TRIVIAS_PER_HOST = 100;
 export const idParam = z.object({ id: z.uuid() });

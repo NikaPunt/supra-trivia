@@ -76,8 +76,6 @@ export const settingsSchema = z.object({
   maxGuesses: z.number().int().min(0).max(50).default(3),
   /** Seconds each question stays open before answers close by themselves. 0 means no timer. */
   timeLimit: z.number().int().min(0).max(3600).default(180),
-  /** When set, a wager may be at most the team's current score, and each question's own maximum is ignored. */
-  wagerCap: z.boolean().default(false),
   theme: themeSchema.optional(),
 });
 export type Settings = z.infer<typeof settingsSchema>;
