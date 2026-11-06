@@ -17,7 +17,7 @@ declare module "fastify" {
   }
 }
 
-const trivia = z.object({ title: z.string().min(1).max(120), settings: settingsSchema.default({ maxGuesses: 3 }), rounds: roundsSchema });
+const trivia = z.object({ title: z.string().min(1).max(120), settings: settingsSchema.default({ maxGuesses: 3, timeLimit: 180 }), rounds: roundsSchema });
 export const idParam = z.object({ id: z.uuid() });
 
 export function registerRoutes(app: FastifyInstance, cfg: Config, db: Db, hosts: HostDirectory, store: GameStore) {

@@ -80,15 +80,50 @@ export function describeAnswer(item, value) {
   return stake === undefined ? text : `${text}  (stake ${stake})`;
 }
 
+// ---- the countdown ----
+
+let skew = 0; // how far this device's clock is from the server's, in milliseconds
+/** Call with every state you fetch: it keeps the countdown honest even if the device clock is wrong. */
+export function syncClock(timer) { if (timer) skew = timer.now - Date.now(); }
+
+/** The state without the server clock reading, so two fetches that differ only by the time compare as equal. */
+export const stable = (state) => JSON.stringify(state, (k, v) => (k === "now" ? undefined : v));
+
+const clock = (ms) => { const s = Math.max(0, Math.ceil(ms / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
+
+/** A live m:ss countdown. It updates itself, so the page never has to be redrawn for it. */
+export function clockEl(timer) {
+  if (!timer) return null;
+  const el = h("span", { class: "clock", role: "timer" });
+  const tick = () => {
+    if (!el.isConnected && el.dataset.ready) return clearInterval(id);
+    el.dataset.ready = "1";
+    const left = timer.deadline - (Date.now() + skew);
+    el.textContent = left <= 0 ? "Time's up" : clock(left);
+    el.classList.toggle("low", left > 0 && left <= 10000);
+    el.classList.toggle("up", left <= 0);
+  };
+  const id = setInterval(tick, 250);
+  tick();
+  return el;
+}
+
+/** Stops phones and the projector from going to sleep mid-game, where the browser supports it. */
+export function keepAwake() {
+  const ask = async () => { try { if (document.visibilityState === "visible" && "wakeLock" in navigator) await navigator.wakeLock.request("screen"); } catch { /* denied or unsupported: harmless */ } };
+  ask();
+  document.addEventListener("visibilitychange", ask);
+}
+
 /**
- * The question as the host wrote it, on an open page: where we are, then the text. Blank lines are kept, so a
- * question can end with its ask ("Which Asian country is this?") on a line of its own.
+ * The question as the host wrote it, on an open page: where we are (with the time left, if there is a timer), then the
+ * text. Blank lines are kept, so a question can end with its ask ("Which Asian country is this?") on a line of its own.
  */
-export function questionBlock(it) {
+export function questionBlock(it, timer) {
   const where = `${it.round}${it.section ? `: ${it.section}` : ""}`;
   const paras = String(it.public.question).split(/\n+/).map((t) => t.trim()).filter(Boolean);
   return h("section", { class: "board" },
-    h("div", { class: "where" }, where, h("span", {}, ` · ${it.pos.n}/${it.pos.of}`)),
+    h("div", { class: "where" }, h("span", {}, where, h("span", {}, ` · ${it.pos.n}/${it.pos.of}`)), clockEl(timer)),
     paras.map((t, i) => h("p", { class: paras.length > 1 && i === paras.length - 1 ? "ask" : "" }, t)));
 }
 

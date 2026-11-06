@@ -125,7 +125,9 @@ test("full live session over HTTP: join, rejoin by PIN, round-end boards, theme,
 
   assert.equal((await say("A")).statusCode, 200);
   assert.equal((await act(bob, { action: "reveal" })).statusCode, 404, "another host cannot control it");
-  assert.equal((await act(owner, { action: "reveal" })).statusCode, 200, "admin can");
+  assert.equal((await act(owner, { action: "reveal" })).statusCode, 409, "even an admin cannot reveal before closing");
+  assert.equal((await act(owner, { action: "close" })).statusCode, 200, "admin can control it");
+  assert.equal((await act(owner, { action: "reveal" })).statusCode, 200);
   const r1 = await state();
   assert.equal(r1.item.solution, "a");
   assert.equal(r1.item.funFact, "because");
@@ -146,6 +148,7 @@ test("full live session over HTTP: join, rejoin by PIN, round-end boards, theme,
   assert.equal((await act(alice, { action: "theme_review", guessId: hv.theme.guesses[0].id, points: 3 })).statusCode, 200);
   assert.equal(JSON.stringify(await state()).includes("approved"), false, "players are never shown an approval status");
 
+  await act(alice, { action: "close" });
   await act(alice, { action: "reveal" });
   const r2 = await state();
   assert.equal(r2.theme.secret, "space", "approving the only player's guess means everyone found it, so it is out");
@@ -155,6 +158,8 @@ test("full live session over HTTP: join, rejoin by PIN, round-end boards, theme,
   const round2 = await state();
   assert.equal(round2.theme.secret, "space", "the theme goes public when round two begins");
   assert.deepEqual(round2.item.pos, { n: 1, of: 1 });
+  await act(alice, { action: "close" });
+  await act(alice, { action: "reveal" });
   await act(alice, { action: "next" });
   const done = await state();
   assert.equal(done.phase, "ended");

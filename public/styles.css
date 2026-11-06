@@ -232,7 +232,8 @@ summary { cursor: pointer; }
 
 /* ---- projector ---- */
 body.deck { font-size: clamp(1.25rem, 2.1vw, 2.1rem); }
-body.deck main { max-width: 90rem; padding: 2rem 3vw; }
+/* Width follows the screen, not the text size, so shrinking the text to fit never also narrows the page. */
+body.deck main { max-width: 94vw; padding: 2rem 3vw; }
 body.deck .board .where { font-size: clamp(1.2rem, 2.2vw, 2.2rem); }
 body.deck .board p { font-size: clamp(1.7rem, 3.5vw, 3.6rem); line-height: 1.4; }
 body.deck .note b { font-size: 1.15em; }
@@ -338,7 +339,7 @@ body.deck .muted { font-size: clamp(1.1rem, 1.7vw, 1.9rem); }
 }
 
 /* The projector scales with the screen: rem units grow once the display is wider than a 1080p TV. */
-html.deck { font-size: clamp(16px, 0.9vw, 64px); }
+html.deck { font-size: calc(clamp(16px, 0.9vw, 64px) * var(--deck-scale, 1)); }
 
 /* the team's guesses on this question */
 .guesses { margin-top: 0.9rem; padding-top: 0.6rem; border-top: 1px solid var(--line); }
@@ -351,3 +352,41 @@ html.deck { font-size: clamp(16px, 0.9vw, 64px); }
 .theme-hist { margin-top: 0.7rem; }
 .theme-hist .g { display: flex; justify-content: space-between; gap: 1rem; padding: 0.25rem 0; }
 .theme-hist .g .muted { font-size: 0.9rem; text-align: right; }
+
+/* the countdown, right-aligned on the header line */
+.board .where { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; }
+.clock { font: 600 1.05rem/1 var(--display); font-variant-numeric: tabular-nums lining-nums; font-variation-settings: var(--vs-quiet); color: var(--text-2); white-space: nowrap; }
+.clock.low { color: var(--danger); font-weight: 800; }
+.clock.up { color: var(--danger); }
+@media (prefers-reduced-motion: no-preference) { .clock.low { animation: pulse 1s ease-in-out infinite; } @keyframes pulse { 50% { opacity: 0.55; } } }
+body.deck .board .where .clock { font-size: 1.5em; }
+
+/* host console: tabs, the step controls, and the end-of-session area */
+.tabs { display: flex; gap: 0.25rem; border-bottom: 1px solid var(--line-strong); margin: 1rem 0 0.9rem; }
+/* The three tabs share the width and wrap their labels, so none is ever pushed off a small screen. */
+.tabs button { flex: 1 1 0; min-width: 0; border: 0; border-bottom: 3px solid transparent; border-radius: 0; background: none; min-height: 2.75rem; padding: 0.4rem 0.5rem; color: var(--text-2); position: relative; line-height: 1.2; }
+.tabs button:hover { color: var(--text); border-color: transparent transparent var(--line-strong); }
+.tabs button.on { color: var(--text); border-bottom-color: var(--accent); }
+.dot { display: inline-block; width: 0.6rem; height: 0.6rem; border-radius: 50%; background: var(--danger); margin-left: 0.45rem; vertical-align: 0.12rem; }
+@media (prefers-reduced-motion: no-preference) { .dot { animation: pulse 1.4s ease-in-out infinite; } }
+.steps { margin: 0.4rem 0 0.2rem; }
+.steps .row button { min-height: 3rem; padding-inline: 1.3rem; font-size: 1.05rem; }
+.steps p { margin: 0.5rem 0 0; }
+.steps .ready { color: var(--ok); font-weight: 700; }
+.danger-zone { display: flex; gap: 1.5rem; align-items: center; margin-top: 4rem; padding-top: 1.2rem; border-top: 1px dashed var(--line-strong); }
+.danger-zone p { margin: 0.2rem 0 0; }
+
+/* projector text size buttons, quiet and out of the way */
+.sizer { display: inline-flex; gap: 0.3rem; margin-left: 1.2rem; }
+.sizer button { min-height: 2rem; padding: 0.2rem 0.6rem; font-size: 0.9rem; opacity: 0.7; }
+.sizer button:hover { opacity: 1; }
+
+/* On the projector only the question gives way when space is short; the small print keeps a readable floor. */
+body.deck .ft { font-size: max(12px, clamp(0.9rem, 1.3vw, 1.4rem)); }
+body.deck .picker, body.deck .eyebrow { font-size: max(12px, 0.78rem); }
+body.deck .muted { font-size: max(13px, clamp(1.1rem, 1.7vw, 1.9rem)); }
+body.deck .sizer button, body.deck .picker select { font-size: max(12px, 0.9rem); min-height: max(34px, 2rem); }
+body.deck .note b { font-size: max(15px, 1.15em); }
+body.deck .note p { font-size: max(13px, 1em); }
+body.deck .board .where { font-size: max(14px, clamp(1.2rem, 2.2vw, 2.2rem)); }
+body.deck .rank, body.deck .card h2 { font-size: max(13px, 1em); }

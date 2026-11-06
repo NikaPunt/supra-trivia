@@ -1,4 +1,4 @@
-import { $, api, describeAnswer, enterIfChanged, h, live, mount, questionBlock, revealBlock, scene, themeNote } from "./common.js";
+import { $, api, describeAnswer, enterIfChanged, h, keepAwake, live, mount, questionBlock, revealBlock, scene, stable, syncClock, themeNote } from "./common.js";
 
 // Typed text survives re-renders caused by live updates.
 const drafts = { answer: "", theme: "", stake: "", key: "", seen: "" };
@@ -114,7 +114,7 @@ function render(state) {
   const it = state.item;
   const mine = state.myAnswers;
   mount($("#app"),
-    questionBlock(it),
+    questionBlock(it, state.timer),
     state.phase === "revealed"
       ? h("div", { class: "card" }, h("div", { class: "eyebrow" }, "Your answer"),
           mine.length
@@ -154,8 +154,9 @@ let lastSig = "";
 async function refresh() {
   try {
     const state = await api("/api/play/state");
+    syncClock(state.timer);
     // Nothing changed since the last draw: leave the page exactly as it is.
-    const raw = JSON.stringify(state);
+    const raw = stable(state);
     if (raw === lastRaw) return;
     const typing = document.activeElement?.closest?.("#app") && /INPUT|SELECT/.test(document.activeElement.tagName);
     if (typing && shellOf(state) === lastShell) { patch(state); lastRaw = raw; return; }
@@ -179,3 +180,4 @@ async function refresh() {
 }
 refresh();
 live("/api/play/events", refresh);
+keepAwake();

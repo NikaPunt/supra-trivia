@@ -8,6 +8,7 @@ const id = z.object({ id: z.uuid() });
 const actionSchema = z.union([
   z.object({ action: z.enum(["begin", "close", "reopen", "reveal", "next", "end", "theme_reveal"]) }),
   z.object({ action: z.literal("kick"), playerId: z.uuid() }),
+  z.object({ action: z.literal("extend"), seconds: z.number().int().min(5).max(600).optional() }),
   z.object({ action: z.literal("review"), answerId: z.uuid(), points: z.number().min(-1000).max(1000).multipleOf(0.5) }),
   z.object({ action: z.literal("theme_review"), guessId: z.uuid(), points: z.number().min(0).max(1000).multipleOf(0.5) }),
 ]);
@@ -15,7 +16,7 @@ const MAX_ACTIVE_PER_HOST = 5;
 
 const sessionSettings = (raw: string) => {
   const s = settingsSchema.parse(JSON.parse(raw));
-  return { maxGuesses: s.maxGuesses, theme: s.theme };
+  return { maxGuesses: s.maxGuesses, timeLimit: s.timeLimit, theme: s.theme };
 };
 
 /** Server-sent events: the client is told something changed and refetches its own view. */

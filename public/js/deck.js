@@ -1,4 +1,4 @@
-import { $, api, enterIfChanged, h, live, mount, questionBlock, revealBlock, scene, themeNote } from "./common.js";
+import { $, api, enterIfChanged, h, keepAwake, live, mount, questionBlock, revealBlock, scene, stable, syncClock, themeNote } from "./common.js";
 const id = new URLSearchParams(location.search).get("id");
 // The projector scales with the screen, so a 4K display is not a small column on a big black field.
 document.documentElement.classList.add("deck");
@@ -17,7 +17,7 @@ function render(s) {
   }
   const it = s.item;
   mount($("#app"),
-    questionBlock(it),
+    questionBlock(it, s.timer),
     it.public.options ? h("ol", {}, it.public.options.map((o) => h("li", {}, o))) : null,
     s.phase === "revealed" ? revealBlock(it) : h("p", { class: "muted" }, s.phase === "closed" ? "Answers closed" : `${s.answered}/${s.players} locked in`),
     themeNote(s.theme), board(s), foot(s));
@@ -28,7 +28,8 @@ let lastRaw = "";
 async function refresh() {
   try {
     const s = await api(`/api/sessions/${id}/deck`);
-    const raw = JSON.stringify(s);
+    syncClock(s.timer);
+    const raw = stable(s);
     if (raw === lastRaw) return; // nothing changed: leave the screen alone
     lastRaw = raw;
     render(s);
@@ -37,3 +38,42 @@ async function refresh() {
 }
 refresh();
 live(`/api/sessions/${id}/events`, refresh);
+keepAwake();
+
+// ---- sizing ----
+// Browser zoom is shared by every tab of this site, so zooming the projector would also shrink the host console.
+// The projector therefore fits itself to the screen and has its own text size, kept on this device for this page only.
+const SIZE_KEY = "trivia-deck-size";
+let size = 1;
+try { size = Math.min(2, Math.max(0.5, Number(localStorage.getItem(SIZE_KEY)) || 1)); } catch { /* storage blocked: start at normal */ }
+const root = document.documentElement;
+
+/** Uses the size you chose, or the largest smaller size that still fits the whole screen without scrolling. */
+function fit() {
+  const set = (v) => root.style.setProperty("--deck-scale", v.toFixed(3));
+  const fits = () => root.scrollHeight <= innerHeight + 2;
+  set(size);
+  if (fits()) return;
+  let lo = 0.3, hi = size; // lo is the floor we settle for if nothing larger fits
+  for (let i = 0; i < 9; i++) {
+    const mid = (lo + hi) / 2;
+    set(mid);
+    if (fits()) lo = mid; else hi = mid;
+  }
+  set(lo);
+}
+const setSize = (v) => { size = Math.min(2, Math.max(0.5, Math.round(v * 100) / 100)); try { localStorage.setItem(SIZE_KEY, String(size)); } catch { /* fine */ } fit(); };
+let resizing;
+addEventListener("resize", () => { clearTimeout(resizing); resizing = setTimeout(fit, 100); });
+new MutationObserver(() => requestAnimationFrame(fit)).observe($("#app"), { childList: true });
+document.addEventListener("keydown", (e) => {
+  if (e.target.closest?.("input,select,textarea") || e.ctrlKey || e.metaKey) return;
+  if (e.key === "+" || e.key === "=") setSize(size + 0.1);
+  else if (e.key === "-") setSize(size - 0.1);
+  else if (e.key === "0") setSize(1);
+});
+$("footer.foot")?.append(h("span", { class: "sizer" },
+  h("button", { onclick: () => setSize(size - 0.1), "aria-label": "Smaller text" }, "A−"),
+  h("button", { onclick: () => setSize(1), "aria-label": "Normal text size" }, "Fit"),
+  h("button", { onclick: () => setSize(size + 0.1), "aria-label": "Larger text" }, "A+")));
+fit();

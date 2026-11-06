@@ -57,6 +57,8 @@ test("two phones on one team share the allowance and each sees what the other tr
 
   assert.equal((await app.inject({ url: `/api/sessions/${id}`, headers: host })).json().playerList.length, 1, "the host sees one team, not one per phone");
 
+  await act({ action: "close" });
+  await act({ action: "reveal" });
   await act({ action: "next" });
   assert.equal((await view(A)).guessLog.length, 0, "the history belongs to the question and starts fresh");
   await app.close();

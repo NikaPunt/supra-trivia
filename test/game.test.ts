@@ -3,6 +3,10 @@ import assert from "node:assert/strict";
 import { act, hostView, joinPlayer, newGame, playerView, submit, submitTheme, type Game } from "../src/game.js";
 import { roundsSchema } from "../src/modules/index.js";
 
+// The host's order is a waterfall: close, reveal, next. These follow it so each test can say what it means.
+const reveal = (g: Game) => { if (g.phase === "open") act(g, { action: "close" }); act(g, { action: "reveal" }); };
+const advance = (g: Game) => { if (g.phase !== "revealed") reveal(g); act(g, { action: "next" }); };
+
 const textQ = (answers: string[], extra: object = {}) => ({ type: "text_qa", config: { question: "q", answers, ...extra } });
 const conf = (answers: string[]) => ({ type: "confidence", config: { question: "q", answers, poolId: "set", poolValues: [8, 6] } });
 
@@ -20,8 +24,8 @@ test("confidence pool: each value is spendable once per player, and a stake is t
   assert.throws(() => submit(g, a.id, { text: "x", bet: 7 }), /valid value/);
   submit(g, a.id, { text: "x", bet: 8 });
   submit(g, b.id, { text: "wrong", bet: 6 });
-  act(g, { action: "reveal" });
-  act(g, { action: "next" });
+  reveal(g);
+  advance(g);
   assert.deepEqual(playerView(g, a.id).stake?.options, [6], "8 is spent");
   assert.deepEqual(playerView(g, b.id).stake?.options, [8, 6].filter((v) => v !== 6), "6 is spent even though Bob was wrong");
   assert.throws(() => submit(g, a.id, { text: "y", bet: 8 }), /valid value/);
@@ -36,7 +40,7 @@ test("wager: right wins the wager, wrong loses it, host can still override", () 
   assert.throws(() => submit(g, a.id, { text: "yes", wager: 21 }), /valid value/);
   submit(g, a.id, { text: "YES", wager: 15 });
   submit(g, b.id, { text: "no", wager: 10 });
-  act(g, { action: "reveal" });
+  reveal(g);
   let hv = hostView(g);
   const bobAns = hv.answers.find((x) => x.nickname === "Bob")!;
   assert.equal(bobAns.points, -10);
@@ -51,20 +55,20 @@ test("wager: right wins the wager, wrong loses it, host can still override", () 
 test("leaderboards only appear at the end of a round and at the end of the game", () => {
   const { g, a } = start([{ title: "R1", modules: [textQ(["a"]), textQ(["b"])] }, { title: "R2", modules: [textQ(["c"])] }]);
   submit(g, a.id, { text: "a" });
-  act(g, { action: "reveal" });
+  reveal(g);
   assert.equal(playerView(g, a.id).leaderboard, null);
-  act(g, { action: "next" });
+  advance(g);
   submit(g, a.id, { text: "b" });
-  act(g, { action: "reveal" });
+  reveal(g);
   assert.equal(playerView(g, a.id).leaderboard?.[0]?.points, 2, "last question of round 1");
-  act(g, { action: "next" });
-  act(g, { action: "reveal" });
+  advance(g);
+  reveal(g);
   assert.equal(playerView(g, a.id).leaderboard?.[0]?.points, 2, "last question of the game");
 });
 
 test("secret theme: points are suggested by how early, counted only after reveal, one bonus per player", () => {
   const { g, a, b } = start([{ title: "R", modules: [textQ(["a"]), textQ(["b"]), textQ(["c"])] }], { secret: "oo", hint: "h", formal: "f" });
-  act(g, { action: "next" });
+  advance(g);
   submitTheme(g, a.id, "double o");
   submitTheme(g, a.id, "oo sounds");
   submitTheme(g, b.id, "colors");
@@ -121,7 +125,7 @@ test("numbering counts consecutive questions of the same section, restarting for
   for (let i = 0; i < 7; i++) {
     const it = hostView(g).item!;
     seen.push(`${it.round}|${it.section ?? ""}|${it.pos.n}/${it.pos.of}`);
-    act(g, { action: "next" });
+    advance(g);
   }
   assert.deepEqual(seen, [
     "Round 1|Hodgepodge|1/3", "Round 1|Hodgepodge|2/3", "Round 1|Hodgepodge|3/3",
@@ -133,11 +137,11 @@ test("the theme goes public when round two starts, or once every player has foun
   const two = [{ title: "R1", modules: [textQ(["a"])] }, { title: "R2", modules: [textQ(["b"])] }];
   const a1 = start(two, { secret: "oo", hint: "h", formal: "f" });
   assert.equal(playerView(a1.g, a1.a.id).theme?.revealed, false);
-  act(a1.g, { action: "next" });
+  advance(a1.g);
   assert.equal(playerView(a1.g, a1.a.id).theme?.revealed, true, "round two");
 
   const one = start([{ title: "R1", modules: [textQ(["a"]), textQ(["b"])] }], { secret: "oo", hint: "h", formal: "f" });
-  act(one.g, { action: "next" });
+  advance(one.g);
   submitTheme(one.g, one.a.id, "oo sounds");
   submitTheme(one.g, one.b.id, "double o");
   const [ga, gb] = hostView(one.g).theme!.guesses;

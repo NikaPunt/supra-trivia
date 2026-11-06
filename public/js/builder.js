@@ -5,14 +5,15 @@ const id = new URLSearchParams(location.search).get("id");
 const mods = await api("/api/modules");
 const byType = Object.fromEntries(mods.map((m) => [m.type, m]));
 
-let state = { title: "My trivia", settings: { maxGuesses: 3 }, rounds: [{ title: "Round 1", modules: [] }] };
+let state = { title: "My trivia", settings: { maxGuesses: 3, timeLimit: 180 }, rounds: [{ title: "Round 1", modules: [] }] };
 if (id) state = await api(`/api/trivias/${id}`);
 state.settings ??= { maxGuesses: 3 };
+state.settings.timeLimit ??= 180;
 
 // The editor keeps friendly shapes (lists as arrays of raw lines, numbers as typed); toApi() cleans them for the server.
 const defaultFor = (f) => (f.kind === "list" || f.kind === "numlist" ? (Array.isArray(f.default) ? [...f.default] : [""]) : (f.default ?? ""));
 /** A new question starts in the same section as the one before it, so a run of Hodgepodge needs typing once. */
-const blank = (type, previous) => ({ type, open: true, section: previous?.section, maxGuesses: undefined, config: Object.fromEntries(byType[type].fields.map((f) => [f.key, defaultFor(f)])) });
+const blank = (type, previous) => ({ type, open: true, section: previous?.section, maxGuesses: undefined, timeLimit: undefined, config: Object.fromEntries(byType[type].fields.map((f) => [f.key, defaultFor(f)])) });
 
 function cleanConfig(def, config) {
   const out = {};
@@ -31,13 +32,14 @@ function toApi() {
   const s = state.settings;
   return {
     title: state.title,
-    settings: { maxGuesses: Number(s.maxGuesses), ...(s.theme && s.theme.secret?.trim() ? { theme: { secret: s.theme.secret.trim(), hint: s.theme.hint ?? "", formal: s.theme.formal ?? "", bonus: Number(s.theme.bonus ?? 4) } } : {}) },
+    settings: { maxGuesses: Number(s.maxGuesses), timeLimit: Number(s.timeLimit ?? 180), ...(s.theme && s.theme.secret?.trim() ? { theme: { secret: s.theme.secret.trim(), hint: s.theme.hint ?? "", formal: s.theme.formal ?? "", bonus: Number(s.theme.bonus ?? 4) } } : {}) },
     rounds: state.rounds.map((r) => ({
       title: r.title,
       modules: r.modules.map((m) => ({
         type: m.type,
         ...(m.section?.trim() ? { section: m.section.trim() } : {}),
         ...(m.maxGuesses === undefined || m.maxGuesses === "" ? {} : { maxGuesses: Number(m.maxGuesses) }),
+        ...(m.timeLimit === undefined || m.timeLimit === "" ? {} : { timeLimit: Number(m.timeLimit) }),
         config: cleanConfig(byType[m.type], m.config),
       })),
     })),
@@ -100,7 +102,9 @@ function card(r, i, m) {
           h("input", { type: "text", maxlength: 60, value: m.section ?? "", placeholder: "Hodgepodge", oninput: (e) => { m.section = e.target.value; } })),
         more.map((f) => fieldRow(m, f)),
         h("div", {}, h("label", {}, "Guesses for this question (blank uses the trivia setting, 0 is unlimited)"),
-          h("input", { type: "number", min: 0, max: 50, value: m.maxGuesses ?? "", oninput: (e) => { m.maxGuesses = e.target.value === "" ? undefined : Number(e.target.value); } }))),
+          h("input", { type: "number", min: 0, max: 50, value: m.maxGuesses ?? "", oninput: (e) => { m.maxGuesses = e.target.value === "" ? undefined : Number(e.target.value); } })),
+        h("div", {}, h("label", {}, "Time for this question in seconds (blank uses the trivia setting, 0 is no timer)"),
+          h("input", { type: "number", min: 0, max: 3600, value: m.timeLimit ?? "", oninput: (e) => { m.timeLimit = e.target.value === "" ? undefined : Number(e.target.value); } }))),
     ] : h("div", { class: "sum", onclick: toggle }, h("span", {}, q || "(no question yet)"), m.section ? h("span", { class: "badge" }, m.section) : null));
   return el;
 }
@@ -198,7 +202,10 @@ function render() {
     helpCards(total),
     h("div", { class: "card" }, h("label", { for: "mg" }, "Guesses each player gets per question (0 = unlimited)"),
       h("input", { id: "mg", type: "number", min: 0, max: 50, value: state.settings.maxGuesses, oninput: (e) => { state.settings.maxGuesses = e.target.value; } }),
-      h("p", { class: "muted" }, "Players never see whether a guess was right until you reveal. You can always award points by hand, including half marks.")),
+      h("p", { class: "muted" }, "Players never see whether a guess was right until you reveal. You can always award points by hand, including half marks."),
+      h("label", { for: "tl" }, "Time per question in seconds (0 = no timer)"),
+      h("input", { id: "tl", type: "number", min: 0, max: 3600, step: 5, value: state.settings.timeLimit, oninput: (e) => { state.settings.timeLimit = e.target.value; } }),
+      h("p", { class: "muted" }, "Answers close by themselves when time runs out: 180 is 3 minutes. You can close sooner, add time while a question is open, or give one question its own time under More options.")),
     themeCard(),
     h("div", { class: "builder" },
       h("aside", { class: "palette card" }, h("h2", {}, "Question types"), h("p", { class: "muted" }, "Drag onto a round, or click to add to the last round."),

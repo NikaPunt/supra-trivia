@@ -33,6 +33,8 @@ const moduleInstance = z
     /** Group label inside a round, e.g. "Hodgepodge" or "Before & After". */
     section: z.string().max(60).optional(),
     maxGuesses: z.number().int().min(0).max(50).optional(),
+    /** Seconds before answers close by themselves. 0 means no timer. Blank uses the trivia setting. */
+    timeLimit: z.number().int().min(0).max(3600).optional(),
   })
   .transform((m, ctx) => {
     const mod = getModule(m.type);
@@ -45,7 +47,7 @@ const moduleInstance = z
       ctx.addIssue({ code: "custom", message: `${m.type}: ${parsed.error.message}` });
       return z.NEVER;
     }
-    return { type: m.type, config: parsed.data, section: m.section, maxGuesses: m.maxGuesses };
+    return { type: m.type, config: parsed.data, section: m.section, maxGuesses: m.maxGuesses, timeLimit: m.timeLimit };
   });
 
 export const roundsSchema = z
@@ -70,6 +72,8 @@ export const themeSchema = z.object({
 export const settingsSchema = z.object({
   /** Guesses each player gets per question. 0 means unlimited (still capped by the engine). */
   maxGuesses: z.number().int().min(0).max(50).default(3),
+  /** Seconds each question stays open before answers close by themselves. 0 means no timer. */
+  timeLimit: z.number().int().min(0).max(3600).default(180),
   theme: themeSchema.optional(),
 });
 export type Settings = z.infer<typeof settingsSchema>;

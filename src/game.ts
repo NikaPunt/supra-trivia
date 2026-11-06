@@ -58,6 +58,10 @@ export interface Game {
   rounds: Rounds;
   /** Guesses per player per question (0 = unlimited). A question can override it. */
   maxGuesses: number;
+  /** Seconds per question before answers close by themselves (0 = no timer). A question can override it. Absent in older games: no timer. */
+  timeLimit?: number;
+  /** When the open question closes by itself, as epoch milliseconds. Null when there is no timer running. */
+  deadline?: number | null;
   phase: Phase;
   /** Index into the flattened list of items; -1 in the lobby. */
   cursor: number;
@@ -88,6 +92,8 @@ export interface Game {
 
 export type Action =
   | { action: "begin" | "close" | "reopen" | "reveal" | "next" | "end" | "theme_reveal" }
+  /** Gives the open question more time. */
+  | { action: "extend"; seconds?: number }
   | { action: "kick"; playerId: string }
   /** Host sets the points for an answer by hand: full, half, none, a lost wager, or any amount in halves. */
   | { action: "review"; answerId: string; points: number }
@@ -115,10 +121,12 @@ export interface Item {
   type: string;
   config: any;
   maxGuesses?: number;
+  /** Seconds players get on this question; 0 means no timer. Beats the session default. */
+  timeLimit?: number;
 }
 export const items = (g: Pick<Game, "rounds">): Item[] =>
   g.rounds.flatMap((r, roundIdx) =>
-    r.modules.map((m) => ({ roundIdx, roundTitle: r.title, section: m.section, type: m.type, config: m.config, maxGuesses: m.maxGuesses })),
+    r.modules.map((m) => ({ roundIdx, roundTitle: r.title, section: m.section, type: m.type, config: m.config, maxGuesses: m.maxGuesses, timeLimit: m.timeLimit })),
   );
 export const currentItem = (g: Game): Item | null => (g.cursor >= 0 ? (items(g)[g.cursor] ?? null) : null);
 
@@ -144,11 +152,11 @@ export function isRoundEnd(g: Game): boolean {
   return !!cur && all[g.cursor + 1]?.roundIdx !== cur.roundIdx;
 }
 
-export function newGame(o: { hostEmail: string; triviaId: string; title: string; rounds: Rounds; code: string; maxGuesses: number; theme?: Theme }): Game {
+export function newGame(o: { hostEmail: string; triviaId: string; title: string; rounds: Rounds; code: string; maxGuesses: number; timeLimit?: number; theme?: Theme }): Game {
   if (items(o).length === 0) throw new GameError("this trivia has no questions yet");
   return {
     id: randomUUID(), code: o.code, hostEmail: o.hostEmail, triviaId: o.triviaId, title: o.title,
-    rounds: o.rounds, maxGuesses: o.maxGuesses, phase: "lobby", cursor: -1, players: [], answers: [], attempts: {}, guessLog: [],
+    rounds: o.rounds, maxGuesses: o.maxGuesses, timeLimit: o.timeLimit ?? 0, deadline: null, phase: "lobby", cursor: -1, players: [], answers: [], attempts: {}, guessLog: [],
     poolUsed: {}, scores: {}, theme: o.theme ?? null, themeRevealed: false, themeGuesses: [], themeBonus: {},
     history: [], createdAt: Date.now(), endedAt: null,
   };
@@ -204,6 +212,8 @@ export function submit(g: Game, playerId: string, value: unknown, device?: strin
   const p = g.players.find((x) => x.id === playerId);
   if (!p || p.kicked) throw new GameError("you are not in this session", 403);
   if (g.phase !== "open") throw new GameError("answers are closed", 409);
+  // The server closes the question when time runs out; this covers the instant before it does.
+  if (g.deadline && Date.now() > g.deadline + 1500) throw new GameError("time is up", 409);
   const it = currentItem(g)!;
   const mod = getModule(it.type)!;
   const parsed = mod.answerSchema.safeParse(value);
@@ -305,12 +315,22 @@ const everyoneGotTheme = (g: Game) => {
 
 // ---- host actions ----
 
+const secondsFor = (g: Game, it: Item) => it.timeLimit ?? g.timeLimit ?? 0;
+
+/** Starts the countdown for the question that has just opened. */
+function startTimer(g: Game): void {
+  const it = currentItem(g);
+  const s = it ? secondsFor(g, it) : 0;
+  g.deadline = s > 0 ? Date.now() + s * 1000 : null;
+}
+
 const inPlay = (g: Game) => g.phase === "open" || g.phase === "closed" || g.phase === "revealed";
 const need = (ok: boolean, msg: string) => {
   if (!ok) throw new GameError(msg, 409);
 };
 
 function finishGame(g: Game): void {
+  g.deadline = null;
   revealTheme(g);
   g.phase = "ended";
   g.endedAt = Date.now();
@@ -322,26 +342,37 @@ export function act(g: Game, a: Action): void {
       need(g.phase === "lobby", "already started");
       g.cursor = 0;
       g.phase = "open";
+      startTimer(g);
       break;
+    // The order is a waterfall: open, close, reveal, next. Each step needs the one before it.
     case "close":
       need(g.phase === "open", "question is not open");
       g.phase = "closed";
+      g.deadline = null;
       break;
     case "reopen":
-      need(g.phase === "closed", "question is not closed");
+      need(g.phase === "closed", "only a closed question can be reopened");
       g.phase = "open";
+      startTimer(g);
       break;
     case "reveal":
-      need(g.phase === "open" || g.phase === "closed", "nothing to reveal");
+      need(g.phase === "closed", g.phase === "open" ? "close the answers first" : "nothing to reveal");
       scorePending(g);
       g.phase = "revealed";
       break;
+    case "extend": {
+      need(g.phase === "open" && !!g.deadline, "no timer is running on this question");
+      const add = Math.min(Math.max(a.seconds ?? 30, 5), 600) * 1000;
+      g.deadline = Math.min(g.deadline! + add, Date.now() + 30 * 60 * 1000);
+      break;
+    }
     case "next":
-      need(inPlay(g), "session is not running");
+      need(g.phase === "revealed", g.phase === "open" || g.phase === "closed" ? "reveal the answer first" : "session is not running");
       finishItem(g);
       if (g.cursor + 1 < items(g).length) {
         g.cursor++;
         g.phase = "open";
+        startTimer(g);
         // The theme is public from round two on, as in the first Tuesday trivia.
         if (items(g)[g.cursor]!.roundIdx >= 1) revealTheme(g);
       } else finishGame(g);
@@ -427,6 +458,8 @@ const showBoard = (g: Game) => g.phase === "ended" || (g.phase === "revealed" &&
 const base = (g: Game) => ({
   code: g.code, title: g.title, phase: g.phase, number: g.cursor + 1, total: items(g).length,
   players: g.players.filter((p) => !p.kicked).length,
+  // `now` is the server's clock, so a phone with a wrong clock still counts down correctly.
+  timer: g.phase === "open" && g.deadline ? { deadline: g.deadline, now: Date.now() } : null,
 });
 
 function guessesLeft(g: Game, playerId: string): number | null {
