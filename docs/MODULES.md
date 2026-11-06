@@ -1,6 +1,6 @@
 # Question types (modules)
 
-A trivia is an ordered list of **rounds**; each round is an ordered list of **questions**, and each question is one of these types. Rounds have a title and a description for the rules of their special categories. A question can carry a **section** label (e.g. "Hodgepodge", "Before & After", "Confidence Set").
+A trivia is an ordered list of **rounds**; each round is an ordered list of **questions**, and each question is one of these types. A question can carry a **section** label (e.g. "Hodgepodge", "Before & After", "Confidence Set"); consecutive questions with the same section are numbered "1/6".
 Every type is one file in `src/modules/` registered in `src/modules/index.ts`.
 
 ## What a question is

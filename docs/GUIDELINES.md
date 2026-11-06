@@ -42,14 +42,14 @@ Structure a standard 10-question round using the **2–5–2–1 curve**:
 
 ## 4. Quality Control Checklist
 
-Before running a trivia, the builder shows "suggestions" on each question and a 2-5-2-1 meter per round. Verify every question against this checklist:
+Before running a trivia, check every question against this list:
 
-- [ ] **Pin the Answer Type:** Explicitly state whether you want a city, state, country, person, or year (pinned as the "Answer type" badge on the projector and phones) to avoid grading disputes.
+- [ ] **Pin the Answer Type:** Say in the question whether you want a city, state, country, person, or year, to avoid grading disputes.
 - [ ] **2-Clue Structure:** Does the prompt have both an enthusiast angle (Clue 1) and an accessible foothold (Clue 2)?
 - [ ] **Audit for Cross-Spoilers:** Read the full game top-to-bottom to ensure Question 4's setup doesn't accidentally name the answer to Question 19.
-- [ ] **Rotate Sub-Genres:** Within any single theme, force variety across history, science, geography, food/drink, and pop culture (the "Category" field).
+- [ ] **Rotate Sub-Genres:** Within any single theme, force variety across history, science, geography, food/drink, and pop culture .
 - [ ] **Write for the Ear:** Read every prompt aloud. Strip out nested clauses, avoid homophones, and place the core question word (*"Which country..."*, *"What film..."*) at the very start or very end.
-- [ ] **Accepted Aliases:** List common acceptable spelling variations or last-name-only answers in "Accepted answers", so the host console can flag matches ("looks right") accurately.
+- [ ] **Accepted Aliases:** List common acceptable spelling variations or last-name-only answers in the Answer box, so the host console can flag matches ("looks right") accurately.
 
 ---
 

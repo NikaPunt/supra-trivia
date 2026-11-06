@@ -4,9 +4,9 @@ Four looks, chosen from the **Look** dropdown in the page footer (and in the hos
 
 | Look | Character |
 |---|---|
-| **Pirosmani** (default) | Black oilcloth, ochre and midnight blue, painted signboards, the night scene. Follows the device's light setting with a cream tablecloth version |
+| **Pirosmani** (default) | Black oilcloth, ochre and midnight blue, the night scene. Follows the device's light setting with a cream tablecloth version |
 | **Supper club** | Your 0.1 look refined: warm black, cream and gold, a quiet serif, hairline rules |
-| **Paper and ink** | A printed quiz sheet: warm paper, black ink, heavy rules, one vermilion, a stamped answer type |
+| **Paper and ink** | A printed quiz sheet: warm paper, black ink, heavy rules, one vermilion |
 | **Game show** | Saturated cobalt, a bright white board, chunky type, rounded shapes |
 
 ## The question screen
@@ -29,7 +29,7 @@ The look takes its cue from the paintings of Niko Pirosmani (ნიკო ფი
 | Black oilcloth ground | The base colour (`--ground`), not a "dark mode" afterthought |
 | Flat fields of colour: ochre, olive, midnight blue, vermilion, cream | The palette tokens at the top of `public/styles.css`; primary buttons are ochre, danger is vermilion, success is olive |
 | The night sky, banded clouds, black birds, the vine pergola and feast table, the man in the red shirt and straw hat | `scene()` in `public/js/common.js`, an original flat SVG shown on the join, lobby and final screens |
-| Painted signboards | The question is a midnight-blue "board" with a painted ochre border and a hairline inside it; the room code is a small sign |
+| Painted signboards | The question sits on a midnight-blue board with an ochre border; the room code is a small sign |
 | The cream tablecloth | The light theme, used automatically when the device is set to light |
 | Hand-lettered type | Fraunces (soft, slightly wonky axes) for display, Alegreya Sans for text, Noto Georgian faces for Georgian script |
 

@@ -11,12 +11,7 @@ Host your own live trivia night. The **host** builds a trivia from modules and r
 - Playing as a team on several phones: [docs/TEAMS.md](docs/TEAMS.md).
 - Every limit the app enforces (wagers, confidence values, sizes, time): [docs/LIMITS.md](docs/LIMITS.md).
 - Scoring, guess limits and manual points: [docs/SCORING.md](docs/SCORING.md).
-- Known bugs: [docs/BUGS.md](docs/BUGS.md).
-
-## Status
-
-Working: host login and roles, the drag-and-drop builder (two clues, answer type, tiers, a 2-5-2-1 meter, import/export), live sessions with a secret overall theme, confidence sets and a final wager, round-end scoreboards, PIN rejoin, a projector view, admin control, Docker setup. A converter brings 0.1 trivias across.
-Not yet exercised in a real browser against real Google login; the unit and API tests cover the logic.
+- Bug log: [docs/BUGS.md](docs/BUGS.md).
 
 ## Develop
 
@@ -27,3 +22,5 @@ cp config/hosts.example.json config/hosts.json   # your email under admins
 npm run dev
 npm test
 ```
+
+`tools/convert-v01.mjs` converts Trivia 0.1 files; `tools/backup.sh` backs up the database (see [docs/DEPLOY.md](docs/DEPLOY.md)).

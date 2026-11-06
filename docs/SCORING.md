@@ -11,15 +11,12 @@
 - Changing an answer uses a guess. 3 means the first answer plus two retries.
 - "Unlimited" is capped at 20 per question so live state stays small.
 
-## Hidden until it is over (BUG-002)
+## Hidden until it is over
 Players never see whether an answer was right, what it earned, or any scoreboard until the host reveals the question. They only see their guesses left.
-**Scoreboards appear only at the end of each round and at the end of the game**, as in the 0.1 philosophy, so no one can watch their score move mid-round.
+**Scoreboards appear only at the end of each round and at the end of the game** so no one can watch their score move mid-round.
 
-## Limits that cannot be got around
-- A **confidence value** can be spent once per player (once per team) within its pool, whatever the phone sends. Used values stop being offered, and the server refuses a spent or invented one. A skipped question spends nothing; a wrong answer still spends its stake.
-- A **wager** is a whole number from 0 to the question's maximum. Anything else (negative, fractional, too big, text, missing) is refused by the server and changes nothing.
-- In **Final Jeopardy** the wager is held by the server; any wager sent along with an answer is ignored, and wagers are locked once the question is shown.
-These are covered by automated tests, including forged requests and thousands of random actions. The full list of limits is in [LIMITS.md](LIMITS.md).
+## Limits
+Confidence values, wagers and every other bound are enforced by the server, not the phone. See [LIMITS.md](LIMITS.md).
 
 ## Manual marking
 For any answer the host clicks **Right**, **Half**, **Wrong**, or types any amount in steps of 0.5 and presses **Set**. For a confidence stake or a wager the buttons show what they award (e.g. Right +15, Wrong -15). This works while the question is open, closed or revealed and overrides automatic scoring. The host console also flags pending answers as "looks right" or "no match".
@@ -30,7 +27,7 @@ For any answer the host clicks **Right**, **Half**, **Wrong**, or types any amou
 
 ## The secret overall theme
 - Set in the builder under **Overall theme**: the theme itself, a hint, and a formal explanation.
-- Once the game starts, players can guess it **any time** (up to 5 guesses each). The host sees the guesses, with a suggested bonus that shrinks the later they were made, and approves or rejects each, or types their own amount. The bonus is set in the builder under **Overall theme** (default 4): that many points for a guess at question 1, one less for each question after, never below 1. **Approve** gives the suggested amount; the points box next to it gives any other.
+- Once the game starts, players can guess it **any time** (up to 5 guesses each). The host sees the guesses and approves or rejects each. The bonus starts at the value set in the builder (default 4) for a guess at question 1 and drops by one per question, never below 1. **Approve** gives the suggested amount; the points box gives any other.
 - The bonus is **hidden** and not added to scores until the theme goes public. That happens when **round two begins**, when **every player has an approved guess**, when the host presses **Reveal theme**, or when the game ends. Players see a "Don't forget the secret theme!" note with the hint until then; afterwards it shows the theme and its explanation, and the guess list is cleared.
 - A player earns their best approved guess once, never a sum.
 
