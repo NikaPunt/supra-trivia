@@ -320,8 +320,8 @@ function finishItem(g: Game): void {
 
 // ---- the secret overall theme ----
 
-/** Earlier guesses earn more: `bonus` at question 1, one less per question after, never below 1 (or `bonus` if it is smaller). */
-export const suggestedThemePoints = (atNumber: number, bonus = 4) => Math.max(Math.min(1, bonus), bonus - (atNumber - 1));
+/** Finding the theme is worth the same to everyone: no extra points for being early. */
+export const suggestedThemePoints = (bonus = 4) => bonus;
 
 export function submitTheme(g: Game, playerId: string, rawText: string, device?: string): void {
   const p = g.players.find((x) => x.id === playerId);
@@ -636,7 +636,7 @@ export function hostView(g: Game) {
       secret: g.theme.secret, hint: g.theme.hint, formal: g.theme.formal, bonus: g.theme.bonus ?? 4, revealed: g.themeRevealed,
       guesses: g.themeGuesses.map((t) => ({
         id: t.id, nickname: nick.get(t.playerId) ?? "?", text: t.text, atNumber: t.atNumber, status: t.status, points: t.points,
-        suggested: suggestedThemePoints(t.atNumber, g.theme?.bonus),
+        suggested: suggestedThemePoints(g.theme?.bonus),
       })),
       bonuses: g.themeRevealed ? Object.entries(g.themeBonus).map(([pid, points]) => ({ nickname: nick.get(pid) ?? "?", points })) : [],
     },

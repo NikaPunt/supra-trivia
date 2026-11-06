@@ -28,7 +28,7 @@ For any answer the host clicks **Right**, **Half**, **Wrong**, or types any amou
 
 ## The secret overall theme
 - Set in the builder under **Overall theme**: the theme itself, a hint, and a formal explanation.
-- Once the game starts, players can guess it **any time** (up to 5 guesses each). The host sees the guesses and approves or rejects each. The bonus starts at the value set in the builder (default 4) for a guess at question 1 and drops by one per question, never below 1. **Approve** gives the suggested amount; the points box gives any other.
+- Once the game starts, players can guess it **any time** (up to 5 guesses each). The host sees the guesses and approves or rejects each. Finding it is worth the same to every team: the bonus set in the builder (default 4), with nothing extra for being early. **Approve** gives that amount; the points box gives any other.
 - The bonus is **hidden** and not added to scores until the theme goes public. That happens when **round two begins**, when **every player has an approved guess**, when the host presses **Reveal theme**, or when the game ends. Players see a "Don't forget the secret theme!" note with the hint until then; afterwards it shows the theme and its explanation, and the guess list is cleared.
 - A player earns their best approved guess once, never a sum.
 

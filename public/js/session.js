@@ -93,13 +93,13 @@ function themePanel(s) {
   return h("div", { class: "card theme-card" }, h("h2", {}, "Secret theme"),
     h("p", {}, h("strong", {}, t.secret), t.hint ? h("span", { class: "muted" }, `  ·  hint: ${t.hint}`) : null),
     t.guesses.length ? h("table", { class: "stack" }, t.guesses.map((g) => h("tr", {},
-      h("td", {}, g.nickname), h("td", {}, g.text), h("td", { class: "muted" }, `at question ${g.atNumber}`),
+      h("td", {}, g.nickname), h("td", {}, g.text), h("td", { class: "muted" }, `question ${g.atNumber}`),
       h("td", {}, g.status === "pending" ? "" : g.points > 0 ? `approved ${fmt(g.points)}` : "rejected"),
       h("td", {}, h("span", { class: "row" },
         h("button", { class: "ok", onclick: act({ action: "theme_review", guessId: g.id, points: g.suggested }) }, `Approve (${fmt(g.suggested)})`),
         custom(g),
         h("button", { class: "danger", onclick: act({ action: "theme_review", guessId: g.id, points: 0 }) }, "Reject")))))) : h("p", { class: "muted" }, "No guesses yet."),
-    h("p", { class: "muted" }, `Approve gives the suggested bonus: ${t.bonus} points for a guess at question 1, one less for each question after, never below 1. Or type any amount and press Set. Bonuses stay hidden until the theme goes public.`),
+    h("p", { class: "muted" }, `Approve gives the bonus: ${t.bonus} points, the same for every team that finds it, however early. Or type any amount and press Set. Bonuses stay hidden until the theme goes public.`),
     h("button", { class: "primary", onclick: () => { if (confirm("Reveal the theme to everyone and count the bonuses?")) act({ action: "theme_reveal" })(); } }, "Reveal theme"));
 }
 

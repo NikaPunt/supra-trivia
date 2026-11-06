@@ -145,7 +145,7 @@ test("full live session over HTTP: join, rejoin by PIN, round-end boards, theme,
   assert.equal((await app.inject({ method: "POST", url: "/api/play/theme", headers: player, payload: { guess: "sun" } })).statusCode, 429);
   const hv = (await app.inject({ url: `/api/sessions/${id}`, headers: alice })).json();
   assert.equal(hv.theme.guesses.length, 5);
-  assert.equal(hv.theme.guesses[0].suggested, 3, "guess made at question 2 suggests 3 points");
+  assert.equal(hv.theme.guesses[0].suggested, 4, "the bonus is the same whenever the guess was made");
   assert.equal((await act(alice, { action: "theme_review", guessId: hv.theme.guesses[0].id, points: 3 })).statusCode, 200);
   assert.equal(JSON.stringify(await state()).includes("approved"), false, "players are never shown an approval status");
 

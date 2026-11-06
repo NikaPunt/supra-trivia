@@ -66,14 +66,14 @@ test("leaderboards only appear at the end of a round and at the end of the game"
   assert.equal(playerView(g, a.id).leaderboard?.[0]?.points, 2, "last question of the game");
 });
 
-test("secret theme: points are suggested by how early, counted only after reveal, one bonus per player", () => {
+test("secret theme: points are counted only after reveal, one bonus per player", () => {
   const { g, a, b } = start([{ title: "R", modules: [textQ(["a"]), textQ(["b"]), textQ(["c"])] }], { secret: "oo", hint: "h", formal: "f" });
   advance(g);
   submitTheme(g, a.id, "double o");
   submitTheme(g, a.id, "oo sounds");
   submitTheme(g, b.id, "colors");
   const guesses = hostView(g).theme!.guesses;
-  assert.deepEqual(guesses.map((t) => t.suggested), [3, 3, 3], "made at question 2");
+  assert.deepEqual(guesses.map((t) => t.suggested), [4, 4, 4], "the default bonus");
   act(g, { action: "theme_review", guessId: guesses[0]!.id, points: 3 });
   act(g, { action: "theme_review", guessId: guesses[1]!.id, points: 6 });
   act(g, { action: "theme_review", guessId: guesses[2]!.id, points: 0 });
@@ -160,12 +160,18 @@ test("older trivias with separate clue boxes fold into one question", () => {
   assert.equal("tier" in r[0]!.modules[0]!.config, false);
 });
 
-test("theme bonus: suggested points start at the configured bonus and shrink one per question, never below 1", async () => {
+test("theme bonus: everyone gets the same points for finding it, however early or late", async () => {
   const { suggestedThemePoints } = await import("../src/game.js");
-  assert.deepEqual([1, 2, 3, 4, 5, 9].map((n) => suggestedThemePoints(n)), [4, 3, 2, 1, 1, 1], "default bonus 4");
-  assert.deepEqual([1, 2, 3, 6, 7, 20].map((n) => suggestedThemePoints(n, 6)), [6, 5, 4, 1, 1, 1]);
-  assert.deepEqual([1, 2, 3].map((n) => suggestedThemePoints(n, 2)), [2, 1, 1]);
-  assert.deepEqual([1, 2].map((n) => suggestedThemePoints(n, 0.5)), [0.5, 0.5], "a bonus below 1 is never raised");
+  assert.equal(suggestedThemePoints(), 4, "default bonus 4");
+  assert.equal(suggestedThemePoints(6), 6);
+  assert.equal(suggestedThemePoints(0.5), 0.5);
+  // A guess in the first question and one in the last question of round 1 are suggested the same points.
+  const early = start([{ title: "R", modules: [textQ(["a"]), textQ(["b"]), textQ(["c"]), textQ(["d"]), textQ(["e"]), textQ(["f"])] }], { secret: "x", hint: "h", formal: "f", bonus: 5 });
+  submitTheme(early.g, early.a.id, "first guess");
+  for (let i = 0; i < 4; i++) advance(early.g);
+  submitTheme(early.g, early.b.id, "late guess");
+  assert.deepEqual(hostView(early.g).theme!.guesses.map((t) => t.suggested), [5, 5], "no extra points for being early");
+  assert.notEqual(hostView(early.g).theme!.guesses[0]!.atNumber, hostView(early.g).theme!.guesses[1]!.atNumber, "they really were made at different questions");
   const { g, a } = start([{ title: "R", modules: [textQ(["a"]), textQ(["b"])] }], { secret: "x", hint: "h", formal: "f", bonus: 6 });
   submitTheme(g, a.id, "guess");
   const view = hostView(g).theme!;

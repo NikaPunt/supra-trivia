@@ -299,7 +299,7 @@ function themeCard() {
       h("label", {}, "The theme (short, for you to grade guesses)"), h("input", { value: s.theme.secret, maxlength: 200, oninput: (e) => { s.theme.secret = e.target.value; } }),
       h("label", {}, "Hint players see"), h("input", { value: s.theme.hint ?? "", maxlength: 300, oninput: (e) => { s.theme.hint = e.target.value; } }),
       h("label", {}, "Explanation shown when the theme is revealed"), h("textarea", { rows: 3, maxlength: 600, oninput: (e) => { s.theme.formal = e.target.value; } }, s.theme.formal ?? ""),
-      h("label", {}, "Points for finding it at question 1 (one less for each question after, never below 1)"),
+      h("label", {}, "Points for finding it (the same for every team, however early)"),
       h("input", { type: "number", min: 0.5, max: 100, step: 0.5, value: s.theme.bonus ?? 4, oninput: (e) => { s.theme.bonus = e.target.value; } }),
       h("p", { class: "muted" }, "Players can guess it once the game starts and you approve guesses. It goes public when round two begins, when every player has found it, or when you reveal it.")) : null);
 }
