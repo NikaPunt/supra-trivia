@@ -7,6 +7,12 @@ import { openStream } from "./sessions.js";
 
 const join = z.object({ code: z.string().min(3).max(10), nickname: z.string().min(1).max(40), pin: z.string().max(4).optional() });
 
+/** A phone's own random id, used only so a team can see which guesses came from which phone. */
+const deviceOf = (req: FastifyRequest): string | undefined => {
+  const d = String(req.headers["x-device"] ?? "");
+  return /^[A-Za-z0-9_-]{8,64}$/.test(d) ? d : undefined;
+};
+
 export function registerPlayRoutes(app: FastifyInstance, ctx: Ctx) {
   const { store, cfg, cookieOpts } = ctx;
 
@@ -44,14 +50,14 @@ export function registerPlayRoutes(app: FastifyInstance, ctx: Ctx) {
 
   app.get("/api/play/state", async (req, reply) => {
     const s = await me(req, reply);
-    return s ? playerView(s.g, s.pid) : undefined;
+    return s ? playerView(s.g, s.pid, deviceOf(req)) : undefined;
   });
 
   app.post("/api/play/answer", { config: { rateLimit: { max: 30, timeWindow: "1 minute" } } }, async (req, reply) => {
     const s = await me(req, reply);
     if (!s) return;
     try {
-      submit(s.g, s.pid, (req.body as any)?.value);
+      submit(s.g, s.pid, (req.body as any)?.value, deviceOf(req));
       store.save(s.g);
       return { ok: true };
     } catch (e) {

@@ -7,6 +7,7 @@ Host your own live trivia night. The **host** builds a trivia from modules and r
 - Question types: [docs/MODULES.md](docs/MODULES.md).
 - Look and feel (after Niko Pirosmani): [docs/DESIGN.md](docs/DESIGN.md).
 - Deployment (Docker with your proxy, Caddy, Cloudflare Tunnel, systemd and nginx, Fly.io): [docs/DEPLOY.md](docs/DEPLOY.md).
+- Playing as a team on several phones: [docs/TEAMS.md](docs/TEAMS.md).
 - Scoring, guess limits and manual points: [docs/SCORING.md](docs/SCORING.md).
 - Known bugs: [docs/BUGS.md](docs/BUGS.md).
 

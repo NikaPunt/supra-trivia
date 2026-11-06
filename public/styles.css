@@ -339,3 +339,10 @@ body.deck .muted { font-size: clamp(1.1rem, 1.7vw, 1.9rem); }
 
 /* The projector scales with the screen: rem units grow once the display is wider than a 1080p TV. */
 html.deck { font-size: clamp(16px, 0.9vw, 64px); }
+
+/* the team's guesses on this question */
+.guesses { margin-top: 0.9rem; padding-top: 0.6rem; border-top: 1px solid var(--line); }
+.guesses .g { display: flex; justify-content: space-between; gap: 1rem; padding: 0.3rem 0; font-size: 1.05rem; }
+.guesses .g.cur span:first-child { font-weight: 700; color: var(--text); }
+.guesses .g:not(.cur) span:first-child { color: var(--text-2); text-decoration: line-through; text-decoration-thickness: 1px; }
+.guesses .g .muted { font-size: 0.9rem; text-align: right; }

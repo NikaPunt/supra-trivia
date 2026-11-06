@@ -1,7 +1,7 @@
 import { $, api, describeAnswer, enterIfChanged, h, live, mount, questionBlock, revealBlock, scene, themeNote } from "./common.js";
 
 // Typed text survives re-renders caused by live updates.
-const drafts = { answer: "", theme: "", stake: "", key: "" };
+const drafts = { answer: "", theme: "", stake: "", key: "", seen: "" };
 
 function board(state) {
   if (!state.leaderboard) return null;
@@ -41,6 +41,18 @@ function stakeInput(st) {
   return { el, node: h("div", { class: "stake" }, h("label", {}, st.label), el) };
 }
 
+/** Every guess the team has made on this question, so teammates can see what has been tried and who sent it. */
+function guessHistory(state) {
+  const log = state.guessLog;
+  if (!log.length) return null;
+  const showWho = log.some((e) => !e.you); // only mention who when more than one phone is involved
+  return h("div", { class: "guesses" },
+    h("div", { class: "eyebrow" }, state.guessesLeft === null ? "Guesses so far" : `Guesses so far · ${state.guessesLeft} left`),
+    log.map((e) => h("div", { class: `g${e.current ? " cur" : ""}` },
+      h("span", {}, describeAnswer(state.item, e.value)),
+      h("span", { class: "muted" }, [e.current ? "locked in" : "", showWho ? (e.you ? "you" : "a teammate") : ""].filter(Boolean).join(" · ")))));
+}
+
 function inputFor(state) {
   const { item } = state;
   const err = h("p", { class: "err" });
@@ -55,6 +67,9 @@ function inputFor(state) {
   };
   const open = state.phase === "open" && state.guessesLeft !== 0;
   const mine = state.myAnswers;
+  // If a teammate changed the team's answer, show it instead of whatever was half-typed here.
+  const serverVal = mine.length ? JSON.stringify(mine[0].value) : "";
+  if (drafts.seen !== serverVal) { drafts.seen = serverVal; drafts.answer = ""; }
   if (item.input.kind === "choice") {
     const cur = mine[0]?.value[item.input.key];
     return h("div", {}, st?.node, h("div", { class: "choices" }, item.public.options.map((o, i) =>
@@ -75,7 +90,7 @@ const foot = (state) => h("div", { class: "ft" }, h("span", {}, state.me), h("sp
 
 function render(state) {
   const key = `${state.number}:${state.phase === "lobby"}`;
-  if (drafts.key !== key) { drafts.answer = ""; drafts.stake = ""; drafts.key = key; }
+  if (drafts.key !== key) { drafts.answer = ""; drafts.stake = ""; drafts.seen = ""; drafts.key = key; }
   if (state.phase === "lobby") {
     return mount($("#app"), scene(), h("h1", {}, state.title), h("p", { class: "muted" }, `Waiting for the host to begin. ${state.players} at the table.`), themeCard(state), foot(state));
   }
@@ -94,11 +109,12 @@ function render(state) {
           mine.length
             ? h("div", { class: "yours" }, h("strong", {}, describeAnswer(it, mine[0].value)),
                 h("span", {}, mine[0].points > 0 ? `+${mine[0].points} points` : mine[0].points < 0 ? `${mine[0].points} points` : "No points"))
-            : h("p", { class: "muted" }, "You didn't answer this one."))
+            : h("p", { class: "muted" }, "You didn't answer this one."),
+          guessHistory(state))
       : h("div", { class: "card" },
           state.phase === "closed" ? h("p", { class: "muted" }, "Answers are closed.") : null,
           inputFor(state),
-          state.guessesLeft !== null ? h("p", { class: "muted" }, `Guesses left: ${state.guessesLeft}`) : null),
+          guessHistory(state) ?? (state.guessesLeft !== null ? h("p", { class: "muted" }, `Guesses left: ${state.guessesLeft}`) : null)),
     revealBlock(it),
     themeCard(state), board(state), foot(state));
 }
@@ -113,7 +129,7 @@ async function refresh() {
     const raw = JSON.stringify(state);
     if (raw === lastRaw) return;
     // Don't yank the keyboard away mid-typing when nothing that matters changed.
-    const sig = JSON.stringify([state.phase, state.number, state.guessesLeft, state.theme?.revealed, state.theme?.guessesLeft, state.myAnswers.length, state.leaderboard?.length, state.stake?.options]);
+    const sig = JSON.stringify([state.phase, state.number, state.guessesLeft, state.theme?.revealed, state.theme?.guessesLeft, state.myAnswers.map((a) => a.value), state.guessLog.length, state.leaderboard?.length, state.stake?.options]);
     if (sig === lastSig && document.activeElement?.closest("#app") && /INPUT|SELECT/.test(document.activeElement.tagName)) return;
     lastSig = sig;
     lastRaw = raw;

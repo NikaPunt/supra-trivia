@@ -18,11 +18,21 @@ export function mount(el, ...kids) {
   el.replaceChildren(...kids.flat(Infinity).filter((k) => k != null && k !== false).map((k) => (k.nodeType ? k : document.createTextNode(String(k)))));
 }
 
+let memoDevice;
+/** A random id for this phone, kept in the browser, so a team can tell its phones apart. It identifies nobody. */
+export function deviceId() {
+  try {
+    let d = localStorage.getItem("trivia-device");
+    if (!d) { d = (crypto.randomUUID?.() ?? `${Date.now()}${Math.random()}`.replace(/\D/g, "")).slice(0, 40); localStorage.setItem("trivia-device", d); }
+    return d;
+  } catch { return (memoDevice ??= (crypto.randomUUID?.() ?? String(Math.random()).slice(2) + "00000000")); }
+}
+
 export async function api(path, { method = "GET", body } = {}) {
   const res = await fetch(path, {
     method,
     credentials: "same-origin",
-    headers: body === undefined ? {} : { "content-type": "application/json" },
+    headers: { "x-device": deviceId(), ...(body === undefined ? {} : { "content-type": "application/json" }) },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   const data = await res.json().catch(() => ({}));

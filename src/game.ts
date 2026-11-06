@@ -31,6 +31,14 @@ export interface ThemeGuess {
   status: AnswerStatus;
   points: number;
 }
+/** One guess a team made on the current question. Kept so teammates can see what has already been tried. */
+export interface GuessEntry {
+  playerId: string;
+  value: unknown;
+  at: number;
+  /** Which phone sent it (a random id each phone makes up), so a screen can say "you" or "a teammate". */
+  device?: string;
+}
 export interface Theme {
   secret: string;
   hint: string;
@@ -59,6 +67,8 @@ export interface Game {
   answers: Answer[];
   /** Guesses each player has used on the CURRENT item; cleared with `answers`. */
   attempts: Record<string, number>;
+  /** Every guess made on the CURRENT item, in order. Cleared with `answers`, and capped by the guess limit. */
+  guessLog: GuessEntry[];
   /** Stake values already spent per pool per player (confidence sets). */
   poolUsed: Record<string, Record<string, number[]>>;
   scores: Record<string, number>;
@@ -136,7 +146,7 @@ export function newGame(o: { hostEmail: string; triviaId: string; title: string;
   if (items(o).length === 0) throw new GameError("this trivia has no questions yet");
   return {
     id: randomUUID(), code: o.code, hostEmail: o.hostEmail, triviaId: o.triviaId, title: o.title,
-    rounds: o.rounds, maxGuesses: o.maxGuesses, phase: "lobby", cursor: -1, players: [], answers: [], attempts: {},
+    rounds: o.rounds, maxGuesses: o.maxGuesses, phase: "lobby", cursor: -1, players: [], answers: [], attempts: {}, guessLog: [],
     poolUsed: {}, scores: {}, theme: o.theme ?? null, themeRevealed: false, themeGuesses: [], themeBonus: {},
     history: [], createdAt: Date.now(), endedAt: null,
   };
@@ -188,7 +198,7 @@ const stakeFor = (g: Game, it: Item, playerId: string) => {
   return mod.stake?.(it.config, pool ? (g.poolUsed[pool]?.[playerId] ?? []) : []);
 };
 
-export function submit(g: Game, playerId: string, value: unknown): void {
+export function submit(g: Game, playerId: string, value: unknown, device?: string): void {
   const p = g.players.find((x) => x.id === playerId);
   if (!p || p.kicked) throw new GameError("you are not in this session", 403);
   if (g.phase !== "open") throw new GameError("answers are closed", 409);
@@ -208,11 +218,12 @@ export function submit(g: Game, playerId: string, value: unknown): void {
   const used = g.attempts[playerId] ?? 0;
   if (used >= (limit || UNLIMITED_CAP)) throw new GameError("you are out of guesses for this question", 429);
   const same = (a: Answer) => JSON.stringify(a.value) === JSON.stringify(parsed.data);
-  if (g.answers.some((a) => a.playerId === playerId && same(a))) throw new GameError("you already gave that answer");
+  if (g.answers.some((a) => a.playerId === playerId && same(a))) throw new GameError("your team already gave that answer");
   // Single-answer questions: a new answer replaces the old one but still uses a guess.
   if (!mod.input.multi) g.answers = g.answers.filter((a) => a.playerId !== playerId);
   g.attempts[playerId] = used + 1;
   g.answers.push({ id: randomUUID(), playerId, value: parsed.data, status: "pending", points: 0, at: Date.now() });
+  (g.guessLog ??= []).push({ playerId, value: parsed.data, at: Date.now(), device });
 }
 
 function scorePending(g: Game): void {
@@ -253,6 +264,7 @@ function finishItem(g: Game): void {
   g.history.push({ cursor: g.cursor, type: it.type, points: Object.fromEntries(pts) });
   g.answers = [];
   g.attempts = {};
+  g.guessLog = [];
 }
 
 // ---- the secret overall theme ----
@@ -342,6 +354,7 @@ export function act(g: Game, a: Action): void {
       if (!p) throw new GameError("no such player", 404);
       p.kicked = true;
       g.answers = g.answers.filter((x) => x.playerId !== p.id);
+      g.guessLog = (g.guessLog ?? []).filter((x) => x.playerId !== p.id);
       g.themeGuesses = g.themeGuesses.filter((x) => x.playerId !== p.id);
       delete g.scores[p.id];
       delete g.themeBonus[p.id];
@@ -423,7 +436,7 @@ function guessesLeft(g: Game, playerId: string): number | null {
 const themePublic = (g: Game) =>
   g.theme ? { hint: g.theme.hint, revealed: g.themeRevealed, ...(g.themeRevealed ? { secret: g.theme.secret, formal: g.theme.formal } : {}) } : null;
 
-export function playerView(g: Game, playerId: string) {
+export function playerView(g: Game, playerId: string, device?: string) {
   const board = showBoard(g) ? ranking(g, g.phase === "revealed") : null;
   const it = currentItem(g);
   const st = it && inPlay(g) ? stakeFor(g, it, playerId) : undefined;
@@ -439,6 +452,13 @@ export function playerView(g: Game, playerId: string) {
       .filter((a) => a.playerId === playerId)
       .map((a) => ({ value: a.value, ...(g.phase === "revealed" ? { status: a.status, points: a.points } : {}) })),
     guessesLeft: guessesLeft(g, playerId),
+    // Everything this team has tried on this question, oldest first. `you` is true for guesses sent from this phone.
+    guessLog: (g.guessLog ?? [])
+      .filter((e) => e.playerId === playerId)
+      .map((e) => ({
+        value: e.value, at: e.at, you: !!device && e.device === device,
+        current: g.answers.some((a) => a.playerId === playerId && JSON.stringify(a.value) === JSON.stringify(e.value)),
+      })),
     theme: g.theme && {
       ...themePublic(g),
       myGuesses: mine.map((t) => t.text),
