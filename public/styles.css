@@ -401,3 +401,8 @@ body.deck .rank, body.deck .card h2 { font-size: max(13px, 1em); }
 .paused-note { border-style: dashed; }
 .paused-banner { font: 700 clamp(2rem, 6vw, 4rem)/1.1 var(--display); font-variation-settings: var(--vs); color: var(--accent-text); border: 2px dashed var(--accent); border-radius: var(--radius); padding: 0.6rem 1.2rem; margin: 1rem 0; text-align: center; letter-spacing: 0.08em; text-transform: uppercase; }
 .steps .paused-text { color: var(--accent-text); font-weight: 700; }
+
+.mod.inrun { border-left: 4px solid var(--accent); }
+.runbar { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; margin-bottom: 6px; font-size: 0.95rem; }
+.runbar .warnline { flex-basis: 100%; margin: 0; }
+.card.typo .row { margin-top: 6px; flex-wrap: wrap; }

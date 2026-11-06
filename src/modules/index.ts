@@ -62,25 +62,34 @@ export const roundsSchema = z
   .max(30)
   .transform((rounds) => unifyPools(rounds));
 
-/** How two pool names are compared: capitals and extra spaces make no difference. */
-export const poolKey = (name: string): string => name.trim().replace(/\s+/g, " ").toLowerCase();
+/** How two names are compared: capitals and extra spaces make no difference. */
+export const nameKey = (name: string): string => name.trim().replace(/\s+/g, " ").toLowerCase();
 
 /**
- * Confidence questions that name the same pool are one set, however the name was typed. The first question in the set
- * decides its name and its values, so every question offers the same values and no pool can split in two by a typo.
+ * Two clean-ups that make sections impossible to split by accident:
+ * - A section name is spelled once across the whole trivia: the first spelling wins ("hodgepodge " becomes "Hodgepodge").
+ * - A confidence set is a run of neighbouring confidence questions in a round with the same section. Each run gets its own
+ *   set, however old trivias named their pools, and every question in it offers the first question's values.
+ * A different section, a question of another type, or a new round starts a new set.
  */
-function unifyPools<T extends { modules: { type: string; config: any }[] }>(rounds: T[]): T[] {
-  const sets = new Map<string, { name: string; values: number[] }>();
-  for (const r of rounds) {
-    for (const m of r.modules) {
-      if (m.type !== "confidence") continue;
-      const key = poolKey(String(m.config.poolId));
-      const set = sets.get(key) ?? { name: String(m.config.poolId).trim().replace(/\s+/g, " "), values: [...m.config.poolValues] };
-      sets.set(key, set);
-      m.config.poolId = set.name;
-      m.config.poolValues = [...set.values];
-    }
+function unifyPools<T extends { modules: { type: string; section?: string; config: any }[] }>(rounds: T[]): T[] {
+  const names = new Map<string, string>();
+  for (const r of rounds) for (const m of r.modules) {
+    if (m.section === undefined) continue;
+    const clean = m.section.trim().replace(/\s+/g, " ");
+    if (!clean) { m.section = undefined; continue; }
+    m.section = names.get(nameKey(clean)) ?? (names.set(nameKey(clean), clean), clean);
   }
+  rounds.forEach((r, ri) => {
+    let head: { id: string; values: number[]; key: string } | null = null;
+    r.modules.forEach((m, i) => {
+      if (m.type !== "confidence") { head = null; return; }
+      const key = nameKey(m.section ?? "");
+      if (!head || head.key !== key) head = { id: `set-${ri}-${i}`, values: [...m.config.poolValues], key };
+      m.config.poolId = head.id;
+      m.config.poolValues = [...head.values];
+    });
+  });
   return rounds;
 }
 

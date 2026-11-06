@@ -10,7 +10,8 @@ import { buildApp } from "../src/app.js";
 
 // What a player must never be able to do: spend a confidence value twice, or wager outside the limits.
 
-const conf = (answer: string, poolId = "p", poolValues = [8, 6, 4, 2]) => ({ type: "confidence", config: { question: "q", answers: [answer], poolId, poolValues } });
+/** A confidence question. Questions in a row with the same section (the second argument) form one set. */
+const conf = (answer: string, poolId = "p", poolValues = [8, 6, 4, 2]) => ({ type: "confidence", section: poolId, config: { question: "q", answers: [answer], poolId, poolValues } });
 const wagerQ = (maxWager = 20) => ({ type: "wager", config: { question: "q", answers: ["yes"], maxWager } });
 const jeop = (maxWager = 20) => ({ type: "jeopardy", config: { category: "Birds", question: "Secret clue text", answers: ["yes"], maxWager } });
 
@@ -337,63 +338,75 @@ test("capped by score is off by default, and only applies to the question that a
   assert.equal(playerView(g, ann.id).stake?.max, 5, "capped by her 5");
 });
 
-test("pools never leak into each other: split by other questions, across rounds, and with the same values", () => {
-  const other = { type: "text_qa", config: { question: "q", answers: ["z"] } };
-  const mk = (modules: object[][]) => {
-    const g = newGame({ hostEmail: "h@example.com", triviaId: "t", title: "T", rounds: roundsSchema.parse(modules.map((m, i) => ({ title: `R${i}`, modules: m }))), code: "ABCDE", maxGuesses: 3 });
-    const ann = joinPlayer(g, "Ann").player, bob = joinPlayer(g, "Bob").player;
-    act(g, { action: "begin" });
-    return { g, ann, bob };
-  };
-  const sorted = (g: Game, id: string) => (options(g, id) ?? []).slice().sort((a, b) => a - b);
+/** Builds a game from rounds of modules, with two players, and begins it. */
+function setsGame(rounds: object[][]) {
+  const g = newGame({ hostEmail: "h@example.com", triviaId: "t", title: "T", rounds: roundsSchema.parse(rounds.map((m, i) => ({ title: `R${i}`, modules: m }))), code: "ABCDE", maxGuesses: 3 });
+  const ann = joinPlayer(g, "Ann").player, bob = joinPlayer(g, "Bob").player;
+  act(g, { action: "begin" });
+  return { g, ann, bob };
+}
+const asc = (a: number[] = []) => a.slice().sort((x, y) => x - y);
+const other = { type: "text_qa", config: { question: "q", answers: ["z"] } };
+const spend = (g: Game, id: string, answer: string, bet: number) => { submit(g, id, { text: answer, bet }); finish(g); };
 
-  // Two pools with the SAME values, interleaved with each other and with ordinary questions, across two rounds.
-  const { g, ann, bob } = mk([
-    [conf("a", "one"), other, conf("b", "two"), conf("c", "one")],
-    [other, conf("d", "two"), conf("e", "one"), conf("f", "two")],
-  ]);
-  submit(g, ann.id, { text: "a", bet: 8 }); finish(g);                 // pool one: Ann spends 8
-  submit(g, ann.id, { text: "z" }); finish(g);                          // an ordinary question in between
-  assert.deepEqual(sorted(g, ann.id), [2, 4, 6, 8], "pool two is untouched by what she spent in pool one");
-  submit(g, ann.id, { text: "b", bet: 8 }); finish(g);                  // pool two: Ann spends 8 as well
-  assert.deepEqual(sorted(g, ann.id), [2, 4, 6], "pool one remembers its 8 across the question and the other pool");
-  assert.throws(() => submit(g, ann.id, { text: "c", bet: 8 }), /valid value/, "8 is spent in pool one, even after other questions and another pool");
-  submit(g, ann.id, { text: "c", bet: 6 }); finish(g);                  // pool one: 8 and 6 spent
-  // Round two: the current question is an ordinary one; pools carry on across the round break.
-  assert.equal(items(g)[g.cursor].type, "text_qa");
-  submit(g, ann.id, { text: "z" }); finish(g);                          // now on pool two (d)
-  assert.deepEqual(sorted(g, ann.id), [2, 4, 6], "pool two across the round break: only her 8 is spent");
-  assert.throws(() => submit(g, ann.id, { text: "d", bet: 8 }), /valid value/, "pool two's 8 stays spent in the next round");
-  assert.deepEqual(sorted(g, bob.id), [2, 4, 6, 8], "Bob has spent nothing anywhere");
-  submit(g, ann.id, { text: "d", bet: 2 }); finish(g);                  // now on pool one (e)
-  assert.deepEqual(sorted(g, ann.id), [2, 4], "pool one in round two: her 8 and 6 are spent, and pool two's 2 did not touch it");
-  assert.equal(Object.keys(g.poolUsed).sort().join(), "one,two");
-  assert.deepEqual(g.poolUsed.one[ann.id].slice().sort((x, y) => x - y), [6, 8]);
-  assert.deepEqual(g.poolUsed.two[ann.id].slice().sort((x, y) => x - y), [2, 8]);
-  assert.equal(g.poolUsed.one[bob.id], undefined, "Bob never spent in pool one");
+test("confidence sets are separate when a question sits between them", () => {
+  const { g, ann, bob } = setsGame([[conf("a", "Bets"), conf("b", "Bets"), other, conf("c", "Bets"), conf("d", "Bets")]]);
+  spend(g, ann.id, "a", 8);
+  assert.deepEqual(asc(options(g, ann.id)), [2, 4, 6], "inside the first set, 8 is spent");
+  spend(g, ann.id, "b", 6);
+  submit(g, ann.id, { text: "z" }); finish(g);                       // the question between the sets
+  assert.deepEqual(asc(options(g, ann.id)), [2, 4, 6, 8], "after a question in between, the next set starts full again, with the same section name");
+  assert.deepEqual(asc(options(g, bob.id)), [2, 4, 6, 8]);
+  spend(g, ann.id, "c", 8);
+  assert.deepEqual(asc(options(g, ann.id)), [2, 4, 6], "and it spends on its own");
+  assert.deepEqual(Object.keys(g.poolUsed).length, 2, "two sets were used");
 });
 
-test("pool names are matched ignoring capitals and spaces, and the first question decides the set's values", () => {
+test("confidence sets are separate when the section name differs, even next to each other and with the same values", () => {
+  const { g, ann } = setsGame([[conf("a", "Set One"), conf("b", "Set One"), conf("c", "Set Two"), conf("d", "Set Two")]]);
+  spend(g, ann.id, "a", 8); spend(g, ann.id, "b", 6);
+  assert.deepEqual(asc(options(g, ann.id)), [2, 4, 6, 8], "a different section is a different set");
+  spend(g, ann.id, "c", 8);
+  assert.deepEqual(asc(options(g, ann.id)), [2, 4, 6]);
+  assert.deepEqual(asc(g.poolUsed[Object.keys(g.poolUsed)[0]][ann.id]), [6, 8], "the first set still holds only its own two");
+});
+
+test("a set does not carry across rounds, and values never leak either way", () => {
+  const { g, ann, bob } = setsGame([[conf("a", "Bets"), conf("b", "Bets")], [conf("c", "Bets"), conf("d", "Bets")]]);
+  spend(g, ann.id, "a", 8);
+  spend(g, ann.id, "b", 6);
+  assert.deepEqual(asc(options(g, ann.id)), [2, 4, 6, 8], "round two starts a new set with all its values");
+  spend(g, ann.id, "c", 2);
+  assert.deepEqual(asc(g.poolUsed[Object.keys(g.poolUsed)[0]][ann.id]), [6, 8], "round one's set was not touched by round two");
+  assert.equal(g.poolUsed[Object.keys(g.poolUsed)[1]][ann.id].length, 1);
+  assert.equal(Object.values(g.poolUsed).some((p) => p[bob.id]), false, "Bob spent nothing in any set");
+});
+
+test("section spellings are unified, and one set's values come from its first question", () => {
   const rounds = roundsSchema.parse([{ title: "R", modules: [
     conf("a", "Confidence Set", [8, 6, 4, 2]),
-    conf("b", "  confidence   set ", [10, 5]),       // same set, typed differently, with different values
-    conf("c", "CONFIDENCE SET", [1, 2, 3]),
-    conf("d", "Other", [3, 1]),
+    { ...conf("b", "x", [10, 5]), section: "  confidence   set " },   // same section typed differently, with different values
+    { ...conf("c", "x", [1, 2, 3]), section: "CONFIDENCE SET" },
+    { ...other, section: "hodgepodge" }, { ...other, section: "Hodgepodge " }, { ...other, section: "HODGEPODGE" },
   ] }]);
-  const cfgs = rounds[0].modules.map((m) => m.config as { poolId: string; poolValues: number[] });
-  assert.deepEqual(cfgs.slice(0, 3).map((c) => c.poolId), ["Confidence Set", "Confidence Set", "Confidence Set"], "one name for the set");
-  for (const c of cfgs.slice(0, 3)) assert.deepEqual(c.poolValues, [8, 6, 4, 2], "everyone in the set offers the first question's values");
-  assert.deepEqual(cfgs[3].poolValues, [3, 1], "a different set keeps its own");
-  assert.equal(cfgs[3].poolId, "Other");
+  const mods = rounds[0].modules;
+  assert.deepEqual(mods.map((m) => m.section), ["Confidence Set", "Confidence Set", "Confidence Set", "hodgepodge", "hodgepodge", "hodgepodge"], "the first spelling wins");
+  for (const m of mods.slice(0, 3)) assert.deepEqual((m.config as { poolValues: number[] }).poolValues, [8, 6, 4, 2], "every question offers the first question's values");
+  assert.equal(new Set(mods.slice(0, 3).map((m) => (m.config as { poolId: string }).poolId)).size, 1, "they are one set");
 
-  // And in play: a value spent under one spelling is spent under all of them.
   const g = newGame({ hostEmail: "h@example.com", triviaId: "t", title: "T", rounds, code: "ABCDE", maxGuesses: 3 });
   const ann = joinPlayer(g, "Ann").player;
   act(g, { action: "begin" });
-  submit(g, ann.id, { text: "a", bet: 8 }); finish(g);
-  assert.deepEqual(options(g, ann.id), [6, 4, 2], "8 is gone for the question typed with other capitals and spaces");
-  assert.throws(() => submit(g, ann.id, { text: "b", bet: 8 }), /valid value/);
+  spend(g, ann.id, "a", 8);
+  assert.deepEqual(options(g, ann.id), [6, 4, 2], "8 is gone for the question whose section was typed differently");
   assert.throws(() => submit(g, ann.id, { text: "b", bet: 10 }), /valid value/, "the later question's own values are not offered");
+});
+
+test("a pool name written by an older version is ignored: only neighbours with the same section form a set", () => {
+  const old = (a: string, poolId: string, section: string) => ({ type: "confidence", section, config: { question: "q", answers: [a], poolId, poolValues: [8, 6] } });
+  const { g, ann } = setsGame([[old("a", "same-name", "One"), old("b", "same-name", "Two")]]);
+  spend(g, ann.id, "a", 8);
+  assert.deepEqual(options(g, ann.id), [8, 6], "the shared old pool name no longer joins different sections");
 });
 
 test("a game saved before names were unified still treats differently typed pools as one", () => {

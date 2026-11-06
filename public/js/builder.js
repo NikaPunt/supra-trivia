@@ -15,61 +15,80 @@ const defaultFor = (f) => (f.kind === "list" || f.kind === "numlist" ? (Array.is
 /** A new question starts in the same section as the one before it, so a run of Hodgepodge needs typing once. */
 const blank = (type, previous) => {
   const config = Object.fromEntries(byType[type].fields.map((f) => [f.key, defaultFor(f)]));
-  // A new confidence question joins the last confidence set by default, with its values, so a set is never started by accident.
-  const last = type === "confidence" ? confidenceBlocks().at(-1) : null;
-  if (last) { config.poolId = last.config.poolId; config.poolValues = [...(last.config.poolValues ?? [])]; }
-  return { type, open: true, section: previous?.section, maxGuesses: undefined, timeLimit: undefined, config };
+  // A confidence question continues the confidence set before it, or starts one called "Confidence Set".
+  const section = type === "confidence" ? (previous?.type === "confidence" && previous.section ? previous.section : "Confidence Set") : previous?.section;
+  return { type, open: true, section, maxGuesses: undefined, timeLimit: undefined, config };
 };
 
-// ---- confidence sets: chosen from a list, with values entered once ----
-const poolKey = (name) => String(name ?? "").trim().replace(/\s+/g, " ").toLowerCase();
-const confidenceBlocks = () => state.rounds.flatMap((r) => r.modules).filter((m) => m.type === "confidence");
-const poolMembers = (name) => confidenceBlocks().filter((m) => poolKey(m.config.poolId) === poolKey(name));
-const poolNames = () => {
+// ---- sections, and confidence sets (a confidence set is a run of confidence questions with the same section) ----
+const canon = (s) => String(s ?? "").trim().replace(/\s+/g, " ");
+const secKey = (s) => canon(s).toLowerCase();
+/** Looser than secKey: also ignores punctuation and a trailing "s", to spot "Confidence Sets" next to "Confidence Set". */
+const nearKey = (s) => secKey(s).replace(/[^\p{L}\p{N}]/gu, "").replace(/s$/, "");
+const allMods = () => state.rounds.flatMap((r) => r.modules);
+const runKey = (m) => (m.type === "confidence" ? "C:" : "S:") + secKey(m.section);
+
+/** Each section name used anywhere in the trivia, once, as first spelled. */
+function sectionNames() {
   const seen = new Map();
-  for (const m of confidenceBlocks()) { const k = poolKey(m.config.poolId); if (k && !seen.has(k)) seen.set(k, String(m.config.poolId).trim().replace(/\s+/g, " ")); }
+  for (const m of allMods()) { const k = secKey(m.section); if (k && !seen.has(k)) seen.set(k, canon(m.section)); }
   return [...seen.values()];
-};
-const poolValueCount = (m) => (m.config.poolValues ?? []).map((v) => (typeof v === "number" ? v : String(v).trim() === "" ? NaN : Number(v))).filter(Number.isFinite).length;
-
-function poolWarnings(m) {
-  const q = poolMembers(m.config.poolId).length, v = poolValueCount(m);
-  if (!poolKey(m.config.poolId)) return ["Give this set a name."];
-  const out = [];
-  if (q === 1) out.push("This set has only one question, so there is nothing to choose between.");
-  if (q > v) out.push(`This set has ${q} questions but only ${v} value${v === 1 ? "" : "s"}, so the last ${q - v} cannot bet anything.`);
-  if (v > q && q > 1) out.push(`This set has ${v} values but only ${q} questions, so ${v - q} value${v - q === 1 ? "" : "s"} will go unused.`);
+}
+/** Groups of section names that differ only by capitals, punctuation or a trailing "s". */
+function nearDuplicates() {
+  const by = new Map();
+  for (const n of sectionNames()) { const k = nearKey(n); if (k) by.set(k, [...(by.get(k) ?? []), n]); }
+  return [...by.values()].filter((g) => g.length > 1);
+}
+/** Runs of neighbouring questions in a round that share a section (and, for confidence, are all confidence questions). */
+function runsOf(list) {
+  const runs = [];
+  list.forEach((m, i) => { const last = runs.at(-1); if (last && runKey(list[last.start]) === runKey(m)) last.end = i; else runs.push({ start: i, end: i }); });
+  return runs;
+}
+const valueCount = (m) => (m.config.poolValues ?? []).map((v) => (typeof v === "number" ? v : String(v).trim() === "" ? NaN : Number(v))).filter(Number.isFinite).length;
+/** Where a block sits in its run: how many questions the run has and whether this is the first, which owns the values. */
+function runInfo(m) {
+  const list = state.rounds.find((r) => r.modules.includes(m))?.modules ?? [m];
+  const run = runsOf(list).find((x) => list.indexOf(m) >= x.start && list.indexOf(m) <= x.end);
+  const i = list.indexOf(m);
+  return { n: run.end - run.start + 1, first: i === run.start, head: list[run.start] };
+}
+/** Every question in a confidence set offers the first question's values, so the values are typed once. */
+function syncRuns() {
+  for (const r of state.rounds) for (const run of runsOf(r.modules)) {
+    const head = r.modules[run.start];
+    if (head.type !== "confidence") continue;
+    for (let i = run.start + 1; i <= run.end; i++) r.modules[i].config.poolValues = [...(head.config.poolValues ?? [])];
+  }
+}
+function runWarnings(head, n) {
+  const v = valueCount(head), out = [];
+  if (n === 1) out.push("This set has only one question, so there is nothing to choose between.");
+  if (n > v) out.push(`This set has ${n} questions but only ${v} value${v === 1 ? "" : "s"}, so the last ${n - v} cannot bet anything.`);
+  if (v > n && n > 1) out.push(`This set has ${v} values but only ${n} questions, so ${v - n} value${v - n === 1 ? "" : "s"} will go unused.`);
   return out;
 }
 
-function poolPicker(m) {
-  const names = poolNames();
-  const key = poolKey(m.config.poolId);
-  const naming = m._newPool || !key;
-  const join = (name) => {
-    const other = poolMembers(name).find((x) => x !== m);
-    m._newPool = false; m.config.poolId = name;
-    if (other) m.config.poolValues = [...other.config.poolValues];
-    render();
-  };
-  const select = h("select", { "aria-label": "Confidence set", onchange: (e) => {
-    if (e.target.value === "__new") { m._newPool = true; m.config.poolId = ""; render(); } else join(e.target.value);
-  } },
-    names.map((n) => h("option", { value: n, selected: !naming && poolKey(n) === key }, `${n} (${poolMembers(n).length} question${poolMembers(n).length === 1 ? "" : "s"})`)),
-    h("option", { value: "__new", selected: naming }, "New set…"));
-  const text = naming ? h("input", { type: "text", maxlength: 30, placeholder: "e.g., Confidence Set 2", value: m.config.poolId ?? "", "aria-label": "New set name",
-    onchange: (e) => { const v = e.target.value.trim().replace(/\s+/g, " "); if (!v) return; const hit = names.find((n) => poolKey(n) === poolKey(v)); join(hit ?? v); } }) : null;
-  return h("div", {}, h("label", {}, "Confidence set (questions in the same set share one list of values, each spent once)"), select, text,
-    naming ? null : poolWarnings(m).map((w) => h("p", { class: "warnline" }, w)));
+function sectionPicker(m, label) {
+  const names = sectionNames(), key = secKey(m.section), naming = !!m._newSection;
+  const pick = (name) => { m._newSection = false; m.section = name || undefined; render(); };
+  const select = h("select", { "aria-label": "Section", onchange: (e) => { if (e.target.value === "__new") { m._newSection = true; render(); } else pick(e.target.value); } },
+    h("option", { value: "", selected: !naming && !key }, "(no section)"),
+    names.map((n) => h("option", { value: n, selected: !naming && secKey(n) === key }, n)),
+    h("option", { value: "__new", selected: naming }, "New section…"));
+  const text = naming ? h("input", { type: "text", maxlength: 60, placeholder: "Hodgepodge", "aria-label": "New section name",
+    onchange: (e) => { const v = canon(e.target.value); if (!v) return; pick(names.find((n) => secKey(n) === secKey(v)) ?? v); } }) : null;
+  return h("div", {}, h("label", {}, label), select, text);
 }
 
 function poolValuesRow(m, f) {
-  const others = poolMembers(m.config.poolId).filter((x) => x !== m).length;
+  const { n, first, head } = runInfo(m);
+  if (!first) return h("div", {}, h("label", {}, f.label), h("p", { class: "muted" }, `Same as the first question in this set: ${(head.config.poolValues ?? []).join(", ")}. Change them there.`));
   const area = h("textarea", { rows: 3, value: (m.config.poolValues ?? []).join("\n"), placeholder: "8\n6\n4\n2",
-    oninput: (e) => { m.config.poolValues = e.target.value.split("\n"); for (const x of poolMembers(m.config.poolId)) if (x !== m) x.config.poolValues = [...m.config.poolValues]; },
-    onchange: () => render() });
+    oninput: (e) => { m.config.poolValues = e.target.value.split("\n"); }, onchange: () => render() });
   return h("div", {}, h("label", {}, `${f.label} (one per line)`), area,
-    h("p", { class: "muted" }, others ? `Shared with the other ${others} question${others === 1 ? "" : "s"} in this set: changing them here changes them everywhere in the set.` : "Only this question uses this set so far."));
+    h("p", { class: "muted" }, n > 1 ? `Shared with the other ${n - 1} question${n === 2 ? "" : "s"} in this set.` : "Only this question is in this set so far. Add confidence questions straight after it, with the same section, to extend it."));
 }
 
 function cleanConfig(def, config) {
@@ -135,7 +154,6 @@ function fieldInput(m, f) {
 
 /** With "wager capped by team score" on, a question's own maximum wager is not used, so its box is greyed out. */
 const fieldRow = (m, f) => {
-  if (m.type === "confidence" && f.key === "poolId") return poolPicker(m);
   if (m.type === "confidence" && f.key === "poolValues") return poolValuesRow(m, f);
   if (f.kind === "checkbox") {
     return h("label", { class: "check" }, h("input", { type: "checkbox", checked: !!m.config[f.key], onchange: (e) => { m.config[f.key] = e.target.checked; render(); } }),
@@ -176,16 +194,25 @@ function card(r, i, m) {
   const q = String(m.config.question ?? "").trim().split("\n")[0];
   const main = def.fields.filter((f) => !f.advanced);
   const more = def.fields.filter((f) => f.advanced);
-  mount(el,
+  const { n, first, head } = runInfo(m);
+  const isConf = m.type === "confidence";
+  const inRun = n > 1 && (isConf || !!secKey(m.section));
+  if (inRun) el.classList.add("inrun");
+  const bar = first && (isConf || inRun)
+    ? h("div", { class: "runbar" }, h("strong", {}, isConf ? `Confidence set${secKey(m.section) ? ` · ${canon(m.section)}` : ""}` : canon(m.section)),
+        h("span", { class: "muted" }, `${n} question${n === 1 ? "" : "s"}${isConf ? ` · values ${(m.config.poolValues ?? []).join(", ")}` : ""}`),
+        isConf ? runWarnings(head, n).map((w) => h("p", { class: "warnline" }, w)) : null)
+    : null;
+  mount(el, bar,
     h("div", { class: "head" }, h("strong", { class: "grow" }, `⠿ ${i + 1}. ${def.label}`),
       h("button", { onclick: toggle, "aria-expanded": m.open ? "true" : "false" }, m.open ? "Done" : "Edit"),
       h("button", { onclick: move(-1), "aria-label": "Move up" }, "↑"), h("button", { onclick: move(1), "aria-label": "Move down" }, "↓"),
       h("button", { class: "danger", onclick: () => { state.rounds[r].modules.splice(i, 1); render(); }, "aria-label": "Remove" }, "✕")),
     m.open ? [
+      m.type === "confidence" ? sectionPicker(m, "Confidence set: the section name (questions in a row with the same section share one list of values, each spent once)") : null,
       main.map((f) => fieldRow(m, f)),
       h("details", { class: "more" }, h("summary", {}, "More options"),
-        h("div", {}, h("label", {}, "Section name (e.g., Hodgepodge, Vanna, Three Actors and a Year, etc.)"),
-          h("input", { type: "text", maxlength: 60, value: m.section ?? "", placeholder: "Hodgepodge", oninput: (e) => { m.section = e.target.value; } })),
+        m.type === "confidence" ? null : sectionPicker(m, "Section name (e.g., Hodgepodge, Vanna, Three Actors and a Year, etc.)"),
         more.map((f) => fieldRow(m, f)),
         defaulted(m, "maxGuesses", Number(state.settings.maxGuesses), { label: "Number of guesses allowed (0 = unlimited)", min: 0, max: 50, describe: describeGuesses }),
         defaulted(m, "timeLimit", Number(state.settings.timeLimit), { label: "Time limit in seconds (0 = no timer)", min: 0, max: 3600, describe: describeTime })),
@@ -277,7 +304,18 @@ function themeCard() {
       h("p", { class: "muted" }, "Players can guess it once the game starts and you approve guesses. It goes public when round two begins, when every player has found it, or when you reveal it.")) : null);
 }
 
+/** Section names that look like typos of each other, with a button to make them all one spelling. */
+function typoCard() {
+  const groups = nearDuplicates();
+  if (!groups.length) return null;
+  const unify = (names, to) => { for (const m of allMods()) if (names.some((n) => secKey(n) === secKey(m.section))) m.section = to; render(); };
+  return h("div", { class: "card typo" }, h("strong", {}, "These section names look like the same one"),
+    groups.map((g) => h("div", { class: "row" }, h("span", { class: "grow" }, g.map((n) => `“${n}”`).join(" and ")),
+      g.map((n) => h("button", { onclick: () => unify(g, n) }, `Use “${n}” everywhere`)))));
+}
+
 function render() {
+  syncRuns();
   const total = state.rounds.reduce((a, r) => a + r.modules.length, 0);
   mount($("#app"),
     h("div", { class: "row" }, h("input", { class: "grow", value: state.title, maxlength: 120, "aria-label": "Trivia title", oninput: (e) => { state.title = e.target.value; } }),
@@ -290,6 +328,7 @@ function render() {
       !id && !total ? h("button", { onclick: loadSample }, "Load sample trivia") : null,
       h("input", { id: "file", type: "file", accept: "application/json,.json", style: "display:none", onchange: importFile })),
     helpCards(total),
+    typoCard(),
     h("div", { class: "card" }, h("label", { for: "mg" }, "Guesses each player gets per question (0 = unlimited)"),
       h("input", { id: "mg", type: "number", min: 0, max: 50, value: state.settings.maxGuesses, oninput: (e) => { state.settings.maxGuesses = e.target.value; }, onchange: (e) => { if (e.target.value === "") state.settings.maxGuesses = 3; render(); } }),
       h("p", { class: "muted" }, "Players never see whether a guess was right until you reveal. You can always award points by hand, including half marks."),

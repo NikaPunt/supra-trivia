@@ -27,8 +27,7 @@ export const confidence: TriviaModule<z.infer<typeof config>, z.infer<typeof ans
   fields: [
     { key: "question", label: "Question", kind: "textarea", placeholder: "Born in Ohio and later a US president, he was also a Supreme Court chief justice.\n\nWho is he?" },
     { key: "answers", label: "Answer", kind: "list", help: "the answer first, then any other spellings, one per line" },
-    { key: "poolId", label: "Pool name", kind: "text", default: "confidence", help: "questions with the same name share one set of values" },
-    { key: "poolValues", label: "Pool values", kind: "numlist", default: [8, 6, 4, 2], help: "one per line; the first question in the set decides them for all of it" },
+    { key: "poolValues", label: "Pool values", kind: "numlist", default: [8, 6, 4, 2], help: "one per line; set by the first question of the run, and shared by the rest" },
     ...detailFields,
   ],
   input: { kind: "text", key: "text" },
