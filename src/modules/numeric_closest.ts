@@ -1,13 +1,13 @@
 import { z } from "zod";
-import { QUESTION_MAX, detailFields, frameShape, pointsField, pointsSchema, type TriviaModule } from "./types.js";
+import { NUMBER_LIMIT, QUESTION_MAX, detailFields, frameShape, pointsField, pointsSchema, type TriviaModule } from "./types.js";
 
 const config = z.object({
   ...frameShape,
   question: z.string().min(1).max(QUESTION_MAX),
-  value: z.number().finite(),
+  value: z.number().min(-NUMBER_LIMIT).max(NUMBER_LIMIT),
   points: pointsSchema.default(1),
 });
-const answer = z.object({ value: z.number().finite() });
+const answer = z.object({ value: z.number().min(-NUMBER_LIMIT).max(NUMBER_LIMIT) });
 
 export const numericClosest: TriviaModule<z.infer<typeof config>, z.infer<typeof answer>> = {
   type: "numeric_closest",

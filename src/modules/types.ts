@@ -85,3 +85,6 @@ export const pointsField: Field = { key: "points", label: "Points", kind: "numbe
 export const pointsSchema = z.number().min(0).max(1000).multipleOf(0.5);
 
 export const QUESTION_MAX = 1200;
+
+/** Numbers in questions and answers stay within what floating-point arithmetic handles without rounding surprises. */
+export const NUMBER_LIMIT = 1e15;

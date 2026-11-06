@@ -466,6 +466,10 @@ export function act(g: Game, a: Action): void {
       need(inPlay(g), "session is not running");
       const ans = g.answers.find((x) => x.id === a.answerId);
       if (!ans) throw new GameError("no such answer", 404);
+      // Catches a slipped finger ("100" for "1"): twice what the question is worth, and never less than 10.
+      const it = currentItem(g)!;
+      const most = Math.max(10, 2 * getModule(it.type)!.points(it.config));
+      if (Math.abs(a.points) > most) throw new GameError(`That is more than this question can award: the most is ${most}. Change the question's points in the builder if you want more.`, 409);
       ans.points = a.points;
       ans.status = a.points > 0 ? "approved" : "rejected";
       break;
@@ -474,6 +478,8 @@ export function act(g: Game, a: Action): void {
       need(!!g.theme && !g.themeRevealed, "no theme to review");
       const t = g.themeGuesses.find((x) => x.id === a.guessId);
       if (!t) throw new GameError("no such guess", 404);
+      const mostBonus = Math.max(10, 2 * (g.theme?.bonus ?? 4));
+      if (a.points > mostBonus) throw new GameError(`That is more than a theme bonus can be: the most is ${mostBonus}. Change the bonus in the builder if you want more.`, 409);
       t.points = a.points;
       t.status = a.points > 0 ? "approved" : "rejected";
       // Once every player has found it there is nothing left to hide.

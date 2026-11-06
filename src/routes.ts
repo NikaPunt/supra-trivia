@@ -19,6 +19,8 @@ declare module "fastify" {
 }
 
 const trivia = z.object({ title: z.string().min(1).max(120), settings: settingsSchema.default({ maxGuesses: 3, timeLimit: 180 }), rounds: roundsSchema });
+/** Enough for any real use; stops a runaway script or a stuck button filling the database. */
+export const MAX_TRIVIAS_PER_HOST = 100;
 export const idParam = z.object({ id: z.uuid() });
 
 export function registerRoutes(app: FastifyInstance, cfg: Config, db: Db, hosts: HostDirectory, store: GameStore) {
@@ -100,7 +102,11 @@ export function registerRoutes(app: FastifyInstance, cfg: Config, db: Db, hosts:
       .all(...(all ? [] : [u.email]));
   });
 
+  const full = (email: string) => (db.prepare("SELECT COUNT(*) AS n FROM trivias WHERE host_email = ?").get(email) as { n: number }).n >= MAX_TRIVIAS_PER_HOST;
+  const tooMany = { error: `You already have ${MAX_TRIVIAS_PER_HOST} trivias, the most allowed. Delete some you no longer need first.` };
+
   app.post("/api/trivias", { preHandler: requireHost }, async (req, reply) => {
+    if (full(req.host_session!.email)) return reply.code(429).send(tooMany);
     const body = trivia.safeParse(req.body);
     if (!body.success) return reply.code(400).send({ error: body.error.message });
     const id = randomUUID();
@@ -146,6 +152,7 @@ export function registerRoutes(app: FastifyInstance, cfg: Config, db: Db, hosts:
   app.post("/api/trivias/:id/duplicate", { preHandler: requireHost }, async (req, reply) => {
     const row = load(req);
     if (!row) return reply.code(404).send({ error: "not found" });
+    if (full(req.host_session!.email)) return reply.code(429).send(tooMany);
     const parsed = roundsSchema.safeParse(JSON.parse(row.rounds)); // also folds trivias saved with the older clue boxes
     const rounds = JSON.stringify(parsed.success ? parsed.data : JSON.parse(row.rounds));
     const title = `${row.title.slice(0, 120 - " (copy)".length)} (copy)`;

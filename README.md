@@ -9,6 +9,7 @@ Host your own live trivia night. The **host** builds a trivia from modules and r
 - Deployment (Docker with your proxy, Caddy, Cloudflare Tunnel, systemd and nginx, Fly.io): [docs/DEPLOY.md](docs/DEPLOY.md).
 - Running a game (the step order, the timer, the console tabs, the projector): [docs/HOSTING.md](docs/HOSTING.md).
 - Playing as a team on several phones: [docs/TEAMS.md](docs/TEAMS.md).
+- Every limit the app enforces (wagers, confidence values, sizes, time): [docs/LIMITS.md](docs/LIMITS.md).
 - Scoring, guess limits and manual points: [docs/SCORING.md](docs/SCORING.md).
 - Known bugs: [docs/BUGS.md](docs/BUGS.md).
 
