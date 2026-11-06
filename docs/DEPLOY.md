@@ -5,7 +5,7 @@ The app runs as a Docker container on an internal network. Only Nginx Proxy Mana
 ## 1. Google OAuth client
 1. Google Cloud Console -> APIs & Services -> OAuth consent screen: type **External**, add your host emails as test users (or publish).
 2. Credentials -> Create OAuth client ID -> Web application.
-3. Authorized redirect URI: `https://trivia.example.com/auth/callback`.
+3. Authorized redirect URI: `https://trivia.example.com/auth/callback` (use your own domain).
 4. Copy the client ID and secret into `.env`.
 
 ## 2. Configure
@@ -24,10 +24,10 @@ docker compose logs -f trivia
 ```
 
 ## 4. DNS
-_Done for trivia.example.com via the Cloudflare API: DNS-only `A` record, TTL 300._ For another domain, add an `A` record: `trivia.example.com` -> your public IP. If the record is on Cloudflare, use DNS only (grey cloud) unless you want Cloudflare proxying.
+Add an `A` record for your domain, for example `trivia.example.com`, pointing at your server's public IP. If the record is on Cloudflare, use DNS only (grey cloud) unless you want Cloudflare proxying.
 
 ## 5. NPM proxy host
-- Domain: `trivia.example.com`
+- Domain: your domain, e.g. `trivia.example.com`
 - Scheme `http`, Forward host `trivia`, port `3000`
 - Enable: **Block Common Exploits**
 - Live updates use server-sent events, which work through NPM as-is (the app sends `X-Accel-Buffering: no`).
