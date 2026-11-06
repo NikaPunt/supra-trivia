@@ -18,5 +18,6 @@
 ```json
 { "admins": ["you@gmail.com"], "hosts": ["friend@gmail.com"] }
 ```
+Gmail addresses are matched ignoring dots, `+tags` and `googlemail.com` (Google treats them as one inbox); other domains match exactly.
 The file is re-read when it changes. If an edit makes it invalid JSON, the last good list stays in force, so a typo cannot lock you out or let anyone in.
 Removing someone takes effect on their next request: roles are looked up from the file each time, never trusted from the login cookie.

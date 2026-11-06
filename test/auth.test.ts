@@ -22,6 +22,13 @@ test("roles are case-insensitive and exact", () => {
   assert.equal(hosts.roleOf("host@example.com.evil.io"), null);
 });
 
+test("gmail dots, +tags and googlemail.com map to the same host; other domains stay exact", () => {
+  const d = HostDirectory.fromLists({ hosts: ["jane.doe@gmail.com", "a.b@corp.com"] });
+  for (const e of ["janedoe@gmail.com", "Jane.Doe+x@gmail.com", "janedoe@googlemail.com"]) assert.equal(d.roleOf(e), "host");
+  assert.equal(d.roleOf("ab@corp.com"), null);
+  assert.equal(d.roleOf("janedoe@gmail.com.evil.io"), null);
+});
+
 test("session verifies, but a tampered token, removed host or other secret does not", async () => {
   const t = await signSession(cfg, { email: "host@example.com", name: "H" });
   assert.equal((await verifySession(cfg, hosts, t))?.role, "host");

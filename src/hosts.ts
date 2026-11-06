@@ -9,7 +9,15 @@ const fileSchema = z.object({
 });
 type Lists = z.infer<typeof fileSchema>;
 
-const norm = (e: string) => e.trim().toLowerCase();
+/** Lowercases, and for Gmail ignores dots, +tags and googlemail.com, which Google treats as the same inbox. */
+export function norm(email: string): string {
+  const e = email.trim().toLowerCase();
+  const at = e.lastIndexOf("@");
+  if (at < 0) return e;
+  const domain = e.slice(at + 1);
+  if (domain !== "gmail.com" && domain !== "googlemail.com") return e;
+  return `${e.slice(0, at).split("+")[0]!.replaceAll(".", "")}@gmail.com`;
+}
 
 /**
  * Who may log in as a host or admin. Backed by a JSON file that is re-read whenever it changes,
