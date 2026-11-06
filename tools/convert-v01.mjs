@@ -4,25 +4,19 @@
 import { readFileSync } from "node:fs";
 
 const src = JSON.parse(readFileSync(process.argv[2], "utf8"));
-const TIERS = new Set(["Layup", "Sweet Spot", "Stretch", "Separator"]);
 const clean = (o) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined && v !== "" && v !== null));
 const uniq = (xs) => [...new Set(xs.map((x) => String(x).trim()).filter(Boolean))];
 
-function frame(q) {
-  // 0.1 events used either clue1/clue2 or a single `text` prompt; keep whichever is there.
-  return clean({
-    category: q.category,
-    answerType: q.answerType,
-    tier: TIERS.has(q.tier) ? q.tier : undefined,
-    clue1: q.clue1 ?? q.text,
-    clue2: q.clue2,
-    funFact: q.funFact,
-  });
+/** One question box: the clue(s) first, then the ask on its own line, the way it is read out. */
+function questionText(q) {
+  const body = [q.clue1 ?? q.text, q.clue2].filter(Boolean).map((t) => String(t).trim()).join(" ");
+  const ask = String(q.questionPrompt ?? "").trim();
+  return [body, ask].filter(Boolean).join("\n\n") || "?";
 }
 
 function convert(q) {
   const answers = uniq([q.answer, ...(q.acceptedAnswers ?? [])]);
-  const base = { ...frame(q), question: q.questionPrompt || q.text || "?", answers };
+  const base = { question: questionText(q), answers, funFact: q.funFact };
   const section = q.sectionTitle || undefined;
   switch (q.mechanic) {
     case "confidence":
@@ -42,7 +36,6 @@ const trivia = {
   },
   rounds: (src.rounds ?? []).map((r) => ({
     title: r.title,
-    ...(r.subtitle ? { subtitle: r.subtitle } : {}),
     modules: (r.questions ?? []).map((q) => clean(convert(q))),
   })),
 };

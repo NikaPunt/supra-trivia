@@ -86,6 +86,7 @@
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
 body {
+  overflow-wrap: break-word;
   margin: 0; background: var(--ground); color: var(--text);
   font: 400 1.125rem/1.5 var(--body); font-feature-settings: "kern", "liga";
   -webkit-font-smoothing: antialiased; min-height: 100vh;
@@ -102,7 +103,7 @@ h1 { font-size: clamp(1.7rem, 4.6vw, 2.5rem); line-height: 1.15; margin: 0.5rem 
 h2 { font-size: 1.3rem; line-height: 1.25; margin: 0 0 0.6rem; font-variation-settings: var(--vs-quiet); }
 .eyebrow, .t { font: 700 0.78rem/1.2 var(--body); letter-spacing: 0.16em; text-transform: uppercase; color: var(--text-3); }
 .muted { color: var(--text-2); font-size: 1rem; }
-.grow { flex: 1; min-width: 0; }
+.grow { flex: 1 1 10rem; min-width: 0; }
 .row { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
 .err { color: var(--danger); margin: 0.4rem 0; }
 .err:empty { display: none; }
@@ -131,19 +132,24 @@ header.bar {
 .theme-card { border-color: var(--accent); border-width: 1.5px; }
 .theme-card h2 { color: var(--accent-text); }
 
-/* The question: a painted signboard. Midnight field, painted ochre border, cream lettering. */
-.board {
-  position: relative; background: var(--board); color: var(--board-text);
-  border: var(--board-border); border-radius: var(--radius); padding: 1.1rem 1.15rem 1.2rem; margin: 0.75rem 0;
+/* The question: an open page. A header line, the question as written, and nothing else. */
+.board { margin: 0.5rem 0 0.9rem; }
+.board .where {
+  font: 600 1.05rem/1.3 var(--display); font-variation-settings: var(--vs-quiet); color: var(--accent-text);
+  border-bottom: 1px solid var(--line-strong); padding-bottom: 0.55rem; margin-bottom: 1rem;
 }
-.board::after { content: ""; position: absolute; inset: 5px; border: var(--board-hair); border-radius: 2px; pointer-events: none; }
-.board .eyebrow { color: var(--board-2); }
-.board h1 { margin: 0.5rem 0 0; font-size: clamp(1.55rem, 5.2vw, 2.4rem); font-weight: var(--board-weight); line-height: 1.2; color: var(--board-text); }
-.board .clue { color: var(--board-clue); margin: 0.65rem 0 0; font-size: 1.1rem; }
-.board .clue em { font: italic 600 1rem var(--display); font-variation-settings: var(--vs); color: var(--board-em, var(--accent)); margin-right: 0.3rem; }
-.board .badge { border-color: var(--board-badge); color: var(--board-clue); }
-.board .badge.pin { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); transform: rotate(var(--pin-rot)); }
-.board .muted { color: var(--board-2); }
+.board .where span { color: var(--text-3); font-weight: 400; }
+.board p { font: 400 clamp(1.15rem, 4.8vw, 1.5rem)/1.5 var(--display); font-variation-settings: var(--vs-quiet); margin: 0 0 0.85rem; color: var(--text); white-space: pre-line; }
+.board p.ask { font-weight: 600; }
+
+/* A note card: the secret theme reminder, or the theme itself once it is out. */
+.note { background: var(--panel); border: 1.5px solid var(--accent); border-radius: var(--radius); padding: 0.75rem 1rem; margin: 0.9rem 0; }
+.note b { display: block; font: 600 1.1rem/1.3 var(--display); font-variation-settings: var(--vs-quiet); color: var(--accent-text); }
+.note p { margin: 0.3rem 0 0; color: var(--text-2); }
+.note .row { margin-top: 0.6rem; flex-wrap: nowrap; }
+
+/* The foot of a screen: who you are and where you are. */
+.ft { display: flex; justify-content: space-between; gap: 1rem; margin-top: 1.4rem; padding-top: 0.7rem; border-top: 1px solid var(--line); font: 700 0.8rem/1.2 var(--body); letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-3); }
 
 .reveal { background: var(--panel-2); border: 1.5px solid var(--ok); border-radius: var(--radius); padding: 0.8rem 1rem; margin: 0.75rem 0; }
 .reveal .eyebrow { color: var(--ok); }
@@ -196,7 +202,7 @@ label input[type="checkbox"] + * , label:has(input[type="checkbox"]) { text-tran
 .choices button.picked { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 700; }
 
 table { width: 100%; border-collapse: collapse; }
-td, th { text-align: left; padding: 0.5rem 0.4rem; border-bottom: 1px solid var(--line); vertical-align: middle; }
+td, th { overflow-wrap: anywhere; text-align: left; padding: 0.5rem 0.4rem; border-bottom: 1px solid var(--line); vertical-align: middle; }
 th { font: 700 0.75rem/1.2 var(--body); letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-3); }
 
 /* ---- scoreboard ---- */
@@ -227,9 +233,10 @@ summary { cursor: pointer; }
 /* ---- projector ---- */
 body.deck { font-size: clamp(1.25rem, 2.1vw, 2.1rem); }
 body.deck main { max-width: 90rem; padding: 2rem 3vw; }
-body.deck .board { padding: 2rem 2.4rem; }
-body.deck .board h1 { font-size: clamp(2.2rem, 5.4vw, 5rem); }
-body.deck .board .clue { font-size: 1.15em; }
+body.deck .board .where { font-size: clamp(1.2rem, 2.2vw, 2.2rem); }
+body.deck .board p { font-size: clamp(1.7rem, 3.5vw, 3.6rem); line-height: 1.4; }
+body.deck .note b { font-size: 1.15em; }
+body.deck .ft { font-size: clamp(0.9rem, 1.3vw, 1.4rem); }
 body.deck .reveal .answer { font-size: clamp(2rem, 4.4vw, 4rem); }
 body.deck .code { font-size: clamp(3.4rem, 11vw, 9rem); }
 body.deck h1 { font-size: clamp(2.2rem, 6vw, 5rem); }
@@ -245,10 +252,12 @@ body.deck ol { font-size: 1.1em; }
 /* ---- picker ---- */
 footer.foot { max-width: 44rem; margin: 0 auto; padding: 0 1rem 2rem; display: flex; justify-content: center; }
 .picker { display: inline-flex; align-items: center; gap: 0.5rem; margin: 0; font: 700 0.78rem/1 var(--body); letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-3); }
-.picker select { width: auto; min-height: 2rem; padding: 0.2rem 0.5rem; font-size: 0.95rem; letter-spacing: 0; text-transform: none; }
+.picker select { width: auto; min-height: 2.5rem; padding: 0.2rem 0.5rem; font-size: 0.95rem; letter-spacing: 0; text-transform: none; }
 
 /* ---- Pirosmani's painted scene belongs to Pirosmani ---- */
-html[data-design]:not([data-design="pirosmani"]) .scene { display: none; }
+html[data-design]:not([data-design="pirosmani"]) .scene, html[data-design]:not([data-design="pirosmani"]) .geo { display: none; }
+.plain { display: none; }
+html[data-design]:not([data-design="pirosmani"]) .plain { display: inline; }
 
 /* ======================================================================
    Supper club: warm black, cream and gold, quiet serif; the 0.1 look refined.
@@ -265,8 +274,6 @@ html[data-design="supper"] {
   --display: "Fraunces", "Noto Serif Georgian", Georgia, serif; --body: "Alegreya Sans", "Noto Sans Georgian", system-ui, sans-serif;
   --focus: 0 0 0 2px var(--ground), 0 0 0 4px var(--accent);
 }
-html[data-design="supper"] .board { border-top: 2px solid var(--accent); }
-html[data-design="supper"] .board .clue em { font-weight: 400; }
 html[data-design="supper"] .code { font-weight: 500; letter-spacing: 0.22em; }
 
 /* ======================================================================
@@ -305,8 +312,30 @@ html[data-design="show"] {
   --focus: 0 0 0 2px var(--ground), 0 0 0 4px #ffd23f;
 }
 html[data-design="show"] body { font-size: 1.1rem; }
-html[data-design="show"] .board { border-radius: 16px; }
-html[data-design="show"] .board::after { display: none; }
-html[data-design="show"] .board .clue em { font-style: normal; font-weight: 800; }
 html[data-design="show"] .badge { border-radius: 99px; }
 html[data-design="show"] .code { font-weight: 800; letter-spacing: 0.12em; }
+
+/* builder help */
+details.help summary { cursor: pointer; font-size: 1.1rem; }
+details.help ul { margin: 0.6rem 0; padding-left: 1.2rem; }
+details.help li { margin: 0.35rem 0; }
+.example { border-top: 1px solid var(--line); padding: 0.7rem 0 0.2rem; margin-top: 0.7rem; }
+.example .eq { white-space: pre-line; font: 400 1.1rem/1.45 var(--display); font-variation-settings: var(--vs-quiet); margin: 0.3rem 0; }
+.example .ea { white-space: pre-line; margin: 0.2rem 0; }
+details.more { margin-top: 0.6rem; }
+details.more > summary { color: var(--text-2); cursor: pointer; }
+
+.stake { margin-bottom: 0.8rem; }
+body.deck .muted { font-size: clamp(1.1rem, 1.7vw, 1.9rem); }
+
+/* On narrow screens, wide tables become stacked rows instead of forcing the page sideways. */
+@media (max-width: 640px) {
+  table.stack, table.stack tbody, table.stack tr, table.stack td { display: block; width: 100%; }
+  table.stack tr { padding: 0.55rem 0; border-bottom: 1px solid var(--line); }
+  table.stack td { border: 0; padding: 0.15rem 0; }
+  table.stack tr:has(> th) { display: none; }
+  .row { row-gap: 0.4rem; }
+}
+
+/* The projector scales with the screen: rem units grow once the display is wider than a 1080p TV. */
+html.deck { font-size: clamp(16px, 0.9vw, 64px); }

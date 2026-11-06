@@ -49,23 +49,26 @@ export function describeAnswer(item, value) {
 }
 
 /**
- * The question as a painted signboard: where we are, the pinned answer type, the two clues, then the question.
- * `where` is the line above it, e.g. "Round 1 · 3/12".
+ * The question as the host wrote it, on an open page: where we are, then the text. Blank lines are kept, so a
+ * question can end with its ask ("Which Asian country is this?") on a line of its own.
  */
-export function questionBlock(it, where) {
-  const p = it.public;
+export function questionBlock(it) {
+  const where = `${it.round}${it.section ? `: ${it.section}` : ""}`;
+  const paras = String(it.public.question).split(/\n+/).map((t) => t.trim()).filter(Boolean);
   return h("section", { class: "board" },
-    where ? h("div", { class: "eyebrow" }, where) : null,
-    it.roundSubtitle ? h("div", { class: "muted" }, it.roundSubtitle) : null,
-    h("div", { class: "row", style: "margin-top:.55rem" },
-      it.section ? h("span", { class: "badge" }, it.section) : null,
-      p.category ? h("span", { class: "badge" }, p.category) : null,
-      p.tier ? h("span", { class: "badge" }, p.tier) : null,
-      p.answerType ? h("span", { class: "badge pin" }, `Answer: ${p.answerType}`) : null),
-    p.clue1 ? h("p", { class: "clue" }, h("em", {}, "One."), p.clue1) : null,
-    p.clue2 ? h("p", { class: "clue" }, h("em", {}, "Two."), p.clue2) : null,
-    h("h1", {}, p.question),
-    p.hint ? h("p", { class: "muted" }, `Hint: ${p.hint}`) : null);
+    h("div", { class: "where" }, where, h("span", {}, ` · ${it.pos.n}/${it.pos.of}`)),
+    paras.map((t, i) => h("p", { class: paras.length > 1 && i === paras.length - 1 ? "ask" : "" }, t)));
+}
+
+/**
+ * A reminder about the secret theme, or the theme itself once it is out. `extra` goes inside the card (the guess box).
+ */
+export function themeNote(t, ...extra) {
+  if (!t) return null;
+  if (t.revealed) {
+    return h("div", { class: "note" }, h("b", {}, "The secret theme"), h("p", {}, h("strong", {}, t.secret)), t.formal ? h("p", {}, t.formal) : null, ...extra);
+  }
+  return h("div", { class: "note" }, h("b", {}, "Don't forget the secret theme!"), t.hint ? h("p", {}, `Hint: ${t.hint}`) : null, ...extra);
 }
 
 /** The reveal: the answer in display type, and the fun fact if there is one. */
@@ -121,7 +124,7 @@ document.querySelector("footer.foot")?.append(designPicker());
 export function brand(href = "/") {
   const a = h("a", { href, class: "brand", "aria-label": "Trivia home" });
   a.innerHTML = MARK; // constant markup
-  a.append(h("b", {}, "Trivia"), h("small", {}, "ვიქტორინა"));
+  a.append(h("b", {}, "Trivia"), h("small", { class: "geo" }, "ვიქტორინა"));
   return a;
 }
 

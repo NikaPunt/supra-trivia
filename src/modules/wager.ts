@@ -1,9 +1,9 @@
 import { z } from "zod";
-import { clueFields, detailFields, frameShape, framePublic, normalize, type TriviaModule } from "./types.js";
+import { QUESTION_MAX, detailFields, frameShape, normalize, type TriviaModule } from "./types.js";
 
 const config = z.object({
   ...frameShape,
-  question: z.string().min(1).max(500),
+  question: z.string().min(1).max(QUESTION_MAX),
   answers: z.array(z.string().min(1).max(200)).min(1).max(20),
   maxWager: z.number().int().min(1).max(1000).default(20),
 });
@@ -14,9 +14,8 @@ export const wager: TriviaModule<z.infer<typeof config>, z.infer<typeof answer>>
   label: "Final wager",
   description: "Jeopardy-style: players wager up to a maximum. A right answer wins the wager, a wrong one loses it.",
   fields: [
-    ...clueFields,
-    { key: "question", label: "The question", kind: "textarea" },
-    { key: "answers", label: "Accepted answers", kind: "list", help: "one per line" },
+    { key: "question", label: "Question", kind: "textarea", placeholder: "Born in Ohio and later a US president, he was also a Supreme Court chief justice.\n\nWho is he?" },
+    { key: "answers", label: "Answer", kind: "list", help: "the answer first, then any other spellings, one per line" },
     { key: "maxWager", label: "Maximum wager", kind: "number", default: 20 },
     ...detailFields,
   ],
@@ -28,6 +27,6 @@ export const wager: TriviaModule<z.infer<typeof config>, z.infer<typeof answer>>
   points: (c) => c.maxWager,
   fullPoints: (_c, a) => a.wager,
   wrongPoints: (_c, a) => (a.wager ? -a.wager : 0),
-  publicView: (c) => ({ ...framePublic(c), question: c.question, maxWager: c.maxWager }),
+  publicView: (c) => ({ question: c.question, maxWager: c.maxWager }),
   solution: (c) => c.answers[0] ?? "",
 };

@@ -10,6 +10,22 @@ export const modules: TriviaModule[] = [textQa, multipleChoice, numericClosest, 
 const byType = new Map(modules.map((m) => [m.type, m]));
 export const getModule = (type: string) => byType.get(type);
 
+/**
+ * Older trivias had separate clue, answer type, category and tier boxes. Questions are one box now, so fold the
+ * clues into the question (clues first, the ask last) and drop the rest.
+ */
+function upgradeLegacy(config: unknown): unknown {
+  if (!config || typeof config !== "object") return config;
+  const c = { ...(config as Record<string, unknown>) };
+  const clues = [c.clue1, c.clue2].filter((x): x is string => typeof x === "string" && x.trim() !== "");
+  if (clues.length) {
+    const ask = typeof c.question === "string" ? c.question.trim() : "";
+    c.question = [clues.map((x) => x.trim()).join(" "), ask].filter(Boolean).join("\n\n");
+  }
+  for (const k of ["clue1", "clue2", "answerType", "category", "tier"]) delete c[k];
+  return c;
+}
+
 const moduleInstance = z
   .object({
     type: z.string(),
@@ -24,7 +40,7 @@ const moduleInstance = z
       ctx.addIssue({ code: "custom", message: `unknown module type: ${m.type}` });
       return z.NEVER;
     }
-    const parsed = mod.configSchema.safeParse(m.config);
+    const parsed = mod.configSchema.safeParse(upgradeLegacy(m.config));
     if (!parsed.success) {
       ctx.addIssue({ code: "custom", message: `${m.type}: ${parsed.error.message}` });
       return z.NEVER;
@@ -36,8 +52,6 @@ export const roundsSchema = z
   .array(
     z.object({
       title: z.string().min(1).max(100),
-      /** Shown when the round opens, e.g. the rules of its special categories. */
-      subtitle: z.string().max(300).optional(),
       modules: z.array(moduleInstance).max(50),
     }),
   )

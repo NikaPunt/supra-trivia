@@ -58,7 +58,7 @@ const trivia = {
   title: "t",
   settings: { maxGuesses: 3, theme: { secret: "space", hint: "look up", formal: "Everything was about space" } },
   rounds: [
-    { title: "R1", modules: [q("q1", ["a"], { category: "Geo", answerType: "Letter", tier: "Layup", clue1: "hard clue", clue2: "easy clue", funFact: "because" }), q("q2", ["b"])] },
+    { title: "R1", modules: [q("q1", ["a"], { funFact: "because" }), q("q2", ["b"])] },
     { title: "R2", modules: [q("q3", ["c"])] },
   ],
 };
@@ -114,8 +114,9 @@ test("full live session over HTTP: join, rejoin by PIN, round-end boards, theme,
 
   assert.equal((await act(alice, { action: "begin" })).statusCode, 200);
   const s1 = await state();
-  assert.equal(s1.item.public.clue1, "hard clue");
-  assert.equal(s1.item.public.answerType, "Letter");
+  assert.equal(s1.item.public.question, "q1");
+  assert.deepEqual(s1.item.pos, { n: 1, of: 2 }, "numbering counts questions in the same run");
+  assert.equal(s1.item.public.clue1, undefined, "there are no separate clue boxes");
   assert.equal(s1.item.solution, undefined, "no solution while open");
   assert.equal(s1.item.funFact, undefined);
   assert.ok(!JSON.stringify(s1).includes('"because"'), "fun fact stays hidden until reveal");
@@ -143,13 +144,17 @@ test("full live session over HTTP: join, rejoin by PIN, round-end boards, theme,
   assert.equal(hv.theme.guesses.length, 5);
   assert.equal(hv.theme.guesses[0].suggested, 3, "guess made at question 2 suggests 3 points");
   assert.equal((await act(alice, { action: "theme_review", guessId: hv.theme.guesses[0].id, points: 3 })).statusCode, 200);
-  assert.equal(JSON.stringify(await state()).includes("approved"), false, "players never see approval");
+  assert.equal(JSON.stringify(await state()).includes("approved"), false, "players are never shown an approval status");
 
   await act(alice, { action: "reveal" });
   const r2 = await state();
-  assert.equal(r2.leaderboard[0].points, 1, "round-end board shows the score without the hidden theme bonus");
+  assert.equal(r2.theme.secret, "space", "approving the only player's guess means everyone found it, so it is out");
+  assert.equal(r2.leaderboard[0].points, 4, "round-end board: 1 for q1 plus the 3 theme bonus");
 
   await act(alice, { action: "next" });
+  const round2 = await state();
+  assert.equal(round2.theme.secret, "space", "the theme goes public when round two begins");
+  assert.deepEqual(round2.item.pos, { n: 1, of: 1 });
   await act(alice, { action: "next" });
   const done = await state();
   assert.equal(done.phase, "ended");

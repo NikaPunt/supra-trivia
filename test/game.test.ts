@@ -105,3 +105,53 @@ test("stylesheet braces balance, so one bad edit cannot swallow the rules below 
   }
   assert.equal(depth, 0, "unclosed brace in styles.css");
 });
+
+test("numbering counts consecutive questions of the same section, restarting for each run", () => {
+  const rounds = roundsSchema.parse([
+    { title: "Round 1", modules: [
+      { ...textQ(["a"]), section: "Hodgepodge" }, { ...textQ(["b"]), section: "Hodgepodge" }, { ...textQ(["c"]), section: "Hodgepodge" },
+      { ...conf(["x"]), section: "Confidence" }, { ...conf(["y"]), section: "Confidence" },
+    ] },
+    { title: "Round 2", modules: [textQ(["d"]), textQ(["e"])] },
+  ]);
+  const g = newGame({ hostEmail: "h@example.com", triviaId: "t", title: "T", rounds, code: "ABCDE", maxGuesses: 3 });
+  joinPlayer(g, "Ann");
+  act(g, { action: "begin" });
+  const seen: string[] = [];
+  for (let i = 0; i < 7; i++) {
+    const it = hostView(g).item!;
+    seen.push(`${it.round}|${it.section ?? ""}|${it.pos.n}/${it.pos.of}`);
+    act(g, { action: "next" });
+  }
+  assert.deepEqual(seen, [
+    "Round 1|Hodgepodge|1/3", "Round 1|Hodgepodge|2/3", "Round 1|Hodgepodge|3/3",
+    "Round 1|Confidence|1/2", "Round 1|Confidence|2/2", "Round 2||1/2", "Round 2||2/2",
+  ]);
+});
+
+test("the theme goes public when round two starts, or once every player has found it", () => {
+  const two = [{ title: "R1", modules: [textQ(["a"])] }, { title: "R2", modules: [textQ(["b"])] }];
+  const a1 = start(two, { secret: "oo", hint: "h", formal: "f" });
+  assert.equal(playerView(a1.g, a1.a.id).theme?.revealed, false);
+  act(a1.g, { action: "next" });
+  assert.equal(playerView(a1.g, a1.a.id).theme?.revealed, true, "round two");
+
+  const one = start([{ title: "R1", modules: [textQ(["a"]), textQ(["b"])] }], { secret: "oo", hint: "h", formal: "f" });
+  act(one.g, { action: "next" });
+  submitTheme(one.g, one.a.id, "oo sounds");
+  submitTheme(one.g, one.b.id, "double o");
+  const [ga, gb] = hostView(one.g).theme!.guesses;
+  act(one.g, { action: "theme_review", guessId: ga!.id, points: 3 });
+  assert.equal(hostView(one.g).theme!.revealed, false, "one player still has not found it");
+  act(one.g, { action: "theme_review", guessId: gb!.id, points: 3 });
+  assert.equal(hostView(one.g).theme!.revealed, true, "everyone has");
+});
+
+test("older trivias with separate clue boxes fold into one question", () => {
+  const r = roundsSchema.parse([{ title: "R", modules: [{ type: "text_qa", config: {
+    clue1: "Its flag is no rectangle.", clue2: "Home to Everest.", question: "Which country?", answers: ["Nepal"], category: "Geo", tier: "Layup", answerType: "Country",
+  } }] }]);
+  assert.equal(r[0]!.modules[0]!.config.question, "Its flag is no rectangle. Home to Everest.\n\nWhich country?");
+  assert.equal("clue1" in r[0]!.modules[0]!.config, false);
+  assert.equal("tier" in r[0]!.modules[0]!.config, false);
+});

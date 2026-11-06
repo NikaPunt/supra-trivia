@@ -111,7 +111,10 @@ export function registerRoutes(app: FastifyInstance, cfg: Config, db: Db, hosts:
   app.get("/api/trivias/:id", { preHandler: requireHost }, async (req, reply) => {
     const row = load(req);
     if (!row) return reply.code(404).send({ error: "not found" });
-    return { id: row.id, title: row.title, owner: row.host_email, settings: settingsSchema.parse(JSON.parse(row.settings)), rounds: JSON.parse(row.rounds) };
+    const raw = JSON.parse(row.rounds);
+    // Older trivias are folded into the one-question form on the way out, so the builder only ever sees the new shape.
+    const upgraded = roundsSchema.safeParse(raw);
+    return { id: row.id, title: row.title, owner: row.host_email, settings: settingsSchema.parse(JSON.parse(row.settings)), rounds: upgraded.success ? upgraded.data : raw };
   });
 
   app.put("/api/trivias/:id", { preHandler: requireHost }, async (req, reply) => {

@@ -53,20 +53,16 @@ Before running a trivia, the builder shows "suggestions" on each question and a 
 
 ---
 
-## How these rules show up in the app
+## How the app helps
 
-| Guideline | Where it lives |
-|---|---|
-| 2 clues per prompt (Pinning Rule) | Every question has **Clue 1** (enthusiast) and **Clue 2** (foothold), shown on phones and the projector |
-| Pin the answer type | **Answer type** badge (e.g. "Country", "Film") on every question |
-| Rotate sub-genres | **Category** field, shown as a badge |
-| 2-5-2-1 curve | **Tier** field; the builder shows each round's tally against the target |
-| Fun fact / "why" | **Fun fact** shown at the reveal |
-| Accepted aliases | **Accepted answers**; the host console flags answers that look right |
-| Hidden connection / secret theme | **Overall theme**: players guess it any time for bonus points, earlier worth more; revealed with its formal explanation |
-| Confidence set | **Confidence set** question type: a pool such as 8-6-4-2, each value spent once |
-| Final Jeopardy | **Final wager** question type: right wins the wager, wrong loses it |
-| Leaderboard after every round | Scoreboards appear on phones and the projector at the end of each round and at the end of the game, not after every question |
-| 40-50 question cap | The builder warns past 50 |
-| Team reconnect | Optional 4-digit **PIN**: rejoin under the same name if a phone locks |
-| Special categories (Before & After, Fill in the Blank, Who Charted?, Cast & Release Year) | **Section** label on a question, plus a round description for its rules |
+These rules are advice for whoever writes the trivia. The app deliberately keeps the form small: a question box, an answer box and points, so the questions stay clean and players only ever see the question as you wrote it.
+
+- The builder has a **What makes a good question** card and an **Examples of each type** card with worked examples.
+- The empty boxes show example text.
+- **Answer** takes extra accepted spellings, one per line, so a right answer is never marked wrong. The host console also flags answers that look right.
+- Put the **two clues** in the question text, the enthusiast angle first, and end with the ask on its own line: "Which Asian country is this?"
+- **Section** (under More options) groups a run of questions, so a Hodgepodge of six reads "Round 1: Hodgepodge, 1/6".
+- **Confidence set** and **Final wager** are question types; the **secret theme** is a setting of the whole trivia.
+- Scoreboards appear at the end of each round and the end of the game.
+- Players can set a 4-digit PIN to get back in if their phone locks.
+- The builder warns past 50 questions.

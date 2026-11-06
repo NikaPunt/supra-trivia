@@ -97,7 +97,6 @@ export const makeCode = () => [...randomBytes(5)].map((b) => CODE_ALPHABET[b % C
 export interface Item {
   roundIdx: number;
   roundTitle: string;
-  roundSubtitle?: string;
   section?: string;
   type: string;
   config: any;
@@ -105,9 +104,24 @@ export interface Item {
 }
 export const items = (g: Pick<Game, "rounds">): Item[] =>
   g.rounds.flatMap((r, roundIdx) =>
-    r.modules.map((m) => ({ roundIdx, roundTitle: r.title, roundSubtitle: r.subtitle, section: m.section, type: m.type, config: m.config, maxGuesses: m.maxGuesses })),
+    r.modules.map((m) => ({ roundIdx, roundTitle: r.title, section: m.section, type: m.type, config: m.config, maxGuesses: m.maxGuesses })),
   );
 export const currentItem = (g: Game): Item | null => (g.cursor >= 0 ? (items(g)[g.cursor] ?? null) : null);
+
+/**
+ * Where the current question sits within its run: consecutive questions of the same round and section count together,
+ * so six Hodgepodge questions read 1/6 to 6/6 and a four-question confidence set reads 1/4 to 4/4.
+ */
+export function groupPos(g: Game): { n: number; of: number } {
+  const all = items(g);
+  const same = (a: Item | undefined, b: Item | undefined) => !!a && !!b && a.roundIdx === b.roundIdx && (a.section ?? "") === (b.section ?? "");
+  const cur = all[g.cursor];
+  let start = g.cursor;
+  while (start > 0 && same(all[start - 1], cur)) start--;
+  let end = g.cursor;
+  while (end + 1 < all.length && same(all[end + 1], cur)) end++;
+  return { n: g.cursor - start + 1, of: end - start + 1 };
+}
 
 /** True when the current question is the last one of its round: the moment for a leaderboard. */
 export function isRoundEnd(g: Game): boolean {
@@ -268,6 +282,11 @@ function revealTheme(g: Game): void {
   g.themeRevealed = true;
 }
 
+const everyoneGotTheme = (g: Game) => {
+  const live = g.players.filter((p) => !p.kicked);
+  return live.length > 0 && live.every((p) => g.themeGuesses.some((t) => t.playerId === p.id && t.status === "approved"));
+};
+
 // ---- host actions ----
 
 const inPlay = (g: Game) => g.phase === "open" || g.phase === "closed" || g.phase === "revealed";
@@ -307,6 +326,8 @@ export function act(g: Game, a: Action): void {
       if (g.cursor + 1 < items(g).length) {
         g.cursor++;
         g.phase = "open";
+        // The theme is public from round two on, as in the first Tuesday trivia.
+        if (items(g)[g.cursor]!.roundIdx >= 1) revealTheme(g);
       } else finishGame(g);
       break;
     case "end":
@@ -339,6 +360,8 @@ export function act(g: Game, a: Action): void {
       if (!t) throw new GameError("no such guess", 404);
       t.points = a.points;
       t.status = a.points > 0 ? "approved" : "rejected";
+      // Once every player has found it there is nothing left to hide.
+      if (everyoneGotTheme(g)) revealTheme(g);
       break;
     }
     case "theme_reveal":
@@ -371,8 +394,8 @@ function itemMeta(g: Game, full: boolean) {
     type: it.type,
     label: mod.label,
     round: it.roundTitle,
-    roundSubtitle: it.roundSubtitle,
     section: it.section,
+    pos: groupPos(g),
     input: mod.input,
     stakeKey: mod.stake?.(it.config, [])?.key,
     public: mod.publicView(it.config),

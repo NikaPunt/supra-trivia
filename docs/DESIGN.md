@@ -9,6 +9,12 @@ Four looks, chosen from the **Look** dropdown in the page footer (and in the hos
 | **Paper and ink** | A printed quiz sheet: warm paper, black ink, heavy rules, one vermilion, a stamped answer type |
 | **Game show** | Saturated cobalt, a bright white board, chunky type, rounded shapes |
 
+## The question screen
+An open page, no frame: a header line (`Round 1: Hodgepodge · 1/6`), the question as written, and below it a note card about the secret theme. The room code and the player's name sit at the bottom. The same layout is used in all four looks.
+
+## Screen sizes
+Checked on every page, in every look, from a 360px phone through tablets and laptops to 1080p and 4K TVs (overflow, tap-target size, text size). The projector view scales with the screen. Tables become stacked rows on phones.
+
 ## Adding a look
 Every look sets the same semantic tokens (`--ground`, `--panel`, `--accent`, `--board`, fonts, radius and so on) in one `html[data-design="name"]` block at the end of `public/styles.css`. Add the block, then add the name to `DESIGNS` in `public/js/common.js` and to the pattern in `public/js/theme.js`. A test keeps the stylesheet's braces balanced.
 
@@ -27,10 +33,11 @@ The look takes its cue from the paintings of Niko Pirosmani (ნიკო ფი
 | The cream tablecloth | The light theme, used automatically when the device is set to light |
 | Hand-lettered type | Fraunces (soft, slightly wonky axes) for display, Alegreya Sans for text, Noto Georgian faces for Georgian script |
 
-## Georgian touches
+## Georgian touches (Pirosmani look only)
 - "ვიქტორინა" (viktorina, quiz) beside the wordmark.
-- "გაუმარჯოს!" (gaumarjos, the toast cry) on the final screens, and as the winner's cheer.
+- "გაუმარჯოს!" (gaumarjos, the toast cry) on the final screens.
 - The join page credits the painter: ნიკო ფიროსმანი.
+The other three looks show none of this.
 
 ## Fonts
 All self-hosted from `public/fonts/` (nothing loads from a third party), all SIL Open Font License 1.1: Fraunces, Alegreya Sans, Noto Georgian, and Bricolage Grotesque (Game show). Licence texts are in that folder.

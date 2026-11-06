@@ -1,4 +1,4 @@
-import { $, api, describeAnswer, h, live, mount, questionBlock, revealBlock, scene } from "./common.js";
+import { $, api, describeAnswer, h, live, mount, questionBlock, revealBlock, scene, themeNote } from "./common.js";
 
 // Typed text survives re-renders caused by live updates.
 const drafts = { answer: "", theme: "", stake: "", key: "" };
@@ -10,17 +10,13 @@ function board(state) {
     state.myRank && state.myRank > 10 ? h("p", { class: "muted" }, `You are #${state.myRank}`) : null);
 }
 
+/** The theme as a note card. While it is secret it also holds the box for guessing it. */
 function themeCard(state) {
   const t = state.theme;
   if (!t) return null;
-  if (t.revealed) {
-    return h("div", { class: "card theme-card" }, h("h2", {}, "The secret theme was…"), h("p", {}, h("strong", {}, t.secret)), t.formal ? h("p", {}, t.formal) : null,
-      t.myBonus ? h("p", {}, `You earned +${t.myBonus} for guessing it.`) : null);
-  }
-  if (state.phase === "lobby" || state.phase === "ended") {
-    return h("div", { class: "card theme-card" }, h("h2", {}, "There's a secret theme"), h("p", { class: "muted" }, `It links the whole game. Once we start, guess it any time for bonus points; earlier guesses are worth more.${t.hint ? ` Hint: ${t.hint}` : ""}`));
-  }
-  const field = h("input", { placeholder: "What connects it all?", maxlength: 200, value: drafts.theme, disabled: t.guessesLeft === 0 });
+  if (t.revealed) return themeNote(t, t.myBonus ? h("p", {}, `You earned +${t.myBonus} for finding it.`) : null);
+  if (state.phase === "lobby" || state.phase === "ended") return themeNote(t);
+  const field = h("input", { placeholder: "What connects it all?", maxlength: 200, value: drafts.theme, disabled: t.guessesLeft === 0, "aria-label": "Guess the secret theme" });
   field.addEventListener("input", () => { drafts.theme = field.value; });
   const err = h("p", { class: "err" });
   const send = async () => {
@@ -29,10 +25,10 @@ function themeCard(state) {
     catch (e) { err.textContent = e.message; }
   };
   field.addEventListener("keydown", (e) => { if (e.key === "Enter") send(); });
-  return h("div", { class: "card theme-card" }, h("h2", {}, "Secret theme"), t.hint ? h("p", { class: "muted" }, `Hint: ${t.hint}`) : null,
+  return themeNote(t,
     h("div", { class: "row" }, h("div", { class: "grow" }, field), h("button", { disabled: t.guessesLeft === 0, onclick: send }, "Guess")),
-    h("p", { class: "muted" }, `${t.guessesLeft} theme guesses left. You will learn if you got it when the host reveals the theme.`),
-    t.myGuesses.length ? h("div", { class: "muted" }, "Your guesses: " + t.myGuesses.join(", ")) : null, err);
+    h("p", { class: "muted" }, t.myGuesses.length ? `${t.myGuesses.join(", ")} · ${t.guessesLeft} left` : `${t.guessesLeft} guesses`),
+    err);
 }
 
 function stakeInput(st) {
@@ -42,7 +38,7 @@ function stakeInput(st) {
     : h("input", { type: "number", min: st.min, max: st.max, step: 1, placeholder: `${st.min}–${st.max}` });
   el.value = drafts.stake;
   el.addEventListener("input", () => { drafts.stake = el.value; });
-  return { el, node: h("div", {}, h("label", {}, st.label), el) };
+  return { el, node: h("div", { class: "stake" }, h("label", {}, st.label), el) };
 }
 
 function inputFor(state) {
@@ -64,7 +60,7 @@ function inputFor(state) {
     return h("div", {}, st?.node, h("div", { class: "choices" }, item.public.options.map((o, i) =>
       h("button", { class: i === cur ? "picked" : "", disabled: !open, onclick: () => send({ [item.input.key]: i }) }, o))), err);
   }
-  const field = h("input", { type: item.input.kind === "number" ? "number" : "text", step: "any", maxlength: 200, disabled: !open, autocomplete: "off",
+  const field = h("input", { type: item.input.kind === "number" ? "number" : "text", step: "any", maxlength: 200, disabled: !open, autocomplete: "off", "aria-label": "Your answer",
     value: drafts.answer || (mine[0]?.value[item.input.key] ?? "") });
   field.addEventListener("input", () => { drafts.answer = field.value; });
   const submit = () => {
@@ -75,16 +71,24 @@ function inputFor(state) {
   return h("div", {}, st?.node, field, h("div", { class: "row", style: "margin-top:8px" }, h("button", { class: "primary", disabled: !open, onclick: submit }, mine.length ? "Change answer" : "Lock in")), err);
 }
 
+const foot = (state) => h("div", { class: "ft" }, h("span", {}, state.me), h("span", {}, `Room ${state.code}`));
+
 function render(state) {
   const key = `${state.number}:${state.phase === "lobby"}`;
   if (drafts.key !== key) { drafts.answer = ""; drafts.stake = ""; drafts.key = key; }
-  const head = h("div", { class: "row" }, h("strong", {}, state.me), h("span", { class: "grow" }), h("span", { class: "eyebrow" }, `Room ${state.code}`));
-  if (state.phase === "lobby") return mount($("#app"), head, scene(), h("h1", {}, state.title), h("p", { class: "muted" }, `Waiting for the host to begin. ${state.players} at the table.`), themeCard(state));
-  if (state.phase === "ended") return mount($("#app"), head, scene(), h("div", { class: "toast" }, "გაუმარჯოს!"), h("p", { class: "muted" }, "Gaumarjos! That's a wrap."), themeCard(state), board(state));
+  if (state.phase === "lobby") {
+    return mount($("#app"), scene(), h("h1", {}, state.title), h("p", { class: "muted" }, `Waiting for the host to begin. ${state.players} at the table.`), themeCard(state), foot(state));
+  }
+  if (state.phase === "ended") {
+    return mount($("#app"), scene(),
+      h("div", { class: "toast" }, h("span", { class: "geo" }, "გაუმარჯოს!"), h("span", { class: "plain" }, "That's a wrap!")),
+      h("p", { class: "muted geo" }, "Gaumarjos! That's a wrap."),
+      themeCard(state), board(state), foot(state));
+  }
   const it = state.item;
   const mine = state.myAnswers;
-  mount($("#app"), head,
-    questionBlock(it, `${it.round} · ${state.number}/${state.total}`),
+  mount($("#app"),
+    questionBlock(it),
     state.phase === "revealed"
       ? h("div", { class: "card" }, h("div", { class: "eyebrow" }, "Your answer"),
           mine.length
@@ -96,7 +100,7 @@ function render(state) {
           inputFor(state),
           state.guessesLeft !== null ? h("p", { class: "muted" }, `Guesses left: ${state.guessesLeft}`) : null),
     revealBlock(it),
-    themeCard(state), board(state));
+    themeCard(state), board(state), foot(state));
 }
 
 let lastSig = "";

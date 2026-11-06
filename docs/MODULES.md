@@ -3,17 +3,10 @@
 A trivia is an ordered list of **rounds**; each round is an ordered list of **questions**, and each question is one of these types. Rounds have a title and a description for the rules of their special categories. A question can carry a **section** label (e.g. "Hodgepodge", "Before & After", "Confidence Set").
 Every type is one file in `src/modules/` registered in `src/modules/index.ts`.
 
-## What every question has (the question frame)
-These follow [GUIDELINES.md](GUIDELINES.md). All are optional, and the builder suggests filling them in:
+## What a question is
+One box of text, an answer, and points. Players see exactly the text you wrote, with blank lines kept, so a question can end with its ask on a line of its own. There are no separate clue, category, tier or answer-type boxes: the quality advice in [GUIDELINES.md](GUIDELINES.md) is for the person writing the trivia. Under **More options** a question can also have a **section**, a fun fact shown at the reveal, and its own guess limit.
 
-| Field | Purpose |
-|---|---|
-| Clue 1 | The harder, clever enthusiast angle |
-| Clue 2 | The broader foothold so casual players have an angle |
-| Answer type | Pinned on screen ("Country", "Person", "Film") to avoid grading disputes |
-| Category | Rotate sub-genres across history, science, geography, food, pop culture |
-| Tier | Layup, Sweet Spot, Stretch or Separator, for the 2-5-2-1 meter |
-| Fun fact | Shown at the reveal ("why" / the deduction) |
+The header above a question reads `Round 1: Hodgepodge · 1/6`. The count is over consecutive questions of the same section, so six Hodgepodge questions are 1/6 to 6/6 and a four-question confidence set is 1/4 to 4/4.
 
 ## Built-in types
 
@@ -43,7 +36,7 @@ The **secret overall theme** is not a question type: it is a setting of the whol
 | `solution(config)` | The answer text shown at the reveal |
 
 ## Adding a type
-1. Create `src/modules/<type>.ts` exporting a `TriviaModule`; spread `clueFields` and `detailFields` into its `fields` so it gets the question frame.
+1. Create `src/modules/<type>.ts` exporting a `TriviaModule`; give each field a `placeholder` that shows a good example, and spread `detailFields` into `fields` for the fun fact.
 2. Register it in `src/modules/index.ts`.
 3. Add a row above and a test in `test/`.
 
@@ -53,4 +46,4 @@ The builder is generic: it reads `fields` from `/api/modules`, so drag-and-drop,
 ```bash
 node tools/convert-v01.mjs path/to/questions.json > my-trivia.json
 ```
-Then use **Import JSON** in the builder. The converter keeps rounds, sections, clues, answer types, accepted answers, fun facts, confidence sets, Final Jeopardy and the secret theme.
+Then use **Import JSON** in the builder. The converter keeps rounds, sections, the question (the clues and the ask become one text), accepted answers, fun facts, confidence sets, Final Jeopardy and the secret theme. Trivias saved with the older separate clue boxes are folded into one question automatically.

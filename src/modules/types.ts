@@ -11,6 +11,10 @@ export interface Field {
   options?: string[];
   /** Left out of the saved config when blank. */
   optional?: boolean;
+  /** Example text shown in the empty box, to show hosts what a good entry looks like. */
+  placeholder?: string;
+  /** Tucked under "More options" in the builder. */
+  advanced?: boolean;
 }
 
 /** How players answer: a text box, one of the listed options, or a number. `key` is the field in the answer object. */
@@ -62,36 +66,20 @@ export interface TriviaModule<C = any, A = any> {
 export const normalize = (s: string): string =>
   s.toLowerCase().normalize("NFKD").replace(/[^\p{L}\p{N}]+/gu, " ").trim();
 
-// ---- shared question frame, from the trivia guidelines (docs/GUIDELINES.md) ----
-
-export const TIERS = ["Layup", "Sweet Spot", "Stretch", "Separator"] as const;
+// ---- shared pieces ----
+// A question is one box of text and an answer. Clues, answer types and tiers are guidance for the person
+// writing the trivia (docs/GUIDELINES.md), not extra boxes, so players only ever see the question as written.
 
 export const frameShape = {
-  category: z.string().max(60).optional(),
-  answerType: z.string().max(60).optional(),
-  tier: z.enum(TIERS).optional(),
-  clue1: z.string().max(600).optional(),
-  clue2: z.string().max(600).optional(),
   funFact: z.string().max(600).optional(),
 };
 
-/** The two-clue pinning rule: a sharper clue for enthusiasts first, then a broader foothold. */
-export const clueFields: Field[] = [
-  { key: "clue1", label: "Clue 1: the enthusiast angle", kind: "textarea", optional: true, help: "harder, clever" },
-  { key: "clue2", label: "Clue 2: the accessible foothold", kind: "textarea", optional: true, help: "broader context" },
-];
-
+/** Shown with the answer at the reveal. Optional, tucked away. */
 export const detailFields: Field[] = [
-  { key: "answerType", label: "Answer type (pinned on screen)", kind: "text", optional: true, help: "e.g. Country, Person, Film" },
-  { key: "category", label: "Category", kind: "text", optional: true, help: "rotate sub-genres" },
-  { key: "tier", label: "Tier", kind: "select", options: [...TIERS], optional: true, help: "for the 2-5-2-1 curve" },
-  { key: "funFact", label: "Fun fact / why (shown at reveal)", kind: "textarea", optional: true },
+  { key: "funFact", label: "Fun fact shown at the reveal", kind: "textarea", optional: true, advanced: true },
 ];
 
 export const pointsField: Field = { key: "points", label: "Points", kind: "number", default: 1, help: "halves allowed, e.g. 1.5" };
 export const pointsSchema = z.number().min(0).max(1000).multipleOf(0.5);
 
-/** What every player may see about the question's framing. Never includes the answer. */
-export const framePublic = (c: z.infer<z.ZodObject<typeof frameShape>>) => ({
-  category: c.category, answerType: c.answerType, tier: c.tier, clue1: c.clue1, clue2: c.clue2,
-});
+export const QUESTION_MAX = 1200;
