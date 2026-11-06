@@ -22,3 +22,7 @@ cp config/hosts.example.json config/hosts.json   # your email under admins
 npm run dev
 npm test
 ```
+
+## License
+
+[MIT](LICENSE). The bundled fonts keep their own open licences, noted in `public/fonts/README.txt`.
