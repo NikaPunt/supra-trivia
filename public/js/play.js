@@ -1,13 +1,13 @@
-import { $, api, describeAnswer, enterIfChanged, h, keepAwake, live, mount, questionBlock, revealBlock, scene, stable, syncClock, themeNote, timerOf } from "./common.js";
+import { $, api, describeAnswer, enterIfChanged, h, keepAwake, live, mount, questionBlock, revealBlock, art, scoreSign, stable, syncClock, themeNote, timerOf } from "./common.js";
 
 // Typed text survives re-renders caused by live updates.
 const drafts = { answer: "", theme: "", stake: "", key: "", seen: "", wager: "", seenWager: "" };
 
 function board(state) {
   if (!state.leaderboard) return null;
-  return h("div", { class: "card" }, h("h2", {}, state.phase === "ended" ? "Final scores" : "Scores after this round"),
-    state.leaderboard.map((r, i) => h("div", { class: `rank ${r.me ? "me" : ""}` }, h("span", {}, `${i + 1}. ${r.nickname}`), h("span", {}, r.points))),
-    state.myRank && state.myRank > 10 ? h("p", { class: "muted" }, `You are #${state.myRank}`) : null);
+  const ended = state.phase === "ended";
+  return scoreSign(ended ? "Final scores" : "Scores after this round", state.leaderboard, { ended,
+    extra: state.myRank && state.myRank > 10 ? h("p", { class: "muted" }, `You are #${state.myRank}`) : null });
 }
 
 /** The team's theme guesses, oldest first: who sent each and how many are left after it. */
@@ -129,10 +129,10 @@ function render(state) {
   const key = `${state.number}:${state.phase === "lobby"}`;
   if (drafts.key !== key) { drafts.answer = ""; drafts.stake = ""; drafts.seen = ""; drafts.wager = ""; drafts.seenWager = ""; drafts.key = key; }
   if (state.phase === "lobby") {
-    return mount($("#app"), scene(), h("h1", {}, state.title), h("p", { class: "muted" }, `Waiting for the host to begin. ${state.players} at the table.`), themeCard(state), foot(state));
+    return mount($("#app"), art("table", { size: "wide" }), h("h1", {}, state.title), h("p", { class: "muted" }, `Waiting for the host to begin. ${state.players} at the table.`), themeCard(state), foot(state));
   }
   if (state.phase === "ended") {
-    return mount($("#app"), scene(),
+    return mount($("#app"), art("tamada", { size: "wide" }),
       h("div", { class: "toast" }, h("span", { class: "geo" }, "გაუმარჯოს!"), h("span", { class: "plain" }, "That's a wrap!")),
       h("p", { class: "muted geo" }, "Gaumarjos! That's a wrap."),
       themeCard(state), board(state), foot(state));
@@ -141,7 +141,7 @@ function render(state) {
   const mine = state.myAnswers;
   mount($("#app"),
     questionBlock(it, timerOf(state)),
-    state.paused ? h("div", { class: "note paused-note" }, h("b", {}, "Paused"), h("p", {}, "The host will carry on in a moment. Your answer is safe.")) : null,
+    state.paused ? h("div", { class: "note paused-note" }, art("bear", { size: "thumb" }), h("div", {}, h("b", {}, "Paused"), h("p", {}, "The host will carry on in a moment. Your answer is safe."))) : null,
     state.phase === "revealed"
       ? h("div", { class: "card" }, h("div", { class: "eyebrow" }, "Your answer"),
           mine.length

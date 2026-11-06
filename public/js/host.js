@@ -1,4 +1,4 @@
-import { $, api, h, hostHeader, mount } from "./common.js";
+import { $, api, emptyState, h, hostHeader, mount } from "./common.js";
 const me = await hostHeader($("#bar"));
 
 async function render() {
@@ -7,7 +7,7 @@ async function render() {
   mount($("#app"),
     h("h1", {}, "Your sessions"),
     live.length ? live.map((s) => h("div", { class: "card row" }, h("strong", { class: "code", style: "font-size:1.4rem" }, s.code), h("span", { class: "grow" }, `${s.title} · ${s.players} players · ${s.phase}`),
-      h("a", { class: "btn primary", href: `/session.html?id=${s.id}` }, "Open"))) : h("p", { class: "muted" }, "No active sessions."),
+      h("a", { class: "btn primary", href: `/session.html?id=${s.id}` }, "Open"))) : emptyState("No active sessions."),
     h("div", { class: "row" }, h("h1", { class: "grow" }, "Your trivias"), h("a", { class: "btn primary", href: "/builder.html" }, "New trivia")),
     trivias.length ? trivias.map((t) => h("div", { class: "card row" }, h("span", { class: "grow" }, t.title),
       h("a", { class: "btn", href: `/builder.html?id=${t.id}` }, "Edit"),
@@ -20,6 +20,6 @@ async function render() {
         try { const s = await api(`/api/trivias/${t.id}/sessions`, { method: "POST" }); location.href = `/session.html?id=${s.id}`; }
         catch (e) { alert(e.message); }
       } }, "Host live"),
-      h("button", { class: "danger", onclick: async () => { if (confirm(`Delete "${t.title}"?`)) { await api(`/api/trivias/${t.id}`, { method: "DELETE" }); render(); } } }, "Delete"))) : h("p", { class: "muted" }, "No trivias yet."));
+      h("button", { class: "danger", onclick: async () => { if (confirm(`Delete "${t.title}"?`)) { await api(`/api/trivias/${t.id}`, { method: "DELETE" }); render(); } } }, "Delete"))) : emptyState("No trivias yet."));
 }
 render();

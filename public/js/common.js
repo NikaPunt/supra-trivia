@@ -1,3 +1,6 @@
+import { HORN_MARK, art } from "./art.js";
+export { art };
+
 export const $ = (sel, el = document) => el.querySelector(sel);
 
 /** Builds DOM safely: strings become text nodes, never HTML. */
@@ -207,4 +210,50 @@ export async function hostHeader(el, { requireHost = true } = {}) {
     designPicker(), h("span", { class: "muted" }, host.name), h("span", { class: `badge ${host.role}` }, host.role),
     h("button", { onclick: async () => { await api("/auth/logout", { method: "POST" }); location.href = "/"; } }, "Log out"));
   return host;
+}
+
+// ---- the painted look ----
+
+/**
+ * Two filters that wobble an edge a little, so borders and signs look painted by hand instead of ruled. The Pirosmani look
+ * uses them (see "brush" in styles.css); the other looks never refer to them. Constant markup, no user data.
+ */
+(function paintFilters() {
+  if (document.getElementById("paint-filters")) return;
+  const svg = document.createElement("div");
+  svg.id = "paint-filters";
+  svg.setAttribute("aria-hidden", "true");
+  svg.style.cssText = "position:absolute;width:0;height:0;overflow:hidden";
+  svg.innerHTML = `<svg width="0" height="0" xmlns="http://www.w3.org/2000/svg"><defs>
+    <filter id="brush" x="-3%" y="-8%" width="106%" height="116%"><feTurbulence type="fractalNoise" baseFrequency="0.016" numOctaves="1" seed="7" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="3.2" xChannelSelector="R" yChannelSelector="G"/></filter>
+    <filter id="brush-soft" x="-10%" y="-10%" width="120%" height="120%"><feTurbulence type="fractalNoise" baseFrequency="0.012" numOctaves="1" seed="3" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="2.4" xChannelSelector="R" yChannelSelector="G"/></filter>
+    <filter id="brush-big" x="-3%" y="-12%" width="106%" height="124%"><feTurbulence type="fractalNoise" baseFrequency="0.008" numOctaves="1" seed="7" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="7" xChannelSelector="R" yChannelSelector="G"/></filter>
+    <filter id="brush-big-soft" x="-10%" y="-10%" width="120%" height="120%"><feTurbulence type="fractalNoise" baseFrequency="0.006" numOctaves="1" seed="3" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="5" xChannelSelector="R" yChannelSelector="G"/></filter>
+  </defs></svg>`;
+  document.body.prepend(svg);
+})();
+
+/**
+ * A scoreboard painted on a hanging sign: the rank in a medallion, the team's name, the points. After the last
+ * question the winner gets the wine horn. `rows` are { nickname, points, me? } in rank order.
+ */
+export function scoreSign(title, rows, { ended = false, extra = null } = {}) {
+  return h("div", { class: "card sign" },
+    h("div", { class: "signhead" }, h("h2", {}, title), ended ? null : art("still", { size: "thumb" })),
+    rows.map((r, i) => h("div", { class: `rank${r.me ? " me" : ""}` },
+      h("span", { class: "who" }, h("span", { class: "pos" }, String(i + 1)), h("span", { class: "nm" }, r.nickname), ended && i === 0 ? hornMark() : null),
+      h("span", { class: "pts" }, r.points))),
+    extra);
+}
+function hornMark() {
+  const s = document.createElement("span");
+  s.className = "art hornmark";
+  s.setAttribute("aria-hidden", "true");
+  s.innerHTML = HORN_MARK; // constant markup
+  return s;
+}
+
+/** An empty list, with a giraffe to keep it company. */
+export function emptyState(text) {
+  return h("div", { class: "empty" }, art("giraffe", { size: "thumb" }), h("p", { class: "muted" }, text));
 }

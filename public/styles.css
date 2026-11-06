@@ -109,7 +109,7 @@ h2 { font-size: 1.3rem; line-height: 1.25; margin: 0 0 0.6rem; font-variation-se
 .err:empty { display: none; }
 p { margin: 0.55rem 0; }
 td .badge { margin-left: 0.5rem; }
-.num, .rank span:last-child, td.num { font-variant-numeric: tabular-nums lining-nums; }
+.num, .rank > span:last-child, td.num { font-variant-numeric: tabular-nums lining-nums; }
 
 /* ---- top bar ---- */
 header.bar {
@@ -212,8 +212,8 @@ th { font: 700 0.75rem/1.2 var(--body); letter-spacing: 0.12em; text-transform: 
 
 /* ---- scoreboard ---- */
 .rank { display: flex; justify-content: space-between; gap: 1rem; padding: 0.45rem 0.2rem; border-bottom: 1px solid var(--line); font-size: 1.1rem; }
-.rank span:last-child { font: 650 1.2rem/1.2 var(--display); font-variation-settings: var(--vs-quiet); }
-.rank:first-of-type span:first-child { color: var(--accent-text); font-weight: 700; }
+.rank > span:last-child { font: 650 1.2rem/1.2 var(--display); font-variation-settings: var(--vs-quiet); }
+.rank:first-of-type > span:first-child, .signhead + .rank > .who { color: var(--accent-text); font-weight: 700; }
 .rank.me { color: var(--accent-text); font-weight: 700; }
 .toast { font: 650 clamp(2rem, 8vw, 3.4rem)/1.1 var(--display); font-variation-settings: var(--vs); color: var(--accent-text); margin: 0.6rem 0 0.2rem; }
 
@@ -406,3 +406,136 @@ body.deck .rank, body.deck .card h2 { font-size: max(13px, 1em); }
 .runbar { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; margin-bottom: 6px; font-size: 0.95rem; }
 .runbar .warnline { flex-basis: 100%; margin: 0; }
 .card.typo .row { margin-top: 6px; flex-wrap: wrap; }
+
+/* ======================================================================
+   Pirosmani, painted. Pirosmani painted on black oilcloth, in flat colour, with a black line round everything and
+   little regard for neat edges. So in this look: a grain on the cloth, borders that wobble a little, signs that hang,
+   a woven band along the top, and small paintings (public/js/art.js) where there is room for one.
+   Everything below is scoped to this look; the other three never see it.
+   ====================================================================== */
+.art { display: none; }
+html[data-design="pirosmani"] .art { display: block; }
+html[data-design="pirosmani"] .art.hornmark { display: inline-block; }
+html[data-design="pirosmani"] {
+  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.55' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .93  0 0 0 0 .86  0 0 0 0 .66  0 0 0 .5 -.2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  --lamp: rgb(224 168 46 / 0.08);
+  --band: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='8'%3E%3Cpath d='M0 8L7 0L14 8Z' fill='%23e0a82e'/%3E%3Cpath d='M14 8L21 0L28 8Z' fill='%23c93a22'/%3E%3C/svg%3E");
+  --rope: #7a6347;
+}
+@media (prefers-color-scheme: light) {
+  html[data-design="pirosmani"] { --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.75' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .35  0 0 0 0 .25  0 0 0 0 .12  0 0 0 .9 -.43'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); --lamp: rgb(255 255 255 / 0.45); --rope: #8a7352; }
+}
+
+/* the cloth: grain, and a little lamplight from above */
+html[data-design="pirosmani"] body {
+  background-image: radial-gradient(ellipse 80% 45% at 50% 0, var(--lamp), transparent), var(--grain);
+  background-attachment: fixed, fixed;
+}
+
+/* the woven band: along the bottom of the header, or the top of a page that has no header */
+html[data-design="pirosmani"] header.bar { position: relative; border-bottom: 0; margin-bottom: 8px; }
+html[data-design="pirosmani"] header.bar::after { content: ""; position: absolute; left: 0; right: 0; bottom: -8px; height: 8px; background: var(--band) repeat-x 0 0 / 28px 8px; pointer-events: none; }
+html[data-design="pirosmani"] body:not(:has(> header.bar))::before { content: ""; position: fixed; left: 0; right: 0; top: 0; height: 8px; background: var(--band) repeat-x 0 0 / 28px 8px; pointer-events: none; z-index: 5; }
+html[data-design="pirosmani"] body:not(:has(> header.bar)) main { padding-top: 1.8rem; }
+
+/* edges painted by hand: the frame is a separate layer that wobbles, so the text on top stays crisp */
+html[data-design="pirosmani"] :is(.card, .note, .reveal, .round, .hostcard) { position: relative; border-color: transparent; }
+html[data-design="pirosmani"] :is(.card, .note, .reveal, .round, .hostcard)::after {
+  content: ""; position: absolute; inset: -1px; border: max(2px, 0.14rem) solid var(--frame, var(--line-strong)); border-radius: 4px 2px 5px 2px;
+  filter: url(#brush); pointer-events: none;
+}
+html[data-design="pirosmani"] .note { --frame: var(--accent); }
+html[data-design="pirosmani"] .theme-card { --frame: var(--accent); border-width: 1px; }
+html[data-design="pirosmani"] .reveal { --frame: var(--ok); }
+html[data-design="pirosmani"] .reveal::after { border-width: max(3px, 0.2rem); }
+html[data-design="pirosmani"] .mod { border-radius: 4px 3px 5px 3px; }
+
+/* rules: a stroke of paint instead of a ruled line */
+html[data-design="pirosmani"] .board .where { position: relative; border-bottom: 0; }
+html[data-design="pirosmani"] .board .where::after, html[data-design="pirosmani"] .ft::before, html[data-design="pirosmani"] .tabs::after {
+  content: ""; position: absolute; left: 0; right: 0; height: max(3px, 0.2rem); background: var(--line-strong); filter: url(#brush); border-radius: 2px; pointer-events: none;
+}
+html[data-design="pirosmani"] .board .where::after { bottom: 0; }
+html[data-design="pirosmani"] .ft { position: relative; border-top: 0; }
+html[data-design="pirosmani"] .ft::before { top: 0; }
+html[data-design="pirosmani"] .tabs { position: relative; border-bottom: 0; }
+html[data-design="pirosmani"] .tabs::after { bottom: 0; }
+html[data-design="pirosmani"] h1::after { content: ""; display: block; width: 3.4rem; height: max(4px, 0.25rem); margin-top: 0.45rem; background: var(--accent); border-radius: 2px; filter: url(#brush); }
+html[data-design="pirosmani"] .toast::after, html[data-design="pirosmani"] .row > h1::after { display: none; }
+
+/* controls: not quite square, and the main button sits on a flat shadow like a painted sign on its board */
+html[data-design="pirosmani"] :is(button, .btn):not(.tabs button), html[data-design="pirosmani"] :is(input, textarea, select) { border-radius: 7px 5px 8px 5px / 5px 8px 5px 7px; }
+html[data-design="pirosmani"] :is(button.primary, .btn.primary) { box-shadow: 0 3px 0 #7a5410; }
+html[data-design="pirosmani"] :is(button.primary, .btn.primary):active { box-shadow: 0 1px 0 #7a5410; transform: translateY(2px); }
+html[data-design="pirosmani"] :is(button.primary, .btn.primary):disabled { box-shadow: none; }
+html[data-design="pirosmani"] .choices button { border-width: 2px; }
+
+/* small paintings and the big one */
+html[data-design="pirosmani"] :is(.scene, .plate) { border: max(3px, 0.2rem) solid #17110a; box-shadow: 0 0 0 max(2px, 0.14rem) var(--accent); border-radius: 2px; filter: url(#brush-soft); margin-block: 0.7rem 1.2rem; }
+html[data-design="pirosmani"] .scene { margin-inline: auto; }
+html[data-design="pirosmani"] .plate { position: relative; line-height: 0; overflow: hidden; background: #142252; margin-inline: auto; }
+html[data-design="pirosmani"] .plate svg { display: block; width: 100%; height: 100%; }
+html[data-design="pirosmani"] .plate.wide { max-width: 30rem; aspect-ratio: 8 / 5; }
+body.deck .plate.wide { max-width: min(46rem, 62vw); }
+html[data-design="pirosmani"] .plate.sm { max-width: 15rem; aspect-ratio: 8 / 5; }
+html[data-design="pirosmani"] .plate.thumb { width: 7rem; flex: none; aspect-ratio: 3 / 2; margin: 0; border-width: 2px; box-shadow: 0 0 0 1.5px var(--accent); }
+html[data-design="pirosmani"] .code { border: max(3px, 0.2rem) solid #17110a; box-shadow: 0 0 0 max(2px, 0.14rem) var(--accent); filter: url(#brush-soft); }
+html[data-design="pirosmani"] .hornmark { width: 2.4em; height: 1.6em; margin-left: 0.4em; align-self: center; }
+html[data-design="pirosmani"] .hornmark svg { width: 100%; height: 100%; display: block; }
+
+/* a scoreboard painted on a sign hanging from a beam */
+.signhead { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
+.signhead h2 { margin: 0 0 0.3rem; }
+.rank .who { display: flex; align-items: baseline; gap: 0.5ch; min-width: 0; }
+.rank .who .pos::after { content: "."; }
+.rank .who .nm { min-width: 0; overflow-wrap: anywhere; }
+html[data-design="pirosmani"] .rank .who .pos::after { content: none; }
+html[data-design="pirosmani"] .sign { background: var(--board); color: var(--board-text); --frame: var(--accent); margin-top: 2.6rem; padding: 0.9rem 1.1rem 0.7rem; }
+html[data-design="pirosmani"] .sign::before {
+  content: ""; position: absolute; left: 0; right: 0; top: -1.7rem; height: 1.7rem; pointer-events: none;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 40' preserveAspectRatio='none'%3E%3Cpath d='M12 40L50 3L88 40' fill='none' stroke='%238a7352' stroke-width='2.2' vector-effect='non-scaling-stroke'/%3E%3C/svg%3E") center bottom / 100% 100% no-repeat;
+}
+html[data-design="pirosmani"] .sign > .signhead::before { content: ""; position: absolute; left: 50%; top: -1.9rem; width: 0.7rem; height: 0.7rem; margin-left: -0.35rem; border-radius: 50%; background: var(--accent); border: 2px solid #17110a; }
+html[data-design="pirosmani"] .sign :is(h2, .rank, .muted) { color: var(--board-text); }
+html[data-design="pirosmani"] .sign .muted { color: var(--board-2); }
+html[data-design="pirosmani"] .sign .rank { border-bottom: 2px dotted rgb(224 168 46 / 0.38); align-items: center; padding: 0.5rem 0.1rem; }
+html[data-design="pirosmani"] .sign .rank:last-of-type { border-bottom: 0; }
+html[data-design="pirosmani"] .sign .rank .pts { color: var(--accent); }
+html[data-design="pirosmani"] .sign .rank.me .nm { color: var(--accent); }
+html[data-design="pirosmani"] .sign .pos {
+  display: inline-grid; place-items: center; flex: none; width: 1.75em; height: 1.75em; border-radius: 50%; border: 2px solid var(--accent);
+  font: 700 0.8em/1 var(--display); font-variant-numeric: lining-nums; color: var(--accent);
+}
+html[data-design="pirosmani"] .sign .signhead + .rank .pos { background: var(--accent); color: var(--accent-ink); }
+html[data-design="pirosmani"] .sign .signhead + .rank .nm { font-weight: 700; color: var(--board-text); }
+html[data-design="pirosmani"] .sign .eyebrow { color: var(--board-2); }
+body.deck .signhead .plate.thumb { width: 9rem; }
+
+/* paused: the bear and the moon */
+.paused-note { display: flex; gap: 0.9rem; align-items: center; }
+.paused-note b { display: block; }
+.paused-banner { display: flex; align-items: center; justify-content: center; gap: 1.2rem; }
+html[data-design="pirosmani"] .paused-banner .plate.thumb { width: clamp(6rem, 12vw, 12rem); }
+
+/* a big screen gets a bigger brush: the wobble would otherwise vanish at 4K */
+@media (min-width: 2200px) {
+  html[data-design="pirosmani"] :is(.card, .note, .reveal, .round, .hostcard)::after,
+  html[data-design="pirosmani"] :is(.board .where, .ft, .tabs)::before,
+  html[data-design="pirosmani"] :is(.board .where, .tabs)::after,
+  html[data-design="pirosmani"] h1::after { filter: url(#brush-big); }
+  html[data-design="pirosmani"] :is(.scene, .plate, .code) { filter: url(#brush-big-soft); }
+  html[data-design="pirosmani"] body:not(:has(> header.bar))::before { height: 16px; background-size: 56px 16px; }
+}
+
+/* the countdown, painted on a little cartouche */
+html[data-design="pirosmani"] .clock { padding: 0.2em 0.65em; border: max(2px, 0.12rem) solid currentColor; border-radius: 999px 900px 999px 900px / 700px 999px 700px 999px; font-size: 1.05rem; line-height: 1.1; }
+html[data-design="pirosmani"] .clock.paused { border-style: dashed; }
+
+/* the lobby on the projector: the room code hangs in the middle of the wall */
+body.deck .lobby { text-align: center; }
+body.deck .lobby .muted { margin-inline: auto; }
+html[data-design="pirosmani"] body.deck .lobby h1::after { margin-inline: auto; }
+
+/* empty places get a giraffe */
+.empty { display: flex; align-items: center; gap: 1rem; margin: 0.6rem 0 1rem; }
+.empty p { margin: 0; }
