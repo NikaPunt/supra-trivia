@@ -8,7 +8,7 @@ import { buildApp } from "../src/app.js";
 
 // A team is one player that several phones have joined with the same name and PIN.
 
-const cfg = loadConfig({ BASE_URL: "https://t.example.com", SESSION_SECRET: "x".repeat(40), GOOGLE_CLIENT_ID: "i", GOOGLE_CLIENT_SECRET: "s" });
+const cfg = loadConfig({ BASE_URL: "https://t.example.com", SESSION_SECRET: "x".repeat(40), GOOGLE_CLIENT_ID: "i", GOOGLE_CLIENT_SECRET: "s", SEED_SAMPLE: "false" });
 const hosts = HostDirectory.fromLists({ admins: ["o@example.com"] });
 const trivia = { title: "t", settings: { maxGuesses: 3 }, rounds: [{ title: "R", modules: [
   { type: "text_qa", config: { question: "Which country?", answers: ["Nepal"] } },

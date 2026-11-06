@@ -46,4 +46,4 @@ The builder is generic: it reads `fields` from `/api/modules`, so drag-and-drop,
 ```bash
 node tools/convert-v01.mjs path/to/questions.json > my-trivia.json
 ```
-Then use **Import JSON** in the builder. The converter keeps rounds, sections, the question (the clues and the ask become one text), accepted answers, fun facts, confidence sets, Final Jeopardy and the secret theme. Trivias saved with the older separate clue boxes are folded into one question automatically.
+Then use **Import JSON** in the builder. The converter keeps rounds, sections, the question (the clues and the ask become one text, including numbered steps, the cast and year, puzzle boards and track lists), accepted answers, fun facts, confidence sets (each led by its category), Final Jeopardy and the secret theme. Trivias saved with the older separate clue boxes are folded into one question automatically.

@@ -78,6 +78,22 @@ function fieldInput(m, f) {
 
 const fieldRow = (m, f) => h("div", {}, h("label", {}, f.label + (f.help ? ` (${f.help})` : "")), fieldInput(m, f));
 
+const describeGuesses = (n) => (n === 0 ? "unlimited guesses" : `${n} guess${n === 1 ? "" : "es"}`);
+const describeTime = (n) => (n === 0 ? "no timer" : n >= 60 ? `${n} seconds (${+(n / 60).toFixed(1)} minutes)` : `${n} seconds`);
+
+/**
+ * A per-question setting that starts filled in with the trivia's own default and says so. Typing the default back in
+ * simply means "use the default", so the question keeps following it if the default changes later.
+ */
+function defaulted(m, key, def, { label, min, max, describe }) {
+  const note = h("p", { class: "muted" });
+  const show = () => { note.textContent = m[key] === undefined ? `Defaulted to ${describe(def)}. Change it to give just this question its own.` : `Changed for this question. The trivia default is ${describe(def)}.`; };
+  const input = h("input", { type: "number", min, max, value: m[key] ?? def, oninput: (e) => { const v = e.target.value; m[key] = v === "" || Number(v) === def ? undefined : Number(v); show(); } });
+  input.addEventListener("change", () => { if (input.value === "") input.value = def; });
+  show();
+  return h("div", {}, h("label", {}, label), input, note);
+}
+
 function card(r, i, m) {
   const def = byType[m.type];
   const el = h("div", { class: "mod", draggable: "true" });
@@ -98,13 +114,11 @@ function card(r, i, m) {
     m.open ? [
       main.map((f) => fieldRow(m, f)),
       h("details", { class: "more" }, h("summary", {}, "More options"),
-        h("div", {}, h("label", {}, "Section (questions in a row with the same section are numbered together, like Hodgepodge 1/6)"),
+        h("div", {}, h("label", {}, "Section name (e.g., Hodgepodge, Vanna, Three Actors and a Year, etc.)"),
           h("input", { type: "text", maxlength: 60, value: m.section ?? "", placeholder: "Hodgepodge", oninput: (e) => { m.section = e.target.value; } })),
         more.map((f) => fieldRow(m, f)),
-        h("div", {}, h("label", {}, "Guesses for this question (blank uses the trivia setting, 0 is unlimited)"),
-          h("input", { type: "number", min: 0, max: 50, value: m.maxGuesses ?? "", oninput: (e) => { m.maxGuesses = e.target.value === "" ? undefined : Number(e.target.value); } })),
-        h("div", {}, h("label", {}, "Time for this question in seconds (blank uses the trivia setting, 0 is no timer)"),
-          h("input", { type: "number", min: 0, max: 3600, value: m.timeLimit ?? "", oninput: (e) => { m.timeLimit = e.target.value === "" ? undefined : Number(e.target.value); } }))),
+        defaulted(m, "maxGuesses", Number(state.settings.maxGuesses), { label: "Number of guesses allowed (0 = unlimited)", min: 0, max: 50, describe: describeGuesses }),
+        defaulted(m, "timeLimit", Number(state.settings.timeLimit), { label: "Time limit in seconds (0 = no timer)", min: 0, max: 3600, describe: describeTime })),
     ] : h("div", { class: "sum", onclick: toggle }, h("span", {}, q || "(no question yet)"), m.section ? h("span", { class: "badge" }, m.section) : null));
   return el;
 }
@@ -201,10 +215,10 @@ function render() {
       h("input", { id: "file", type: "file", accept: "application/json,.json", style: "display:none", onchange: importFile })),
     helpCards(total),
     h("div", { class: "card" }, h("label", { for: "mg" }, "Guesses each player gets per question (0 = unlimited)"),
-      h("input", { id: "mg", type: "number", min: 0, max: 50, value: state.settings.maxGuesses, oninput: (e) => { state.settings.maxGuesses = e.target.value; } }),
+      h("input", { id: "mg", type: "number", min: 0, max: 50, value: state.settings.maxGuesses, oninput: (e) => { state.settings.maxGuesses = e.target.value; }, onchange: (e) => { if (e.target.value === "") state.settings.maxGuesses = 3; render(); } }),
       h("p", { class: "muted" }, "Players never see whether a guess was right until you reveal. You can always award points by hand, including half marks."),
       h("label", { for: "tl" }, "Time per question in seconds (0 = no timer)"),
-      h("input", { id: "tl", type: "number", min: 0, max: 3600, step: 5, value: state.settings.timeLimit, oninput: (e) => { state.settings.timeLimit = e.target.value; } }),
+      h("input", { id: "tl", type: "number", min: 0, max: 3600, step: 5, value: state.settings.timeLimit, oninput: (e) => { state.settings.timeLimit = e.target.value; }, onchange: (e) => { if (e.target.value === "") state.settings.timeLimit = 180; render(); } }),
       h("p", { class: "muted" }, "Answers close by themselves when time runs out: 180 is 3 minutes. You can close sooner, add time while a question is open, or give one question its own time under More options.")),
     themeCard(),
     h("div", { class: "builder" },

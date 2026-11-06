@@ -1,5 +1,11 @@
 # Running a game
 
+## The sample trivia
+Every host finds a trivia called **Spooky OOs (sample)** in their list the first time they open the dashboard: a full night with two rounds and 29 questions, with a secret theme, a confidence set in each round, a final wager, and the special sections **Before & After**, **Three Actors and a Year**, **Vanna** (fill in the missing letters) and **Who Charted?**. It is a worked example of how everything fits together and a good first game to host.
+- It is the host's own copy: edit it, rename it, or delete it. Deleting it is final; it is never added again.
+- Everyone gets their own. Changing one host's copy never affects anyone else's.
+- It comes from `public/starter.json`, the same file behind **Load sample trivia** in a new builder. To use your own as the starting trivia, replace that file. To turn the feature off, set `SEED_SAMPLE=false`.
+
 ## Starting from an old trivia
 On the dashboard, **Duplicate** next to any of your trivias makes a copy called "... (copy)" and opens it in the builder. The copy has everything: rounds, questions, answers, sections, the secret theme, the guess limit and the time limits. It is yours alone, and editing it never changes the original or any game already played from it. An admin copying someone else's trivia gets their own copy, and that is logged.
 

@@ -9,6 +9,8 @@ const schema = z.object({
   GOOGLE_CLIENT_SECRET: z.string().min(1),
   /** Address to listen on. Use 127.0.0.1 when a reverse proxy runs on the same machine. */
   HOST: z.string().default("0.0.0.0"),
+  /** Give every host a copy of the sample trivia the first time they open their dashboard. */
+  SEED_SAMPLE: z.string().default("true").transform((v) => !/^(false|0|no|off)$/i.test(v.trim())),
   HOSTS_FILE: z.string().default("./config/hosts.json"),
   /** The same content as the hosts file, as inline JSON, for platforms without files. Takes precedence; restart to change. */
   HOSTS_JSON: z.string().optional(),

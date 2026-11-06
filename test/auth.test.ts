@@ -11,6 +11,7 @@ const env = {
   SESSION_SECRET: "x".repeat(40),
   GOOGLE_CLIENT_ID: "id",
   GOOGLE_CLIENT_SECRET: "secret",
+  SEED_SAMPLE: "false", // these tests count a host's trivias exactly, so they do not get the sample
 };
 const cfg = loadConfig(env);
 const hosts = HostDirectory.fromLists({ admins: ["Owner@Example.com"], hosts: ["host@example.com", "other@example.com"] });

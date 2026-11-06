@@ -27,6 +27,10 @@ export function openDb(path: string): Db {
       state      TEXT NOT NULL,
       updated_at INTEGER NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS seeded (
+      host_email TEXT PRIMARY KEY,
+      at         INTEGER NOT NULL
+    );
     CREATE TABLE IF NOT EXISTS audit (
       id     INTEGER PRIMARY KEY AUTOINCREMENT,
       at     INTEGER NOT NULL,

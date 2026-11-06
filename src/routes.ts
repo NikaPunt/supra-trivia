@@ -8,6 +8,7 @@ import type { HostDirectory } from "./hosts.js";
 import type { GameStore } from "./store.js";
 import { LOGIN_COOKIE, SESSION_COOKIE, finishLogin, LoginError, signSession, startLogin, verifySession, type Session } from "./auth.js";
 import { modules, roundsSchema, settingsSchema } from "./modules/index.js";
+import { loadSample } from "./sample.js";
 import { registerSessionRoutes } from "./sessions.js";
 import { registerPlayRoutes } from "./play.js";
 
@@ -79,9 +80,21 @@ export function registerRoutes(app: FastifyInstance, cfg: Config, db: Db, hosts:
 
   // ---- trivias: hosts see their own; admins can see and manage everyone's ----
 
+  // Every host gets one copy of the sample the first time they open their list, and it is theirs to edit or delete.
+  // A record of who has had one stops it coming back after a delete.
+  const sample = cfg.SEED_SAMPLE ? loadSample() : null;
+  const seedSample = db.transaction((email: string) => {
+    if (!sample || db.prepare("INSERT OR IGNORE INTO seeded (host_email, at) VALUES (?, ?)").run(email, Date.now()).changes === 0) return;
+    const now = Date.now();
+    db.prepare("INSERT INTO trivias (id, host_email, title, rounds, created_at, updated_at, settings) VALUES (?, ?, ?, ?, ?, ?, ?)").run(
+      randomUUID(), email, sample.title, JSON.stringify(sample.rounds), now, now, JSON.stringify(sample.settings),
+    );
+  });
+
   app.get("/api/trivias", { preHandler: requireHost }, async (req) => {
     const u = req.host_session!;
     const all = u.role === "admin" && (req.query as any).all === "1";
+    if (!all) seedSample(u.email);
     return db
       .prepare(`SELECT id, title, host_email AS owner, updated_at FROM trivias ${all ? "" : "WHERE host_email = ?"} ORDER BY updated_at DESC`)
       .all(...(all ? [] : [u.email]));

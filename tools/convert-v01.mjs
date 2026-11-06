@@ -7,15 +7,41 @@ const src = JSON.parse(readFileSync(process.argv[2], "utf8"));
 const clean = (o) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined && v !== "" && v !== null));
 const uniq = (xs) => [...new Set(xs.map((x) => String(x).trim()).filter(Boolean))];
 
-/** One question box: the clue(s) first, then the ask on its own line, the way it is read out. */
+const list = (xs) => (xs.length > 1 ? `${xs.slice(0, -1).join(", ")} and ${xs.at(-1)}` : (xs[0] ?? ""));
+const norm = (x) => String(x).toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+
+/**
+ * One question box, the way it is read out: whatever the clue is (text, a numbered list of steps, the cast and year,
+ * a puzzle board, a list of tracks), then the ask on its own line. Nothing a player needs is left behind.
+ */
 function questionText(q) {
+  const lines = [];
+  // Confidence questions are picked by category, so it leads.
+  if (q.mechanic === "confidence" && q.category) lines.push(`Category: ${q.category}`);
   const body = [q.clue1 ?? q.text, q.clue2].filter(Boolean).map((t) => String(t).trim()).join(" ");
+  if (body) lines.push(body);
+  if (Array.isArray(q.steps)) q.steps.forEach((step, i) => lines.push(`${i + 1}. ${step}`));
+  if (Array.isArray(q.cast) && q.cast.length) lines.push(`Starring ${list(q.cast)}.${q.releaseYear ? ` Released in ${q.releaseYear}.` : ""}`);
+  else if (q.releaseYear) lines.push(`Released in ${q.releaseYear}.`);
+  if (q.puzzleBoard) lines.push(q.puzzleBoard);
+  if (Array.isArray(q.tracks) && q.tracks.length) lines.push(`Tracks: ${q.tracks.map((t) => `"${t}"`).join(", ")}.`);
   const ask = String(q.questionPrompt ?? "").trim();
-  return [body, ask].filter(Boolean).join("\n\n") || "?";
+  if (ask) lines.push(ask);
+  return lines.join("\n\n") || "?";
+}
+
+/** The real answer first (it is what players are shown), then other spellings, without repeats that differ only by case. */
+function answersOf(q) {
+  const out = [];
+  for (const a of [q.answer, ...(q.acceptedAnswers ?? [])]) {
+    const t = String(a).trim();
+    if (t && !out.some((x) => norm(x) === norm(t))) out.push(t);
+  }
+  return out;
 }
 
 function convert(q) {
-  const answers = uniq([q.answer, ...(q.acceptedAnswers ?? [])]);
+  const answers = answersOf(q);
   const base = { question: questionText(q), answers, funFact: q.funFact };
   const section = q.sectionTitle || undefined;
   switch (q.mechanic) {

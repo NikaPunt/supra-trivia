@@ -6,7 +6,7 @@ import { HostDirectory } from "../src/hosts.js";
 import { openDb } from "../src/db.js";
 import { buildApp } from "../src/app.js";
 
-const cfg = loadConfig({ BASE_URL: "https://t.example.com", SESSION_SECRET: "x".repeat(40), GOOGLE_CLIENT_ID: "i", GOOGLE_CLIENT_SECRET: "s" });
+const cfg = loadConfig({ BASE_URL: "https://t.example.com", SESSION_SECRET: "x".repeat(40), GOOGLE_CLIENT_ID: "i", GOOGLE_CLIENT_SECRET: "s", SEED_SAMPLE: "false" });
 const hosts = HostDirectory.fromLists({ admins: ["owner@example.com"], hosts: ["a@example.com", "b@example.com"] });
 const original = {
   title: "Tuesday night",

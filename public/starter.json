@@ -1,11 +1,13 @@
 {
-  "title": "Sample trivia",
+  "title": "Spooky OOs (sample)",
   "settings": {
     "maxGuesses": 3,
+    "timeLimit": 180,
     "theme": {
-      "secret": "Sample Calibration Deck (Replace with Monthly Theme)",
-      "hint": "",
-      "formal": ""
+      "secret": "The letters 'OO', or the 'Spooky OO' sound (as in boo, moon or Louis)",
+      "hint": "Say the answers out loud.",
+      "formal": "Spooky 'OO's: every question or answer has the letters 'OO' (however they are pronounced) or the 'oo' sound, as in boo, Louis or jiu-jitsu.",
+      "bonus": 4
     }
   },
   "rounds": [
@@ -14,60 +16,442 @@
       "modules": [
         {
           "type": "text_qa",
+          "section": "Hodgepodge",
           "config": {
-            "question": "Its national flag is the only sovereign flag in the world that is not a four-sided rectangle, instead using two stacked pennants. Located in the Himalayas, it is home to eight of the world's ten tallest mountains, including Mount Everest.\n\nWhich Asian country is this?",
+            "question": "Famous as the site of the 1815 battle that ended Napoleon's rule, this Belgian town also gave ABBA their breakthrough 1974 Eurovision-winning hit.\n\nWhat Belgian town (and ABBA song) is this?",
             "answers": [
-              "Nepal",
-              "nepal",
-              "federal democratic republic of nepal"
+              "Waterloo"
             ],
-            "funFact": "The two triangles represent the Himalayas and the two major religions of the country: Hinduism and Buddhism.",
-            "points": 10
-          },
-          "section": "Hodgepodge"
+            "funFact": "",
+            "points": 4
+          }
         },
         {
           "type": "text_qa",
+          "section": "Hodgepodge",
           "config": {
-            "question": "In the 1830s, Dr. John Cook Bennett promoted this everyday table item as a concentrated patent medicine sold in pill form to cure indigestion. Originally made in Asia from fermented fish brine ('koe-chiap'), it was transformed in 1876 by Henry J. Heinz using ripe red tomatoes and vinegar.\n\nWhat ubiquitous condiment is this?",
+            "question": "Early Philadelphia endodontist Edward Hudson is credited with pioneering this dreaded procedure, originally performed by scraping out dead nerve cavities and packing the hollow space with gold foil.\n\nWhat procedure is this?",
             "answers": [
-              "Ketchup",
-              "ketchup",
-              "catsup",
-              "tomato ketchup",
-              "heinz ketchup"
+              "Root Canal",
+              "root canals"
             ],
-            "funFact": "Wait times for pouring glass bottles of Heinz ketchup are governed by non-Newtonian shear-thinning fluid dynamics!",
-            "points": 10
-          },
-          "section": "Hodgepodge"
+            "funFact": "",
+            "points": 4
+          }
         },
         {
           "type": "text_qa",
+          "section": "Hodgepodge",
           "config": {
-            "question": "Patented in 1904 by feminist Georgist activist Elizabeth Magie as 'The Landlord's Game', it was originally designed to demonstrate how untaxed land monopolies bankrupt tenants. After Parker Brothers bought the rights in the 1930s, its street names were permanently modeled after neighborhoods in Atlantic City, New Jersey.\n\nWhat classic board game is this?",
+            "question": "In Anne Rice's novel and the AMC television series Interview with the Vampire, he is the brooding 18th-century New Orleans plantation owner turned vampire who narrates his life story: ____ de Pointe du Lac.\n\nWhat is his first name?",
             "answers": [
-              "Monopoly",
-              "monopoly"
+              "Louis"
             ],
-            "funFact": "Magie's original game actually had two rule sets: 'Prosperity' (where everyone won when land value rose) and 'Monopolist' (where one player bankrupted everyone).",
-            "points": 10
-          },
-          "section": "Hodgepodge"
+            "funFact": "",
+            "points": 4
+          }
         },
         {
           "type": "text_qa",
+          "section": "Hodgepodge",
           "config": {
-            "question": "It was the same calendar year that the British Empire officially handed sovereignty of Hong Kong back to China AND IBM's Deep Blue defeated Garry Kasparov. In cinemas that year, James Cameron's 'Titanic' began its record-shattering box office run, while the first 'Harry Potter' book was published in the UK.\n\nWhat exact calendar year connects all four of these events?",
+            "question": "On an August night in 1893, Colorado brewery owner Frank J. Wisner looked out at the snow-capped peak of dark Cow Mountain under a full moon—inspiring him to drop a scoop of vanilla ice cream into a glass of Myers Avenue Red.\n\nWhat drink did he create?",
             "answers": [
-              "1997",
-              "'97",
-              "97"
+              "Root Beer Float",
+              "root beer",
+              "black cow",
+              "rootbeer float",
+              "rootbeer"
             ],
-            "funFact": "July 1, 1997 marked the Hong Kong handover; Deep Blue beat Kasparov in May 1997; Titanic released in December 1997.",
-            "points": 15
-          },
-          "section": "Hodgepodge"
+            "funFact": "",
+            "points": 4
+          }
+        },
+        {
+          "type": "text_qa",
+          "section": "Hodgepodge",
+          "config": {
+            "question": "A test of classic middle-school calculator humor:\n\n1. Multiply HELL (7,734) by the Beast (666).\n\n2. Add together LEET (1,337), LOL (707), and the Devil's Lettuce (420), then multiply that sum by Nice (69).\n\n3. Add your two results from Steps 1 and 2 together.\n\n4. Subtract a LEET (1,337), a BOB (808), and a LOL (707) to balance the scales.\n\nWhat are we left with? (Non-number representation)",
+            "answers": [
+              "Boobies",
+              "5318008"
+            ],
+            "funFact": "7,734 × 666 = 5,150,844. Plus (2,464 × 69 = 170,016) = 5,320,860. Minus 2,852 = 5,318,008 (BOOBIES)!",
+            "points": 4
+          }
+        },
+        {
+          "type": "text_qa",
+          "section": "Hodgepodge",
+          "config": {
+            "question": "Literally translating from Japanese as the 'gentle art,' this grappling-based martial art exploded in popularity across America in the early 1990s after Royce Gracie used it to dominate the very first Ultimate Fighting Championship (UFC).\n\nWhat sport is this?",
+            "answers": [
+              "Jiu-Jitsu",
+              "jujitsu",
+              "jujutsu",
+              "brazilian jiu jitsu",
+              "bjj"
+            ],
+            "funFact": "",
+            "points": 4
+          }
+        },
+        {
+          "type": "text_qa",
+          "section": "Before & After",
+          "config": {
+            "question": "A 90s country hit about a heartbroken man sitting alone in a 'rundown bar across the railroad track' + Michael Jackson's signature backward-gliding dance move.\n\nCombine them into one Before & After phrase:",
+            "answers": [
+              "Neon Moon Walk",
+              "neon moonwalk"
+            ],
+            "funFact": "",
+            "points": 4
+          }
+        },
+        {
+          "type": "text_qa",
+          "section": "Before & After",
+          "config": {
+            "question": "The three-step classroom mantra for 'gradual release of responsibility' in teaching + the casual conversational idiom meaning 'make your own choice / be yourself.'\n\nCombine them into one Before & After phrase:",
+            "answers": [
+              "I Do, We Do, You Do You"
+            ],
+            "funFact": "",
+            "points": 4
+          }
+        },
+        {
+          "type": "text_qa",
+          "section": "Three Actors and a Year",
+          "config": {
+            "question": "Starring Sarah Michelle Gellar, Matthew Lillard and Linda Cardellini. Released in 2002.\n\nName the movie:",
+            "answers": [
+              "Scooby-Doo"
+            ],
+            "funFact": "",
+            "points": 4
+          }
+        },
+        {
+          "type": "text_qa",
+          "section": "Three Actors and a Year",
+          "config": {
+            "question": "Starring Jim Carrey, Laura Linney and Ed Harris. Released in 1998.\n\nName the movie:",
+            "answers": [
+              "The Truman Show",
+              "truman show"
+            ],
+            "funFact": "",
+            "points": 4
+          }
+        },
+        {
+          "type": "confidence",
+          "section": "Confidence Set",
+          "config": {
+            "question": "Category: Games\n\nCommonly played with a drink in hand, this two-player game involves a ball, sticks, and a lot of backflips (even if those backflips technically go against the rules).\n\nWhat game is this?",
+            "answers": [
+              "Fussball",
+              "foosball",
+              "table soccer",
+              "table football"
+            ],
+            "funFact": "",
+            "poolId": "r1-conf",
+            "poolValues": [
+              8,
+              6,
+              4,
+              2
+            ]
+          }
+        },
+        {
+          "type": "confidence",
+          "section": "Confidence Set",
+          "config": {
+            "question": "Category: Restaurants\n\nWhat local avian restaurant chain—priding itself on fresh, never-frozen wings—features a singular mascot with a plural name, yet doesn't actually serve the bird its name implies?\n\nName the restaurant:",
+            "answers": [
+              "Roosters",
+              "rooster's"
+            ],
+            "funFact": "",
+            "poolId": "r1-conf",
+            "poolValues": [
+              8,
+              6,
+              4,
+              2
+            ]
+          }
+        },
+        {
+          "type": "confidence",
+          "section": "Confidence Set",
+          "config": {
+            "question": "Category: YouTube\n\nKnown for her viral videos roasting misogynistic men with her signature laugh, this Samoan content creator recently got married and appeared alongside Brittany Broski on Caleb Hearon's So True podcast.\n\nWho is this creator?",
+            "answers": [
+              "Drew Afualo",
+              "drew"
+            ],
+            "funFact": "",
+            "poolId": "r1-conf",
+            "poolValues": [
+              8,
+              6,
+              4,
+              2
+            ]
+          }
+        },
+        {
+          "type": "confidence",
+          "section": "Confidence Set",
+          "config": {
+            "question": "Category: Slang\n\nCoined in 2013 by then-high schooler Gaby Rasson before going viral on TikTok in 2021, what slang adjective describes aesthetics or millennial trends that are slightly out-of-date or trying a bit too hard?\n\nWhat slang term is this?",
+            "answers": [
+              "Cheugy",
+              "cheug"
+            ],
+            "funFact": "",
+            "poolId": "r1-conf",
+            "poolValues": [
+              8,
+              6,
+              4,
+              2
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "title": "Round 2",
+      "modules": [
+        {
+          "type": "text_qa",
+          "section": "Hodgepodge",
+          "config": {
+            "question": "Often considered James Baldwin's magnum opus, this 1956 novel details the life of an American man living in 1950s Paris grappling with his sexuality.\n\nWhat novel is this?",
+            "answers": [
+              "Giovanni's Room",
+              "giovannis room"
+            ],
+            "funFact": "",
+            "points": 4
+          }
+        },
+        {
+          "type": "text_qa",
+          "section": "Hodgepodge",
+          "config": {
+            "question": "While schoolyards link the planet Jupiter to an increase in 'stupidity,' an ancient Roman name for the deity gave rise to what English adjective that means cheerful, friendly, and good-humored?\n\nWhat English word is this?",
+            "answers": [
+              "Jovial"
+            ],
+            "funFact": "",
+            "points": 4
+          }
+        },
+        {
+          "type": "text_qa",
+          "section": "Hodgepodge",
+          "config": {
+            "question": "Rapper Big Boogie famously went viral for looking an interviewer dead in the eye and declaring 'I turnt it down' regarding a supposed '$15 million, like $10 million, like $5 million' college marching band scholarship.\n\nAccording to his incredibly confident story, what specific Florida city was home to the university making this absurdly massive offer?",
+            "answers": [
+              "Jacksonville",
+              "jacksonville florida"
+            ],
+            "funFact": "",
+            "points": 4
+          }
+        },
+        {
+          "type": "text_qa",
+          "section": "Hodgepodge",
+          "config": {
+            "question": "The core concept of this common idiom was first written down by Sophocles in 442 BC—though ancient kings clearly ignored it, given their terrible habit of literally executing the poor guys who had to tell them the royal army just lost a battle.\n\nWhat common idiom is this?",
+            "answers": [
+              "Don't Shoot the Messenger",
+              "dont shoot the messenger",
+              "shoot the messenger",
+              "dont kill the messenger",
+              "don't kill the messenger"
+            ],
+            "funFact": "",
+            "points": 4
+          }
+        },
+        {
+          "type": "text_qa",
+          "section": "Hodgepodge",
+          "config": {
+            "question": "Resembling a miniature mascara wand, this small bristled brush is used in makeup to shape eyebrows and separate eyelashes.\n\nWhat is the name of this tool?",
+            "answers": [
+              "Spoolie",
+              "spooly",
+              "spoolie brush"
+            ],
+            "funFact": "",
+            "points": 4
+          }
+        },
+        {
+          "type": "text_qa",
+          "section": "Hodgepodge",
+          "config": {
+            "question": "This artist had a 1995 mega-hit that was incredibly rare for its genre because it contained absolutely zero profanity—a strict condition demanded by Stevie Wonder before he would allow the artist to heavily sample his 1976 track. Weird Al Yankovic parodied the song one year later into one about churning butter and shunning electricity.\n\nWho is this artist?",
+            "answers": [
+              "Coolio"
+            ],
+            "funFact": "",
+            "points": 4
+          }
+        },
+        {
+          "type": "text_qa",
+          "section": "Vanna",
+          "config": {
+            "question": "_ _ S H _ O O _ / _ _ S O _ _ O\n\nFill in the missing letters:",
+            "answers": [
+              "Mushroom Risotto"
+            ],
+            "funFact": "",
+            "points": 4
+          }
+        },
+        {
+          "type": "text_qa",
+          "section": "Vanna",
+          "config": {
+            "question": "_ O O _ ' _ / _ O _ _\n\nFill in the missing letters:",
+            "answers": [
+              "Fool's Gold",
+              "fools gold"
+            ],
+            "funFact": "",
+            "points": 4
+          }
+        },
+        {
+          "type": "text_qa",
+          "section": "Who Charted?",
+          "config": {
+            "question": "Tracks: \"Listen to the Music\", \"Black Water\", \"What a Fool Believes\".\n\nWho charted with these three tracks?",
+            "answers": [
+              "The Doobie Brothers",
+              "doobie brothers"
+            ],
+            "funFact": "",
+            "points": 4
+          }
+        },
+        {
+          "type": "text_qa",
+          "section": "Who Charted?",
+          "config": {
+            "question": "Tracks: \"Collard Greens\", \"Studio\", \"Man of the Year\".\n\nWho charted with these three tracks?",
+            "answers": [
+              "ScHoolboy Q",
+              "school boy q"
+            ],
+            "funFact": "",
+            "points": 4
+          }
+        },
+        {
+          "type": "confidence",
+          "section": "Confidence Set",
+          "config": {
+            "question": "Category: Video Games\n\nFor a generation of girls in the 2000s, peak PC gaming was sitting at the family computer, frantically clicking through the Her Interactive point-and-click mystery series. One of the greatest pieces of lore in those games was an eccentric, alien-obsessed character who never actually appeared on screen for the first 29 installments, but constantly left behind a chaotic trail of half-finished jobs, weird sticky notes, and UFO doodles for our teenage sleuth to find.\n\nWho is the titular teenage sleuth of this PC game series?",
+            "answers": [
+              "Nancy Drew"
+            ],
+            "funFact": "",
+            "poolId": "r2-conf",
+            "poolValues": [
+              8,
+              6,
+              4,
+              2
+            ]
+          }
+        },
+        {
+          "type": "confidence",
+          "section": "Confidence Set",
+          "config": {
+            "question": "Category: American History\n\nThis enslaved Indigenous woman in colonial Massachusetts was one of the very first people accused of witchcraft during the Salem Witch Trials of 1692–1693.\n\nWhat was her name?",
+            "answers": [
+              "Tituba"
+            ],
+            "funFact": "",
+            "poolId": "r2-conf",
+            "poolValues": [
+              8,
+              6,
+              4,
+              2
+            ]
+          }
+        },
+        {
+          "type": "confidence",
+          "section": "Confidence Set",
+          "config": {
+            "question": "Category: SpongeBob Quotes\n\nWhen SpongeBob and Patrick proved to be terrible crewmates, the Flying Dutchman decided to eat them. To escape his clutches, SpongeBob declared they must go straight through this:\n\nWhat specific place did they have to go through?",
+            "answers": [
+              "The Perfume Department",
+              "perfume department",
+              "perfume aisle",
+              "the perfume section",
+              "perfume section"
+            ],
+            "funFact": "",
+            "poolId": "r2-conf",
+            "poolValues": [
+              8,
+              6,
+              4,
+              2
+            ]
+          }
+        },
+        {
+          "type": "confidence",
+          "section": "Confidence Set",
+          "config": {
+            "question": "Category: True Crime\n\nThis unidentified man committed the only unsolved air piracy case in commercial aviation history when he politely hijacked a Boeing 727 in 1971, ordered a bourbon and water, and eventually parachuted from the plane's rear stairs into the freezing night over the Pacific Northwest with $200,000 in ransom cash.\n\nBy what name is this hijacker known?",
+            "answers": [
+              "D.B. Cooper",
+              "db cooper",
+              "dan cooper"
+            ],
+            "funFact": "",
+            "poolId": "r2-conf",
+            "poolValues": [
+              8,
+              6,
+              4,
+              2
+            ]
+          }
+        },
+        {
+          "type": "wager",
+          "section": "Final Wager",
+          "config": {
+            "question": "In the Mafia-style hit reality TV show The Traitors, the secretly chosen murderers often need to perform a murder in plain sight. For example, in Season 4, Episode 7, when a player touched THIS item worn by Lisa Rinna, they were officially murdered by the Traitors. Lisa cleverly lured the victim into her trap by innocently claiming she needed help fastening the item as it was poking her.\n\nWhat item worn by Lisa Rinna did the victim touch?",
+            "answers": [
+              "Brooch",
+              "broach",
+              "a brooch",
+              "a broach"
+            ],
+            "funFact": "",
+            "maxWager": 20
+          }
         }
       ]
     }
