@@ -346,3 +346,8 @@ html.deck { font-size: clamp(16px, 0.9vw, 64px); }
 .guesses .g.cur span:first-child { font-weight: 700; color: var(--text); }
 .guesses .g:not(.cur) span:first-child { color: var(--text-2); text-decoration: line-through; text-decoration-thickness: 1px; }
 .guesses .g .muted { font-size: 0.9rem; text-align: right; }
+
+/* the team's theme guesses */
+.theme-hist { margin-top: 0.7rem; }
+.theme-hist .g { display: flex; justify-content: space-between; gap: 1rem; padding: 0.25rem 0; }
+.theme-hist .g .muted { font-size: 0.9rem; text-align: right; }

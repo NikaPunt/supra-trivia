@@ -28,6 +28,8 @@ export interface ThemeGuess {
   text: string;
   /** Question number when the guess was made; earlier guesses are worth more. */
   atNumber: number;
+  /** Which phone sent it, so teammates can see who guessed what. */
+  device?: string;
   status: AnswerStatus;
   points: number;
 }
@@ -272,7 +274,7 @@ function finishItem(g: Game): void {
 /** Earlier guesses earn more: `bonus` at question 1, one less per question after, never below 1 (or `bonus` if it is smaller). */
 export const suggestedThemePoints = (atNumber: number, bonus = 4) => Math.max(Math.min(1, bonus), bonus - (atNumber - 1));
 
-export function submitTheme(g: Game, playerId: string, rawText: string): void {
+export function submitTheme(g: Game, playerId: string, rawText: string, device?: string): void {
   const p = g.players.find((x) => x.id === playerId);
   if (!p || p.kicked) throw new GameError("you are not in this session", 403);
   if (!g.theme) throw new GameError("this trivia has no secret theme", 409);
@@ -282,8 +284,8 @@ export function submitTheme(g: Game, playerId: string, rawText: string): void {
   if (!text) throw new GameError("enter a guess");
   const mine = g.themeGuesses.filter((t) => t.playerId === playerId);
   if (mine.length >= MAX_THEME_GUESSES) throw new GameError(`at most ${MAX_THEME_GUESSES} theme guesses each`, 429);
-  if (mine.some((t) => normalize(t.text) === normalize(text))) throw new GameError("you already guessed that");
-  g.themeGuesses.push({ id: randomUUID(), playerId, text, atNumber: g.cursor + 1, status: "pending", points: 0 });
+  if (mine.some((t) => normalize(t.text) === normalize(text))) throw new GameError("your team already guessed that");
+  g.themeGuesses.push({ id: randomUUID(), playerId, text, atNumber: g.cursor + 1, device, status: "pending", points: 0 });
 }
 
 /** Reveals the theme: guesses turn into bonus points (best guess per player) and the guess list is cleared. */
@@ -461,7 +463,8 @@ export function playerView(g: Game, playerId: string, device?: string) {
       })),
     theme: g.theme && {
       ...themePublic(g),
-      myGuesses: mine.map((t) => t.text),
+      // Oldest first. The team shares one allowance, so every phone sees every guess; `you` marks the ones sent from this phone.
+      myGuesses: mine.map((t) => ({ text: t.text, you: !!device && t.device === device })),
       guessesLeft: g.themeRevealed ? 0 : MAX_THEME_GUESSES - mine.length,
       myBonus: g.themeRevealed ? (g.themeBonus[playerId] ?? 0) : null,
     },

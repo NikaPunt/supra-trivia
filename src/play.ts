@@ -69,7 +69,7 @@ export function registerPlayRoutes(app: FastifyInstance, ctx: Ctx) {
     const s = await me(req, reply);
     if (!s) return;
     try {
-      submitTheme(s.g, s.pid, String((req.body as any)?.guess ?? ""));
+      submitTheme(s.g, s.pid, String((req.body as any)?.guess ?? ""), deviceOf(req));
       store.save(s.g);
       return { ok: true };
     } catch (e) {

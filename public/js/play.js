@@ -10,6 +10,17 @@ function board(state) {
     state.myRank && state.myRank > 10 ? h("p", { class: "muted" }, `You are #${state.myRank}`) : null);
 }
 
+/** The team's theme guesses, oldest first: who sent each and how many are left after it. */
+function themeHistory(t) {
+  const total = t.myGuesses.length + t.guessesLeft;
+  const showWho = t.myGuesses.some((g) => !g.you); // only mention who when more than one phone is involved
+  return h("div", { class: "theme-hist" },
+    h("div", { class: "eyebrow" }, `Theme guesses · ${t.guessesLeft} of ${total} left`),
+    t.myGuesses.map((g, i) => h("div", { class: "g" },
+      h("span", {}, `${i + 1}. ${g.text}`),
+      h("span", { class: "muted" }, [showWho ? (g.you ? "you" : "a teammate") : "", `${total - (i + 1)} left`].filter(Boolean).join(" · ")))));
+}
+
 /** The theme as a note card. While it is secret it also holds the box for guessing it. */
 function themeCard(state) {
   const t = state.theme;
@@ -27,7 +38,7 @@ function themeCard(state) {
   field.addEventListener("keydown", (e) => { if (e.key === "Enter") send(); });
   return themeNote(t,
     h("div", { class: "row" }, h("div", { class: "grow" }, field), h("button", { disabled: t.guessesLeft === 0, onclick: send }, "Guess")),
-    h("p", { class: "muted" }, t.myGuesses.length ? `${t.myGuesses.join(", ")} · ${t.guessesLeft} left` : `${t.guessesLeft} guesses`),
+    themeHistory(t),
     err);
 }
 
@@ -121,6 +132,24 @@ function render(state) {
 
 const anim = {};
 let lastRaw = "";
+/**
+ * Everything on screen except the two lists teammates add to (the question's guesses and the theme guesses).
+ * If only those changed while someone is typing, the lists are updated in place and the box being typed in is never rebuilt.
+ */
+const shellOf = (s) => JSON.stringify({
+  ...s,
+  guessLog: s.guessLog.length > 0,
+  guessesLeft: s.guessesLeft === 0,
+  theme: s.theme && { ...s.theme, myGuesses: s.theme.myGuesses.length > 0, guessesLeft: s.theme.guessesLeft === 0 },
+});
+let lastShell = "";
+function patch(state) {
+  if (state.theme && !state.theme.revealed) $("#app .theme-hist")?.replaceWith(themeHistory(state.theme));
+  const old = $("#app .guesses");
+  const next = guessHistory(state);
+  if (old && next) old.replaceWith(next);
+}
+
 let lastSig = "";
 async function refresh() {
   try {
@@ -128,12 +157,22 @@ async function refresh() {
     // Nothing changed since the last draw: leave the page exactly as it is.
     const raw = JSON.stringify(state);
     if (raw === lastRaw) return;
+    const typing = document.activeElement?.closest?.("#app") && /INPUT|SELECT/.test(document.activeElement.tagName);
+    if (typing && shellOf(state) === lastShell) { patch(state); lastRaw = raw; return; }
     // Don't yank the keyboard away mid-typing when nothing that matters changed.
     const sig = JSON.stringify([state.phase, state.number, state.guessesLeft, state.theme?.revealed, state.theme?.guessesLeft, state.myAnswers.map((a) => a.value), state.guessLog.length, state.leaderboard?.length, state.stake?.options]);
     if (sig === lastSig && document.activeElement?.closest("#app") && /INPUT|SELECT/.test(document.activeElement.tagName)) return;
     lastSig = sig;
     lastRaw = raw;
+    lastShell = shellOf(state);
+    // If a full redraw is unavoidable, put the cursor back where it was.
+    const f = typing ? document.activeElement : null;
+    const keep = f ? { label: f.getAttribute("aria-label"), at: f.selectionStart } : null;
     render(state);
+    if (keep?.label) {
+      const el = [...document.querySelectorAll("#app input")].find((i) => i.getAttribute("aria-label") === keep.label);
+      if (el && !el.disabled) { el.focus(); try { el.setSelectionRange(keep.at, keep.at); } catch { /* not a text box */ } }
+    }
     enterIfChanged(`${state.number}:${state.phase}`, anim);
   }
   catch (e) { if (e.status === 401) location.href = "/"; }

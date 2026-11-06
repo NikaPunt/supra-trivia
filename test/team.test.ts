@@ -124,3 +124,74 @@ test("live updates reach every phone on a team at the same moment", async () => 
   assert.ok(spread < 250, `phones are told within a quarter second of each other (spread ${Math.round(spread)}ms)`);
   await app.close();
 });
+
+// ---- the secret theme, with several phones on one team ----
+
+const themed = { ...trivia, settings: { maxGuesses: 3, theme: { secret: "space", hint: "look up", formal: "all of it was space", bonus: 4 } } };
+
+async function themedSetup() {
+  const app = await buildApp(cfg, openDb(":memory:"), hosts);
+  const host = { cookie: "trivia_session=" + (await signSession(cfg, { email: "o@example.com", name: "O" })), origin: cfg.BASE_URL };
+  const { id: tid } = (await app.inject({ method: "POST", url: "/api/trivias", headers: host, payload: themed })).json();
+  const { id, code } = (await app.inject({ method: "POST", url: `/api/trivias/${tid}/sessions`, headers: host })).json();
+  const act = (a: object) => app.inject({ method: "POST", url: `/api/sessions/${id}/action`, headers: host, payload: a });
+  await act({ action: "begin" });
+  const phone = async (device: string) => {
+    const j = await app.inject({ method: "POST", url: "/api/join", headers: { origin: cfg.BASE_URL }, payload: { code, nickname: "Rockets", pin: "1234" } });
+    return { cookie: String(j.headers["set-cookie"]).split(";")[0]!, origin: cfg.BASE_URL, "x-device": device } as any;
+  };
+  const guess = (p: object, g: string) => app.inject({ method: "POST", url: "/api/play/theme", headers: p as any, payload: { guess: g } });
+  const theme = async (p: object) => (await app.inject({ url: "/api/play/state", headers: p as any })).json().theme;
+  return { app, host, id, act, phone, guess, theme };
+}
+
+test("theme guesses: teammates see each other's guesses, who sent them, and one shared allowance", async () => {
+  const { app, phone, guess, theme } = await themedSetup();
+  const A = await phone("device-aaaa-1111"), B = await phone("device-bbbb-2222");
+  assert.equal((await guess(A, "moon")).statusCode, 200);
+  assert.equal((await guess(B, "stars")).statusCode, 200);
+  const dup = await guess(A, "STARS");
+  assert.equal(dup.statusCode, 400);
+  assert.match(dup.json().error, /your team already guessed that/);
+
+  const ta = await theme(A), tb = await theme(B);
+  assert.deepEqual(ta.myGuesses, [{ text: "moon", you: true }, { text: "stars", you: false }]);
+  assert.deepEqual(tb.myGuesses, [{ text: "moon", you: false }, { text: "stars", you: true }]);
+  assert.equal(ta.guessesLeft, 3);
+  assert.equal(tb.guessesLeft, 3, "five guesses for the whole team, not five each");
+
+  for (const g of ["sun", "comets", "planets"].slice(0, 3)) await guess(g.length % 2 ? A : B, g);
+  assert.equal((await theme(A)).guessesLeft, 0);
+  assert.equal((await guess(B, "one more")).statusCode, 429, "used up for every phone");
+  assert.equal((await theme(B)).myGuesses.length, 5);
+  assert.ok(!JSON.stringify(ta).includes("approved"), "nobody learns whether a guess was right until the theme is public");
+  await app.close();
+});
+
+test("theme guesses: a burst from several phones cannot beat the limit and everyone sees the same list", async () => {
+  const { app, phone, guess, theme } = await themedSetup();
+  const phones = [await phone("device-aaaa-1111"), await phone("device-bbbb-2222"), await phone("device-cccc-3333")];
+  const results = await Promise.all(Array.from({ length: 10 }, (_, i) => guess(phones[i % 3]!, `idea ${i}`)));
+  const ok = results.filter((r) => r.statusCode === 200).length;
+  assert.equal(ok, 5, "exactly five got through");
+  assert.equal(results.filter((r) => r.statusCode === 429).length, 5);
+  const views = await Promise.all(phones.map(theme));
+  assert.equal(new Set(views.map((v) => v.myGuesses.map((g: any) => g.text).join("|"))).size, 1, "every phone lists the same guesses in the same order");
+  assert.ok(views.every((v) => v.guessesLeft === 0));
+  await app.close();
+});
+
+test("theme guesses: the team earns the bonus once, however many of its phones guessed it", async () => {
+  const { app, host, id, act, phone, guess } = await themedSetup();
+  const A = await phone("device-aaaa-1111"), B = await phone("device-bbbb-2222");
+  await guess(A, "space"); await guess(B, "the sky");
+  const hv = (await app.inject({ url: `/api/sessions/${id}`, headers: host })).json();
+  assert.equal(hv.playerList.length, 1);
+  assert.equal(hv.theme.guesses.length, 2, "the host sees every guess, under the one team");
+  for (const g of hv.theme.guesses) await act({ action: "theme_review", guessId: g.id, points: g.suggested });
+  const after = (await app.inject({ url: `/api/sessions/${id}`, headers: host })).json();
+  assert.equal(after.theme.revealed, true, "the only team has found it, so it goes public");
+  assert.equal(after.theme.bonuses.length, 1);
+  assert.equal(after.theme.bonuses[0].points, 4, "one bonus for the team, not one per guess or per phone");
+  await app.close();
+});
