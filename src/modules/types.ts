@@ -41,4 +41,4 @@ export interface TriviaModule<C = any, A = any> {
 export const normalize = (s: string): string =>
   s.toLowerCase().normalize("NFKD").replace(/[^\p{L}\p{N}]+/gu, " ").trim();
 
-export const pointsField: Field = { key: "points", label: "Points", kind: "number", default: 1 };
+export const pointsField: Field = { key: "points", label: "Points", kind: "number", default: 1, help: "halves allowed, e.g. 1.5" };

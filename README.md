@@ -5,6 +5,7 @@ Host your own live trivia night. The **host** builds a trivia from modules and r
 - Hosts sign in with Google; only emails in `config/hosts.json` are accepted. The project owner is an **admin** with control over all sessions: [docs/ROLES.md](docs/ROLES.md).
 - Modules are described in [docs/MODULES.md](docs/MODULES.md).
 - Deployment (Debian, Docker, Nginx Proxy Manager, `trivia.example.com`): [docs/DEPLOY.md](docs/DEPLOY.md).
+- Scoring, guess limits and manual points: [docs/SCORING.md](docs/SCORING.md).
 - Known bugs: [docs/BUGS.md](docs/BUGS.md).
 
 ## Status

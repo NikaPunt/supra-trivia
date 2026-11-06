@@ -10,7 +10,7 @@ const byType = new Map(modules.map((m) => [m.type, m]));
 export const getModule = (type: string) => byType.get(type);
 
 const moduleInstance = z
-  .object({ type: z.string(), config: z.unknown() })
+  .object({ type: z.string(), config: z.unknown(), maxGuesses: z.number().int().min(0).max(50).optional() })
   .transform((m, ctx) => {
     const mod = getModule(m.type);
     if (!mod) {
@@ -22,7 +22,7 @@ const moduleInstance = z
       ctx.addIssue({ code: "custom", message: `${m.type}: ${parsed.error.message}` });
       return z.NEVER;
     }
-    return { type: m.type, config: parsed.data };
+    return { type: m.type, config: parsed.data, maxGuesses: m.maxGuesses };
   });
 
 export const roundsSchema = z
@@ -33,5 +33,11 @@ export const roundsSchema = z
     }),
   )
   .max(30);
+
+export const settingsSchema = z.object({
+  /** Guesses each player gets per question. 0 means unlimited (still capped by the engine). */
+  maxGuesses: z.number().int().min(0).max(50).default(3),
+});
+export type Settings = z.infer<typeof settingsSchema>;
 
 export type Rounds = z.infer<typeof roundsSchema>;

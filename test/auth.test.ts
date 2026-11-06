@@ -108,9 +108,9 @@ test("full live session: join, answer, host control, admin override, answers nev
 
   // BUG-001: theme guesses are scoped to the item, capped, and gone after moving on.
   assert.equal((await act(alice, { action: "next" })).statusCode, 200);
-  for (let i = 0; i < 5; i++) assert.equal((await app.inject({ method: "POST", url: "/api/play/answer", headers: player, payload: { value: { guess: `g${i}` } } })).statusCode, 200);
+  for (let i = 0; i < 3; i++) assert.equal((await app.inject({ method: "POST", url: "/api/play/answer", headers: player, payload: { value: { guess: `g${i}` } } })).statusCode, 200);
   assert.equal((await app.inject({ method: "POST", url: "/api/play/answer", headers: player, payload: { value: { guess: "g6" } } })).statusCode, 429);
-  assert.equal((await app.inject({ url: "/api/play/state", headers: player })).json().myAnswers.length, 5);
+  assert.equal((await app.inject({ url: "/api/play/state", headers: player })).json().myAnswers.length, 3);
   assert.equal((await act(alice, { action: "next" })).statusCode, 200);
   const done = (await app.inject({ url: "/api/play/state", headers: player })).json();
   assert.equal(done.phase, "ended");
@@ -131,5 +131,51 @@ test("kicked players are locked out", async () => {
   const pid = (await app.inject({ url: `/api/sessions/${id}`, headers: alice })).json().playerList[0].id;
   await app.inject({ method: "POST", url: `/api/sessions/${id}/action`, headers: alice, payload: { action: "kick", playerId: pid } });
   assert.equal((await app.inject({ url: "/api/play/state", headers: player })).statusCode, 401);
+  await app.close();
+});
+
+test("BUG-002: players never learn right/wrong or points before the reveal; host can award halves; limits are per question", async () => {
+  const { app, as } = await setup();
+  const alice = await as("host@example.com");
+  const t = { title: "t", settings: { maxGuesses: 2 }, rounds: [{ title: "r", modules: [
+    { type: "text_qa", config: { question: "q1", answers: ["a"], points: 3 } },
+    { type: "text_qa", maxGuesses: 0, config: { question: "q2", answers: ["b"] } },
+  ] }] };
+  const { id: tid } = (await app.inject({ method: "POST", url: "/api/trivias", headers: alice, payload: t })).json();
+  const { id, code } = (await app.inject({ method: "POST", url: `/api/trivias/${tid}/sessions`, headers: alice })).json();
+  const act = (body: any) => app.inject({ method: "POST", url: `/api/sessions/${id}/action`, headers: alice, payload: body });
+  const join = await app.inject({ method: "POST", url: "/api/join", headers: { origin: cfg.BASE_URL }, payload: { code, nickname: "Kim" } });
+  const player = { cookie: String(join.headers["set-cookie"]).split(";")[0]!, origin: cfg.BASE_URL };
+  const say = (text: string) => app.inject({ method: "POST", url: "/api/play/answer", headers: player, payload: { value: { text } } });
+  const state = async () => (await app.inject({ url: "/api/play/state", headers: player })).json();
+  await act({ action: "begin" });
+
+  assert.equal((await state()).guessesLeft, 2);
+  assert.equal((await say("wrong")).statusCode, 200);
+  assert.equal((await say("a")).statusCode, 200);
+  assert.equal((await say("again")).statusCode, 429, "out of guesses");
+  assert.equal((await state()).guessesLeft, 0);
+
+  // Host awards half marks by hand; the player still sees nothing until reveal.
+  const view = (await app.inject({ url: `/api/sessions/${id}`, headers: alice })).json();
+  assert.equal(view.item.points, 3);
+  assert.equal((await act({ action: "review", answerId: view.answers[0].id, points: 1.5 })).statusCode, 200);
+  assert.equal((await act({ action: "review", answerId: view.answers[0].id, points: 0.3 })).statusCode, 400, "only halves");
+  const during = await state();
+  assert.equal(during.leaderboard, null);
+  assert.equal(JSON.stringify(during.myAnswers).includes("status"), false);
+  assert.equal(JSON.stringify(during.myAnswers).includes("points"), false);
+
+  await act({ action: "reveal" });
+  const after = await state();
+  assert.equal(after.leaderboard[0].points, 1.5);
+  assert.equal(after.myAnswers[0].points, 1.5);
+
+  // Question 2 overrides to unlimited; the engine still enforces a hard ceiling.
+  await act({ action: "next" });
+  assert.equal((await state()).guessesLeft, null);
+  let last = 200;
+  for (let i = 0; i < 25; i++) last = (await say(`try${i}`)).statusCode;
+  assert.equal(last, 429);
   await app.close();
 });

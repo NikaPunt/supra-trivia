@@ -6,7 +6,7 @@ const config = z
     question: z.string().min(1).max(500),
     options: z.array(z.string().min(1).max(200)).min(2).max(6),
     correct: z.number().int().min(0),
-    points: z.number().int().min(0).max(1000).default(1),
+    points: z.number().min(0).max(1000).multipleOf(0.5).default(1),
   })
   .refine((c) => c.correct < c.options.length, { message: "correct must index into options" });
 const answer = z.object({ choice: z.number().int().min(0).max(5) });

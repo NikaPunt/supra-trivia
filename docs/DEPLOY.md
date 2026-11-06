@@ -22,7 +22,7 @@ docker compose up -d --build
 ```
 
 ## 4. DNS
-Add an `A` record: `trivia.example.com` -> your public IP. If the record is on Cloudflare, use DNS only (grey cloud) unless you want Cloudflare proxying.
+_Done for trivia.example.com via the Cloudflare API: DNS-only `A` record, TTL 300._ For another domain, add an `A` record: `trivia.example.com` -> your public IP. If the record is on Cloudflare, use DNS only (grey cloud) unless you want Cloudflare proxying.
 
 ## 5. NPM proxy host
 - Domain: `trivia.example.com`

@@ -4,7 +4,7 @@ import { normalize, pointsField, type TriviaModule } from "./types.js";
 const config = z.object({
   question: z.string().min(1).max(500),
   answers: z.array(z.string().min(1).max(200)).min(1).max(20),
-  points: z.number().int().min(0).max(1000).default(1),
+  points: z.number().min(0).max(1000).multipleOf(0.5).default(1),
 });
 const answer = z.object({ text: z.string().min(1).max(200) });
 

@@ -27,6 +27,8 @@ export interface Game {
   /** Snapshot taken at start, so editing the trivia never changes a running session. */
   rounds: Rounds;
   phase: Phase;
+  /** Guesses per player per question (0 = unlimited). A question can override it. */
+  maxGuesses: number;
   /** Index into the flattened list of items; -1 in the lobby. */
   cursor: number;
   players: Player[];
@@ -35,6 +37,8 @@ export interface Game {
    * so live state never grows with the number of questions or guesses (BUG-001 in docs/BUGS.md).
    */
   answers: Answer[];
+  /** Guesses each player has used on the CURRENT item; cleared with `answers`. */
+  attempts: Record<string, number>;
   scores: Record<string, number>;
   history: { cursor: number; type: string; points: Record<string, number> }[];
   createdAt: number;
@@ -44,7 +48,8 @@ export interface Game {
 export type Action =
   | { action: "begin" | "close" | "reopen" | "reveal" | "next" | "end" }
   | { action: "kick"; playerId: string }
-  | { action: "review"; answerId: string; approve: boolean };
+  /** Host sets the points for an answer by hand: full, half, none, or any amount in halves. */
+  | { action: "review"; answerId: string; points: number };
 
 export class GameError extends Error {
   constructor(message: string, public status = 400) {
@@ -53,7 +58,8 @@ export class GameError extends Error {
 }
 
 export const MAX_PLAYERS = 100;
-export const MAX_GUESSES = 5;
+/** Hard ceiling when a host picks "unlimited", so live state can never grow without bound. */
+export const UNLIMITED_CAP = 20;
 const CODE_ALPHABET = "ABCDEFGHJKMNPQRSTVWXYZ";
 
 export const makeCode = () => [...randomBytes(5)].map((b) => CODE_ALPHABET[b % CODE_ALPHABET.length]).join("");
@@ -62,16 +68,17 @@ export interface Item {
   roundTitle: string;
   type: string;
   config: any;
+  maxGuesses?: number;
 }
 export const items = (g: Pick<Game, "rounds">): Item[] =>
-  g.rounds.flatMap((r) => r.modules.map((m) => ({ roundTitle: r.title, type: m.type, config: m.config })));
+  g.rounds.flatMap((r) => r.modules.map((m) => ({ roundTitle: r.title, type: m.type, config: m.config, maxGuesses: m.maxGuesses })));
 export const currentItem = (g: Game): Item | null => (g.cursor >= 0 ? (items(g)[g.cursor] ?? null) : null);
 
-export function newGame(o: { hostEmail: string; triviaId: string; title: string; rounds: Rounds; code: string }): Game {
+export function newGame(o: { hostEmail: string; triviaId: string; title: string; rounds: Rounds; code: string; maxGuesses: number }): Game {
   if (items(o).length === 0) throw new GameError("this trivia has no questions yet");
   return {
     id: randomUUID(), code: o.code, hostEmail: o.hostEmail, triviaId: o.triviaId, title: o.title,
-    rounds: o.rounds, phase: "lobby", cursor: -1, players: [], answers: [], scores: {}, history: [],
+    rounds: o.rounds, maxGuesses: o.maxGuesses, phase: "lobby", cursor: -1, players: [], answers: [], attempts: {}, scores: {}, history: [],
     createdAt: Date.now(), endedAt: null,
   };
 }
@@ -87,6 +94,9 @@ export function addPlayer(g: Game, rawNickname: string): Player {
   return p;
 }
 
+/** 0 means unlimited. A per-question setting beats the session default. */
+export const guessLimit = (g: Game, it: Item) => it.maxGuesses ?? g.maxGuesses;
+
 export function submit(g: Game, playerId: string, value: unknown): void {
   const p = g.players.find((x) => x.id === playerId);
   if (!p || p.kicked) throw new GameError("you are not in this session", 403);
@@ -95,13 +105,15 @@ export function submit(g: Game, playerId: string, value: unknown): void {
   const mod = getModule(it.type)!;
   const parsed = mod.answerSchema.safeParse(value);
   if (!parsed.success) throw new GameError("invalid answer");
-  if (mod.input.multi) {
-    const mine = g.answers.filter((a) => a.playerId === playerId);
-    if (mine.length >= MAX_GUESSES) throw new GameError(`at most ${MAX_GUESSES} guesses per question`, 429);
-    if (mine.some((a) => JSON.stringify(a.value) === JSON.stringify(parsed.data))) throw new GameError("you already guessed that");
-  } else {
-    g.answers = g.answers.filter((a) => a.playerId !== playerId);
-  }
+  const limit = guessLimit(g, it);
+  const used = g.attempts[playerId] ?? 0;
+  if (used >= (limit || UNLIMITED_CAP)) throw new GameError("you are out of guesses for this question", 429);
+  const same = (a: Answer) => JSON.stringify(a.value) === JSON.stringify(parsed.data);
+  const mine = g.answers.filter((a) => a.playerId === playerId);
+  if (mine.some(same)) throw new GameError("you already gave that answer");
+  // Single-answer questions: a new answer replaces the old one but still uses a guess.
+  if (!mod.input.multi) g.answers = g.answers.filter((a) => a.playerId !== playerId);
+  g.attempts[playerId] = used + 1;
   g.answers.push({ id: randomUUID(), playerId, value: parsed.data, status: "pending", points: 0, at: Date.now() });
 }
 
@@ -131,6 +143,7 @@ function finishItem(g: Game): void {
   for (const [pid, p] of pts) g.scores[pid] = (g.scores[pid] ?? 0) + p;
   g.history.push({ cursor: g.cursor, type: currentItem(g)?.type ?? "", points: Object.fromEntries(pts) });
   g.answers = [];
+  g.attempts = {};
 }
 
 const inPlay = (g: Game) => g.phase === "open" || g.phase === "closed" || g.phase === "revealed";
@@ -181,14 +194,15 @@ export function act(g: Game, a: Action): void {
       p.kicked = true;
       g.answers = g.answers.filter((x) => x.playerId !== p.id);
       delete g.scores[p.id];
+      delete g.attempts[p.id];
       break;
     }
     case "review": {
       need(inPlay(g), "session is not running");
       const ans = g.answers.find((x) => x.id === a.answerId);
       if (!ans) throw new GameError("no such answer", 404);
-      ans.status = a.approve ? "approved" : "rejected";
-      ans.points = a.approve ? getModule(currentItem(g)!.type)!.points(currentItem(g)!.config) : 0;
+      ans.points = a.points;
+      ans.status = a.points > 0 ? "approved" : "rejected";
       break;
     }
   }
@@ -215,7 +229,7 @@ function itemMeta(g: Game, full: boolean) {
     input: mod.input,
     public: mod.publicView(it.config),
     ...(full || g.phase === "revealed" ? { solution: mod.solution(it.config) } : {}),
-    ...(full ? { config: it.config } : {}),
+    ...(full ? { config: it.config, points: mod.points(it.config), maxGuesses: it.maxGuesses ?? null } : {}),
   };
 }
 
@@ -225,6 +239,12 @@ const base = (g: Game) => ({
   players: g.players.filter((p) => !p.kicked).length,
 });
 
+function guessesLeft(g: Game, playerId: string): number | null {
+  const it = currentItem(g);
+  const limit = it ? guessLimit(g, it) : 0;
+  return it && limit > 0 ? Math.max(0, limit - (g.attempts[playerId] ?? 0)) : null;
+}
+
 export function playerView(g: Game, playerId: string) {
   const board = showBoard(g) ? ranking(g, g.phase === "revealed") : null;
   const rank = board ? board.findIndex((r) => r.id === playerId) + 1 : null;
@@ -233,9 +253,11 @@ export function playerView(g: Game, playerId: string) {
     item: itemMeta(g, false),
     me: g.players.find((p) => p.id === playerId)?.nickname ?? "",
     // Only this player's own answers for the current item ever leave the server.
+    // Whether an answer was right, and what it earned, stays hidden until the reveal (BUG-002 in docs/BUGS.md).
     myAnswers: g.answers
       .filter((a) => a.playerId === playerId)
-      .map((a) => ({ value: a.value, ...(a.status !== "pending" ? { status: a.status, points: a.points } : {}) })),
+      .map((a) => ({ value: a.value, ...(g.phase === "revealed" ? { status: a.status, points: a.points } : {}) })),
+    guessesLeft: guessesLeft(g, playerId),
     leaderboard: board?.slice(0, 10).map((r) => ({ nickname: r.nickname, points: r.points, me: r.id === playerId })) ?? null,
     myRank: rank || null,
   };
@@ -258,6 +280,7 @@ export function hostView(g: Game) {
     ...base(g),
     id: g.id,
     hostEmail: g.hostEmail,
+    maxGuesses: g.maxGuesses,
     item: itemMeta(g, true),
     playerList: g.players.map((p) => ({ id: p.id, nickname: p.nickname, kicked: p.kicked, answered: answered.has(p.id) })),
     answers: g.answers.map((a) => ({

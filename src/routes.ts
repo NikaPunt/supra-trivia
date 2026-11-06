@@ -7,7 +7,7 @@ import type { Db } from "./db.js";
 import type { HostDirectory } from "./hosts.js";
 import type { GameStore } from "./store.js";
 import { LOGIN_COOKIE, SESSION_COOKIE, finishLogin, LoginError, signSession, startLogin, verifySession, type Session } from "./auth.js";
-import { modules, roundsSchema } from "./modules/index.js";
+import { modules, roundsSchema, settingsSchema } from "./modules/index.js";
 import { registerSessionRoutes } from "./sessions.js";
 import { registerPlayRoutes } from "./play.js";
 
@@ -17,7 +17,7 @@ declare module "fastify" {
   }
 }
 
-const trivia = z.object({ title: z.string().min(1).max(120), rounds: roundsSchema });
+const trivia = z.object({ title: z.string().min(1).max(120), settings: settingsSchema.default({ maxGuesses: 3 }), rounds: roundsSchema });
 export const idParam = z.object({ id: z.uuid() });
 
 export function registerRoutes(app: FastifyInstance, cfg: Config, db: Db, hosts: HostDirectory, store: GameStore) {
@@ -92,13 +92,13 @@ export function registerRoutes(app: FastifyInstance, cfg: Config, db: Db, hosts:
     if (!body.success) return reply.code(400).send({ error: body.error.message });
     const id = randomUUID();
     const now = Date.now();
-    db.prepare("INSERT INTO trivias VALUES (?, ?, ?, ?, ?, ?)").run(
-      id, req.host_session!.email, body.data.title, JSON.stringify(body.data.rounds), now, now,
+    db.prepare("INSERT INTO trivias (id, host_email, title, rounds, created_at, updated_at, settings) VALUES (?, ?, ?, ?, ?, ?, ?)").run(
+      id, req.host_session!.email, body.data.title, JSON.stringify(body.data.rounds), now, now, JSON.stringify(body.data.settings),
     );
     return reply.code(201).send({ id });
   });
 
-  type Row = { id: string; host_email: string; title: string; rounds: string };
+  type Row = { id: string; host_email: string; title: string; rounds: string; settings: string };
   const load = (req: FastifyRequest): Row | undefined => {
     const u = req.host_session!;
     const row = db.prepare("SELECT * FROM trivias WHERE id = ?").get(idParam.parse(req.params).id) as Row | undefined;
@@ -111,7 +111,7 @@ export function registerRoutes(app: FastifyInstance, cfg: Config, db: Db, hosts:
   app.get("/api/trivias/:id", { preHandler: requireHost }, async (req, reply) => {
     const row = load(req);
     if (!row) return reply.code(404).send({ error: "not found" });
-    return { id: row.id, title: row.title, owner: row.host_email, rounds: JSON.parse(row.rounds) };
+    return { id: row.id, title: row.title, owner: row.host_email, settings: settingsSchema.parse(JSON.parse(row.settings)), rounds: JSON.parse(row.rounds) };
   });
 
   app.put("/api/trivias/:id", { preHandler: requireHost }, async (req, reply) => {
@@ -119,8 +119,8 @@ export function registerRoutes(app: FastifyInstance, cfg: Config, db: Db, hosts:
     if (!row) return reply.code(404).send({ error: "not found" });
     const body = trivia.safeParse(req.body);
     if (!body.success) return reply.code(400).send({ error: body.error.message });
-    db.prepare("UPDATE trivias SET title = ?, rounds = ?, updated_at = ? WHERE id = ?").run(
-      body.data.title, JSON.stringify(body.data.rounds), Date.now(), row.id,
+    db.prepare("UPDATE trivias SET title = ?, rounds = ?, settings = ?, updated_at = ? WHERE id = ?").run(
+      body.data.title, JSON.stringify(body.data.rounds), JSON.stringify(body.data.settings), Date.now(), row.id,
     );
     touchOthers(req, row, "trivia.edit");
     return { ok: true };

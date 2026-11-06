@@ -17,7 +17,7 @@ function inputFor(state) {
     try { await api("/api/play/answer", { method: "POST", body: { value } }); err.textContent = ""; await refresh(); }
     catch (e) { err.textContent = e.message; }
   };
-  const open = state.phase === "open";
+  const open = state.phase === "open" && state.guessesLeft !== 0;
   const mine = state.myAnswers;
   if (item.input.kind === "choice") {
     const cur = mine[0]?.value[item.input.key];
@@ -32,7 +32,7 @@ function inputFor(state) {
     send({ [item.input.key]: item.input.kind === "number" ? Number(raw) : raw }).then(() => { if (item.input.multi) field.value = ""; });
   };
   field.addEventListener("keydown", (e) => { if (e.key === "Enter") submit(); });
-  return h("div", {}, field, h("div", { class: "row", style: "margin-top:8px" }, h("button", { class: "primary", disabled: !open, onclick: submit }, item.input.multi ? "Send guess" : "Lock in")), err);
+  return h("div", {}, field, h("div", { class: "row", style: "margin-top:8px" }, h("button", { class: "primary", disabled: !open, onclick: submit }, item.input.multi ? "Send guess" : (mine.length ? "Change answer" : "Lock in"))), err);
 }
 
 function render(state) {
@@ -49,8 +49,9 @@ function render(state) {
       it.public.hint ? h("p", { class: "muted" }, `Hint: ${it.public.hint}`) : null,
       state.phase === "open" ? null : h("p", { class: "muted" }, state.phase === "closed" ? "Answers are closed." : "Revealed."),
       inputFor(state),
-      mine.length && it.input.multi ? h("div", {}, h("h2", {}, "Your guesses"), mine.map((a) => h("div", {}, `${a.value[it.input.key]}${a.status ? (a.status === "approved" ? ` ✓ +${a.points}` : " ✗") : ""}`))) : null,
-      mine.length && !it.input.multi && mine[0].status ? h("p", {}, mine[0].status === "approved" ? `Correct! +${mine[0].points}` : "Not this time.") : null,
+      state.guessesLeft !== null ? h("p", { class: "muted" }, `Guesses left: ${state.guessesLeft}`) : null,
+      mine.length && it.input.multi ? h("div", {}, h("h2", {}, "Your guesses"), mine.map((a) => h("div", {}, `${a.value[it.input.key]}${a.status ? (a.points > 0 ? ` ✓ +${a.points}` : " ✗") : ""}`))) : null,
+      mine.length && !it.input.multi && mine[0].status ? h("p", {}, mine[0].points > 0 ? `+${mine[0].points} points` : "No points this time.") : null,
       it.solution ? h("p", {}, h("strong", {}, "Answer: "), it.solution) : null),
     board(state));
   lastKey = key;

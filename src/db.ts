@@ -36,5 +36,8 @@ export function openDb(path: string): Db {
       detail TEXT
     );
   `);
+  if (!(db.pragma("table_info(trivias)") as { name: string }[]).some((c) => c.name === "settings")) {
+    db.exec("ALTER TABLE trivias ADD COLUMN settings TEXT NOT NULL DEFAULT '{}'");
+  }
   return db;
 }

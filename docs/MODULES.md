@@ -25,6 +25,8 @@ The builder (`public/js/builder.js`) is generic: it reads `fields` from `/api/mo
 
 ## Built-in modules
 
+Point values are set per question in the builder and may be in halves (e.g. 1.5). Every module's `points` field defaults to 1 (theme guess bonus: 2).
+
 ### `text_qa` - Question and answer
 Host enters a question, the accepted answers (case and punctuation insensitive) and points. Players type a short answer.
 

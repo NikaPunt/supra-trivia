@@ -2,13 +2,13 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import type { Ctx } from "./context.js";
 import { GameError, act, deckView, hostView, newGame, type Game } from "./game.js";
-import { roundsSchema } from "./modules/index.js";
+import { roundsSchema, settingsSchema } from "./modules/index.js";
 
 const id = z.object({ id: z.uuid() });
 const actionSchema = z.union([
   z.object({ action: z.enum(["begin", "close", "reopen", "reveal", "next", "end"]) }),
   z.object({ action: z.literal("kick"), playerId: z.uuid() }),
-  z.object({ action: z.literal("review"), answerId: z.uuid(), approve: z.boolean() }),
+  z.object({ action: z.literal("review"), answerId: z.uuid(), points: z.number().min(0).max(1000).multipleOf(0.5) }),
 ]);
 const MAX_ACTIVE_PER_HOST = 5;
 
@@ -35,7 +35,7 @@ export function openStream(req: FastifyRequest, reply: FastifyReply, ctx: Ctx, g
 export function registerSessionRoutes(
   app: FastifyInstance,
   ctx: Ctx,
-  loadTrivia: (req: FastifyRequest) => { id: string; host_email: string; title: string; rounds: string } | undefined,
+  loadTrivia: (req: FastifyRequest) => { id: string; host_email: string; title: string; rounds: string; settings: string } | undefined,
 ) {
   const { store, requireHost, requireAdmin, audit } = ctx;
 
@@ -56,7 +56,7 @@ export function registerSessionRoutes(
     const u = req.host_session!;
     if (store.activeCountFor(u.email) >= MAX_ACTIVE_PER_HOST) return reply.code(429).send({ error: `at most ${MAX_ACTIVE_PER_HOST} active sessions` });
     try {
-      const g = newGame({ hostEmail: u.email, triviaId: row.id, title: row.title, rounds: roundsSchema.parse(JSON.parse(row.rounds)), code: store.newCode() });
+      const g = newGame({ hostEmail: u.email, triviaId: row.id, title: row.title, rounds: roundsSchema.parse(JSON.parse(row.rounds)), code: store.newCode(), maxGuesses: settingsSchema.parse(JSON.parse(row.settings)).maxGuesses });
       store.save(g);
       return reply.code(201).send({ id: g.id, code: g.code });
     } catch (e) {

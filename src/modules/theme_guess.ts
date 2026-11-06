@@ -4,7 +4,7 @@ import { normalize, type TriviaModule } from "./types.js";
 const config = z.object({
   theme: z.string().min(1).max(200),
   hint: z.string().max(300).default(""),
-  bonusPoints: z.number().int().min(0).max(1000).default(2),
+  bonusPoints: z.number().min(0).max(1000).multipleOf(0.5).default(2),
 });
 const answer = z.object({ guess: z.string().min(1).max(200) });
 

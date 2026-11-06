@@ -4,14 +4,16 @@ await hostHeader($("#bar"));
 const id = new URLSearchParams(location.search).get("id");
 const mods = await api("/api/modules");
 const byType = Object.fromEntries(mods.map((m) => [m.type, m]));
-let state = { title: "My trivia", rounds: [{ title: "Round 1", modules: [] }] };
+let state = { title: "My trivia", settings: { maxGuesses: 3 }, rounds: [{ title: "Round 1", modules: [] }] };
 if (id) state = await api(`/api/trivias/${id}`);
+state.settings ??= { maxGuesses: 3 };
 
 // Form values are kept in `config` using the editor's friendly shapes; toApi() converts to what the server stores.
-const blank = (type) => ({ type, config: Object.fromEntries(byType[type].fields.map((f) => [f.key, f.kind === "list" ? [""] : (f.default ?? "")])) });
+const blank = (type) => ({ type, maxGuesses: undefined, config: Object.fromEntries(byType[type].fields.map((f) => [f.key, f.kind === "list" ? [""] : (f.default ?? "")])) });
 const toApi = () => ({
   title: state.title,
-  rounds: state.rounds.map((r) => ({ title: r.title, modules: r.modules.map((m) => ({ type: m.type, config: Object.fromEntries(byType[m.type].fields.map((f) => {
+  settings: { maxGuesses: Number(state.settings.maxGuesses) },
+  rounds: state.rounds.map((r) => ({ title: r.title, modules: r.modules.map((m) => ({ type: m.type, maxGuesses: m.maxGuesses === undefined || m.maxGuesses === "" ? undefined : Number(m.maxGuesses), config: Object.fromEntries(byType[m.type].fields.map((f) => {
     const v = m.config[f.key];
     if (f.kind === "list") return [f.key, (v ?? []).map((s) => s.trim()).filter(Boolean)];
     if (f.kind === "number") return [f.key, Number(v)];
@@ -51,13 +53,18 @@ function card(r, i, m) {
   mount(el,
     h("div", { class: "head" }, h("strong", { class: "grow" }, `⠿ ${def.label}`), h("button", { onclick: move(-1), "aria-label": "Move up" }, "↑"), h("button", { onclick: move(1), "aria-label": "Move down" }, "↓"),
       h("button", { class: "danger", onclick: () => { state.rounds[r].modules.splice(i, 1); render(); }, "aria-label": "Remove" }, "✕")),
-    def.fields.map((f) => h("div", {}, h("label", {}, f.label + (f.help ? ` (${f.help})` : "")), fieldInput(m, f))));
+    def.fields.map((f) => h("div", {}, h("label", {}, f.label + (f.help ? ` (${f.help})` : "")), fieldInput(m, f))),
+    h("div", {}, h("label", {}, "Max guesses for this question (blank = trivia default, 0 = unlimited)"),
+      h("input", { type: "number", min: 0, max: 50, value: m.maxGuesses ?? "", oninput: (e) => { m.maxGuesses = e.target.value === "" ? undefined : Number(e.target.value); } })));
   return el;
 }
 
 function render() {
   const err = h("p", { class: "err", id: "err" });
   mount($("#app"),
+    h("div", { class: "card" }, h("label", { for: "mg" }, "Guesses each player gets per question (0 = unlimited)"),
+      h("input", { id: "mg", type: "number", min: 0, max: 50, value: state.settings.maxGuesses, oninput: (e) => { state.settings.maxGuesses = e.target.value; } }),
+      h("p", { class: "muted" }, "Players never see whether a guess was right until you reveal. You can always award points by hand, including half marks.")),
     h("div", { class: "row" }, h("input", { class: "grow", value: state.title, maxlength: 120, "aria-label": "Trivia title", oninput: (e) => { state.title = e.target.value; } }),
       h("button", { class: "primary", onclick: save }, "Save"), h("a", { class: "btn", href: "/host.html" }, "Back")), err,
     h("div", { class: "builder" },

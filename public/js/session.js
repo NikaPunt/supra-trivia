@@ -7,6 +7,15 @@ const act = (body) => async () => {
 };
 const btn = (label, body, cls = "") => h("button", { class: cls, onclick: act(body) }, label);
 
+const set = (a, points) => act({ action: "review", answerId: a.id, points });
+function award(a, full) {
+  const custom = h("input", { type: "number", step: "0.5", min: 0, max: 1000, placeholder: "pts", style: "width:5em", "aria-label": "Custom points" });
+  return h("span", { class: "row" },
+    h("button", { class: "ok", onclick: set(a, full) }, `Right (${full})`), h("button", { onclick: set(a, full / 2) }, `Half (${full / 2})`),
+    h("button", { class: "danger", onclick: set(a, 0) }, "Wrong"), custom,
+    h("button", { onclick: () => { if (custom.value !== "") set(a, Number(custom.value))(); } }, "Set"));
+}
+
 function controls(s) {
   const phase = s.phase;
   return h("div", { class: "row" },
@@ -23,14 +32,14 @@ function render(s) {
   const it = s.item;
   mount($("#app"),
     h("div", { class: "card row" }, h("div", {}, h("div", { class: "muted" }, "Room code"), h("div", { class: "code" }, s.code)),
-      h("div", { class: "grow" }, h("strong", {}, s.title), h("div", { class: "muted" }, `${s.phase} · ${s.players} players · join at ${location.origin}`))),
+      h("div", { class: "grow" }, h("strong", {}, s.title), h("div", { class: "muted" }, `${s.phase} · ${s.players} players · ${s.maxGuesses === 0 ? "unlimited" : s.maxGuesses} guesses each · join at ${location.origin}`))),
     controls(s),
     it ? h("div", { class: "card" }, h("div", { class: "muted" }, `${it.round} · ${it.label} · ${s.number}/${s.total}`), h("h2", {}, it.public.question),
       h("p", {}, h("strong", {}, "Answer: "), it.solution)) : null,
     it ? h("div", { class: "card" }, h("h2", {}, `Answers (${s.answers.length})`),
       s.answers.length ? h("table", {}, s.answers.map((a) => h("tr", {}, h("td", {}, a.nickname), h("td", {}, describeAnswer(it, a.value)),
-        h("td", {}, a.status === "pending" ? "" : a.status === "approved" ? `✓ +${a.points}` : "✗"),
-        h("td", {}, h("button", { class: "ok", onclick: act({ action: "review", answerId: a.id, approve: true }) }, "Approve"), " ", h("button", { class: "danger", onclick: act({ action: "review", answerId: a.id, approve: false }) }, "Reject"))))) : h("p", { class: "muted" }, "None yet.")) : null,
+        h("td", {}, a.status === "pending" ? "" : a.points > 0 ? `✓ +${a.points}` : "✗"),
+        h("td", {}, award(a, it.points))))) : h("p", { class: "muted" }, "None yet.")) : null,
     h("div", { class: "card" }, h("h2", {}, "Players"), s.playerList.length ? h("table", {}, s.playerList.map((p) => h("tr", {},
       h("td", {}, p.kicked ? h("s", {}, p.nickname) : p.nickname), h("td", {}, p.answered ? "answered" : ""),
       h("td", {}, p.kicked ? "removed" : h("button", { class: "danger", onclick: () => { if (confirm(`Remove ${p.nickname}?`)) act({ action: "kick", playerId: p.id })(); } }, "Remove"))))) : h("p", { class: "muted" }, "Nobody yet.")),
