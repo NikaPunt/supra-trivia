@@ -1,4 +1,4 @@
-import { $, api, describeAnswer, h, live, mount, questionBlock, revealBlock, scene, themeNote } from "./common.js";
+import { $, api, describeAnswer, enterIfChanged, h, live, mount, questionBlock, revealBlock, scene, themeNote } from "./common.js";
 
 // Typed text survives re-renders caused by live updates.
 const drafts = { answer: "", theme: "", stake: "", key: "" };
@@ -103,15 +103,22 @@ function render(state) {
     themeCard(state), board(state), foot(state));
 }
 
+const anim = {};
+let lastRaw = "";
 let lastSig = "";
 async function refresh() {
   try {
     const state = await api("/api/play/state");
+    // Nothing changed since the last draw: leave the page exactly as it is.
+    const raw = JSON.stringify(state);
+    if (raw === lastRaw) return;
     // Don't yank the keyboard away mid-typing when nothing that matters changed.
     const sig = JSON.stringify([state.phase, state.number, state.guessesLeft, state.theme?.revealed, state.theme?.guessesLeft, state.myAnswers.length, state.leaderboard?.length, state.stake?.options]);
     if (sig === lastSig && document.activeElement?.closest("#app") && /INPUT|SELECT/.test(document.activeElement.tagName)) return;
     lastSig = sig;
+    lastRaw = raw;
     render(state);
+    enterIfChanged(`${state.number}:${state.phase}`, anim);
   }
   catch (e) { if (e.status === 401) location.href = "/"; }
 }

@@ -1,4 +1,4 @@
-import { $, api, describeAnswer, h, hostHeader, live, mount, questionBlock, revealBlock } from "./common.js";
+import { $, api, describeAnswer, enterIfChanged, h, hostHeader, live, mount, questionBlock, revealBlock } from "./common.js";
 await hostHeader($("#bar"));
 const id = new URLSearchParams(location.search).get("id");
 
@@ -35,15 +35,21 @@ function themePanel(s) {
   if (!t) return null;
   if (t.revealed) return h("div", { class: "card theme-card" }, h("h2", {}, "Secret theme (revealed)"), h("p", {}, h("strong", {}, t.secret)),
     t.bonuses.length ? h("p", { class: "muted" }, "Bonuses: " + t.bonuses.map((b) => `${b.nickname} ${fmt(b.points)}`).join(", ")) : h("p", { class: "muted" }, "Nobody earned the bonus."));
+  const custom = (g) => {
+    const box = h("input", { type: "number", step: "0.5", min: 0, max: 1000, placeholder: "points", style: "width:6em", "aria-label": "Custom bonus points" });
+    return h("span", { class: "row" }, box,
+      h("button", { onclick: () => { if (box.value !== "") act({ action: "theme_review", guessId: g.id, points: Number(box.value) })(); } }, "Set"));
+  };
   return h("div", { class: "card theme-card" }, h("h2", {}, "Secret theme"),
     h("p", {}, h("strong", {}, t.secret), t.hint ? h("span", { class: "muted" }, `  ·  hint: ${t.hint}`) : null),
     t.guesses.length ? h("table", { class: "stack" }, t.guesses.map((g) => h("tr", {},
-      h("td", {}, g.nickname), h("td", {}, g.text), h("td", { class: "muted" }, `at Q${g.atNumber}`),
-      h("td", {}, g.status === "pending" ? "" : g.points > 0 ? `✓ ${fmt(g.points)}` : "✗"),
-      h("td", {}, h("button", { class: "ok", onclick: act({ action: "theme_review", guessId: g.id, points: g.suggested }) }, `Approve (+${g.suggested})`), " ",
-        h("button", { onclick: act({ action: "theme_review", guessId: g.id, points: g.suggested * 2 }) }, `+${g.suggested * 2}`), " ",
-        h("button", { class: "danger", onclick: act({ action: "theme_review", guessId: g.id, points: 0 }) }, "Reject"))))) : h("p", { class: "muted" }, "No guesses yet."),
-    h("p", { class: "muted" }, "Approved guesses stay hidden from the scoreboard until you reveal the theme. Earlier guesses suggest more points. It reveals automatically at the end."),
+      h("td", {}, g.nickname), h("td", {}, g.text), h("td", { class: "muted" }, `at question ${g.atNumber}`),
+      h("td", {}, g.status === "pending" ? "" : g.points > 0 ? `approved ${fmt(g.points)}` : "rejected"),
+      h("td", {}, h("span", { class: "row" },
+        h("button", { class: "ok", onclick: act({ action: "theme_review", guessId: g.id, points: g.suggested }) }, `Approve (${fmt(g.suggested)})`),
+        custom(g),
+        h("button", { class: "danger", onclick: act({ action: "theme_review", guessId: g.id, points: 0 }) }, "Reject")))))) : h("p", { class: "muted" }, "No guesses yet."),
+    h("p", { class: "muted" }, `Approve gives the suggested bonus: ${t.bonus} points for a guess at question 1, one less for each question after, never below 1. Or type any amount and press Set. Bonuses stay hidden until the theme goes public.`),
     h("button", { class: "primary", onclick: () => { if (confirm("Reveal the theme to everyone and count the bonuses?")) act({ action: "theme_reveal" })(); } }, "Reveal theme"));
 }
 
@@ -59,7 +65,7 @@ function render(s) {
     it ? h("div", { class: "card" }, h("h2", {}, `Answers (${s.answers.length})`),
       s.answers.length ? h("table", { class: "stack" }, s.answers.map((a) => h("tr", {}, h("td", {}, a.nickname),
         h("td", {}, describeAnswer(it, a.value), a.status === "pending" && a.suggest !== null ? h("span", { class: a.suggest > 0 ? "badge" : "muted" }, a.suggest > 0 ? "  looks right" : "  no match") : null),
-        h("td", {}, a.status === "pending" ? "" : a.points > 0 ? `✓ ${fmt(a.points)}` : a.points < 0 ? `✗ ${a.points}` : "✗"),
+        h("td", {}, a.status === "pending" ? "" : a.points > 0 ? `${fmt(a.points)}` : a.points < 0 ? `${a.points}` : "0"),
         h("td", {}, award(a))))) : h("p", { class: "muted" }, "None yet.")) : null,
     themePanel(s),
     h("div", { class: "card" }, h("h2", {}, "Players"), s.playerList.length ? h("table", { class: "stack" }, s.playerList.map((p) => h("tr", {},
@@ -69,8 +75,19 @@ function render(s) {
       s.theme && !s.theme.revealed ? h("p", { class: "muted" }, "Theme bonuses are not included until the theme is revealed.") : null));
 }
 
+const anim = {};
+let lastRaw = "";
+let waiting = null; // a newer state, held back while the host is typing an amount
+const typing = () => { const a = document.activeElement; return a && a.tagName === "INPUT" && $("#app").contains(a) && a.value !== ""; };
+function draw(s) { lastRaw = JSON.stringify(s); waiting = null; render(s); enterIfChanged(`${s.number}:${s.phase}`, anim); }
+document.addEventListener("focusout", () => setTimeout(() => { if (waiting && !typing()) draw(waiting); }, 0));
 async function refresh() {
-  try { render(await api(`/api/sessions/${id}`)); } catch (e) { mount($("#app"), h("p", { class: "err" }, e.message)); }
+  try {
+    const s = await api(`/api/sessions/${id}`);
+    if (JSON.stringify(s) === lastRaw) return; // nothing changed: leave the page alone
+    if (typing()) { waiting = s; return; }
+    draw(s);
+  } catch (e) { mount($("#app"), h("p", { class: "err" }, e.message)); }
 }
 refresh();
 live(`/api/sessions/${id}/events`, refresh);

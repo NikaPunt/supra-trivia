@@ -63,6 +63,8 @@ export const themeSchema = z.object({
   hint: z.string().max(300).default(""),
   /** The full explanation shown when the theme is revealed. */
   formal: z.string().max(600).default(""),
+  /** Points for finding it at the first question; each later question is worth one less, never below 1. */
+  bonus: z.number().min(0.5).max(100).multipleOf(0.5).default(4),
 });
 
 export const settingsSchema = z.object({

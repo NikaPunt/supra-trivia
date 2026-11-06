@@ -68,6 +68,8 @@ Then add a proxy host: forward `http://trivia:3000`, request a certificate and f
 
 **Traefik:** add labels to the `trivia` service, for example `traefik.http.routers.trivia.rule=Host(...)`, `...tls.certresolver=...`, and `traefik.http.services.trivia.loadbalancer.server.port=3000`.
 
+Live updates arrive over a server-sent-events stream. The app checks that the stream is really delivering and quietly falls back to checking every 3 seconds if a proxy holds it back, so a misbehaving proxy slows nothing down but is chattier. To fix the cause, turn off response buffering for this host: in Nginx Proxy Manager add `proxy_buffering off;` under the host's Advanced tab (the app already sends `X-Accel-Buffering: no`, which nginx honours unless something overrides it).
+
 If your proxy logs are watched by fail2ban or CrowdSec, the new host's log is covered automatically when it lands in the same folder.
 
 ## B. Docker with Caddy

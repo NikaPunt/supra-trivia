@@ -30,14 +30,36 @@ export async function api(path, { method = "GET", body } = {}) {
   return data;
 }
 
-/** Refetch on server push, with a slow poll as a safety net. */
+/**
+ * Refetch when the server says something changed. The server also sends a ping on connect and every 15 seconds, so the page can
+ * tell whether the live stream is really delivering. If it is not (a proxy that buffers or drops it, a flaky connection),
+ * fall back to polling every few seconds so nothing lags, and go back to quiet checks once pings arrive again.
+ */
 export function live(url, refresh) {
-  let timer;
+  let timer, es, lastBeat = 0, ticks = 0;
   const kick = () => { clearTimeout(timer); timer = setTimeout(refresh, 50); };
-  const es = new EventSource(url);
-  es.addEventListener("changed", kick);
-  es.addEventListener("open", kick);
-  setInterval(refresh, 15000);
+  const connect = () => {
+    es = new EventSource(url);
+    es.addEventListener("changed", () => { lastBeat = Date.now(); kick(); });
+    es.addEventListener("ping", () => { lastBeat = Date.now(); });
+    es.addEventListener("open", () => kick()); // catch up after a (re)connect; only a real ping or change counts as proof the stream delivers
+    es.addEventListener("error", () => { if (es.readyState === 2) setTimeout(connect, 3000); });
+  };
+  connect();
+  const healthy = () => es.readyState === 1 && Date.now() - lastBeat < 22000;
+  setInterval(() => {
+    if (document.visibilityState === "hidden") return;
+    ticks++;
+    if (!healthy() || ticks % 10 === 0) refresh();
+  }, 3000);
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") refresh(); });
+}
+
+/** Marks the question and the reveal so they animate in once, when they change, and never on a plain refresh. */
+export function enterIfChanged(key, state) {
+  if (state.lastKey === key) return;
+  state.lastKey = key;
+  document.querySelectorAll("#app .board, #app .reveal").forEach((el) => el.classList.add("enter"));
 }
 
 /** What a player answered, with any stake (confidence points, wager) appended. */

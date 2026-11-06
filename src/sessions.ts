@@ -28,9 +28,10 @@ export function openStream(req: FastifyRequest, reply: FastifyReply, ctx: Ctx, g
     "x-accel-buffering": "no", // keep Nginx Proxy Manager from buffering the stream
     "x-content-type-options": "nosniff",
   });
-  res.write("retry: 3000\n\n");
+  res.write("retry: 3000\n\nevent: ping\ndata: 1\n\n"); // an immediate ping lets the page confirm the stream really delivers
   const changed = () => res.write("event: changed\ndata: 1\n\n");
-  const beat = setInterval(() => res.write(": hb\n\n"), 25_000);
+  // A named event (not a comment) so the page can see the stream is alive and fall back to polling if it is not.
+  const beat = setInterval(() => res.write("event: ping\ndata: 1\n\n"), 15_000);
   ctx.store.bus.on(gameId, changed);
   req.raw.on("close", () => {
     clearInterval(beat);

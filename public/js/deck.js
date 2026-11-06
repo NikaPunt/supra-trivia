@@ -1,4 +1,4 @@
-import { $, api, h, live, mount, questionBlock, revealBlock, scene, themeNote } from "./common.js";
+import { $, api, enterIfChanged, h, live, mount, questionBlock, revealBlock, scene, themeNote } from "./common.js";
 const id = new URLSearchParams(location.search).get("id");
 // The projector scales with the screen, so a 4K display is not a small column on a big black field.
 document.documentElement.classList.add("deck");
@@ -23,6 +23,17 @@ function render(s) {
     themeNote(s.theme), board(s), foot(s));
 }
 
-async function refresh() { try { render(await api(`/api/sessions/${id}/deck`)); } catch (e) { mount($("#app"), h("p", { class: "err" }, e.message)); } }
+const anim = {};
+let lastRaw = "";
+async function refresh() {
+  try {
+    const s = await api(`/api/sessions/${id}/deck`);
+    const raw = JSON.stringify(s);
+    if (raw === lastRaw) return; // nothing changed: leave the screen alone
+    lastRaw = raw;
+    render(s);
+    enterIfChanged(`${s.number}:${s.phase}`, anim);
+  } catch (e) { mount($("#app"), h("p", { class: "err" }, e.message)); }
+}
 refresh();
 live(`/api/sessions/${id}/events`, refresh);

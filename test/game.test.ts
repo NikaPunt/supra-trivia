@@ -155,3 +155,16 @@ test("older trivias with separate clue boxes fold into one question", () => {
   assert.equal("clue1" in r[0]!.modules[0]!.config, false);
   assert.equal("tier" in r[0]!.modules[0]!.config, false);
 });
+
+test("theme bonus: suggested points start at the configured bonus and shrink one per question, never below 1", async () => {
+  const { suggestedThemePoints } = await import("../src/game.js");
+  assert.deepEqual([1, 2, 3, 4, 5, 9].map((n) => suggestedThemePoints(n)), [4, 3, 2, 1, 1, 1], "default bonus 4");
+  assert.deepEqual([1, 2, 3, 6, 7, 20].map((n) => suggestedThemePoints(n, 6)), [6, 5, 4, 1, 1, 1]);
+  assert.deepEqual([1, 2, 3].map((n) => suggestedThemePoints(n, 2)), [2, 1, 1]);
+  assert.deepEqual([1, 2].map((n) => suggestedThemePoints(n, 0.5)), [0.5, 0.5], "a bonus below 1 is never raised");
+  const { g, a } = start([{ title: "R", modules: [textQ(["a"]), textQ(["b"])] }], { secret: "x", hint: "h", formal: "f", bonus: 6 });
+  submitTheme(g, a.id, "guess");
+  const view = hostView(g).theme!;
+  assert.equal(view.bonus, 6);
+  assert.equal(view.guesses[0]!.suggested, 6);
+});

@@ -31,7 +31,7 @@ function toApi() {
   const s = state.settings;
   return {
     title: state.title,
-    settings: { maxGuesses: Number(s.maxGuesses), ...(s.theme && s.theme.secret?.trim() ? { theme: { secret: s.theme.secret.trim(), hint: s.theme.hint ?? "", formal: s.theme.formal ?? "" } } : {}) },
+    settings: { maxGuesses: Number(s.maxGuesses), ...(s.theme && s.theme.secret?.trim() ? { theme: { secret: s.theme.secret.trim(), hint: s.theme.hint ?? "", formal: s.theme.formal ?? "", bonus: Number(s.theme.bonus ?? 4) } } : {}) },
     rounds: state.rounds.map((r) => ({
       title: r.title,
       modules: r.modules.map((m) => ({
@@ -173,11 +173,13 @@ function themeCard() {
   const s = state.settings;
   const on = !!s.theme;
   return h("div", { class: "card theme-card" }, h("h2", {}, "Overall theme"),
-    h("label", {}, h("input", { type: "checkbox", style: "width:auto", checked: on, onchange: (e) => { s.theme = e.target.checked ? { secret: "", hint: "", formal: "" } : undefined; render(); } }), " This trivia has a secret theme that links the questions"),
+    h("label", {}, h("input", { type: "checkbox", style: "width:auto", checked: on, onchange: (e) => { s.theme = e.target.checked ? { secret: "", hint: "", formal: "", bonus: 4 } : undefined; render(); } }), " This trivia has a secret theme that links the questions"),
     on ? h("div", {},
       h("label", {}, "The theme (short, for you to grade guesses)"), h("input", { value: s.theme.secret, maxlength: 200, oninput: (e) => { s.theme.secret = e.target.value; } }),
       h("label", {}, "Hint players see"), h("input", { value: s.theme.hint ?? "", maxlength: 300, oninput: (e) => { s.theme.hint = e.target.value; } }),
       h("label", {}, "Explanation shown when the theme is revealed"), h("textarea", { rows: 3, maxlength: 600, oninput: (e) => { s.theme.formal = e.target.value; } }, s.theme.formal ?? ""),
+      h("label", {}, "Points for finding it at question 1 (one less for each question after, never below 1)"),
+      h("input", { type: "number", min: 0.5, max: 100, step: 0.5, value: s.theme.bonus ?? 4, oninput: (e) => { s.theme.bonus = e.target.value; } }),
       h("p", { class: "muted" }, "Players can guess it once the game starts and you approve guesses. It goes public when round two begins, when every player has found it, or when you reveal it.")) : null);
 }
 

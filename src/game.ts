@@ -35,6 +35,8 @@ export interface Theme {
   secret: string;
   hint: string;
   formal: string;
+  /** Points for an approved guess at question 1. Games saved before this setting existed use 4. */
+  bonus?: number;
 }
 export interface Game {
   id: string;
@@ -255,8 +257,8 @@ function finishItem(g: Game): void {
 
 // ---- the secret overall theme ----
 
-/** Earlier guesses earn more: 4 points at question 1 down to 1 from question 4 on. */
-export const suggestedThemePoints = (atNumber: number) => Math.max(1, 5 - atNumber);
+/** Earlier guesses earn more: `bonus` at question 1, one less per question after, never below 1 (or `bonus` if it is smaller). */
+export const suggestedThemePoints = (atNumber: number, bonus = 4) => Math.max(Math.min(1, bonus), bonus - (atNumber - 1));
 
 export function submitTheme(g: Game, playerId: string, rawText: string): void {
   const p = g.players.find((x) => x.id === playerId);
@@ -480,10 +482,10 @@ export function hostView(g: Game) {
       suggest: mod!.scoreAll ? null : mod!.score(it!.config, a.value),
     })),
     theme: g.theme && {
-      secret: g.theme.secret, hint: g.theme.hint, formal: g.theme.formal, revealed: g.themeRevealed,
+      secret: g.theme.secret, hint: g.theme.hint, formal: g.theme.formal, bonus: g.theme.bonus ?? 4, revealed: g.themeRevealed,
       guesses: g.themeGuesses.map((t) => ({
         id: t.id, nickname: nick.get(t.playerId) ?? "?", text: t.text, atNumber: t.atNumber, status: t.status, points: t.points,
-        suggested: suggestedThemePoints(t.atNumber),
+        suggested: suggestedThemePoints(t.atNumber, g.theme?.bonus),
       })),
       bonuses: g.themeRevealed ? Object.entries(g.themeBonus).map(([pid, points]) => ({ nickname: nick.get(pid) ?? "?", points })) : [],
     },
