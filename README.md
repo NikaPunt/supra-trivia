@@ -1,4 +1,4 @@
-# Trivia
+# Supra Trivia
 
 Host your own live trivia night. The **host** builds a trivia from modules and runs the session; **players** join with a room code and a nickname, no account needed.
 
