@@ -336,3 +336,39 @@ test("capped by score is off by default, and only applies to the question that a
   assert.equal(playerView(g, bob.id).stake?.max, 20, "capped by his new score of 20");
   assert.equal(playerView(g, ann.id).stake?.max, 5, "capped by her 5");
 });
+
+test("pools never leak into each other: split by other questions, across rounds, and with the same values", () => {
+  const other = { type: "text_qa", config: { question: "q", answers: ["z"] } };
+  const mk = (modules: object[][]) => {
+    const g = newGame({ hostEmail: "h@example.com", triviaId: "t", title: "T", rounds: roundsSchema.parse(modules.map((m, i) => ({ title: `R${i}`, modules: m }))), code: "ABCDE", maxGuesses: 3 });
+    const ann = joinPlayer(g, "Ann").player, bob = joinPlayer(g, "Bob").player;
+    act(g, { action: "begin" });
+    return { g, ann, bob };
+  };
+  const sorted = (g: Game, id: string) => (options(g, id) ?? []).slice().sort((a, b) => a - b);
+
+  // Two pools with the SAME values, interleaved with each other and with ordinary questions, across two rounds.
+  const { g, ann, bob } = mk([
+    [conf("a", "one"), other, conf("b", "two"), conf("c", "one")],
+    [other, conf("d", "two"), conf("e", "one"), conf("f", "two")],
+  ]);
+  submit(g, ann.id, { text: "a", bet: 8 }); finish(g);                 // pool one: Ann spends 8
+  submit(g, ann.id, { text: "z" }); finish(g);                          // an ordinary question in between
+  assert.deepEqual(sorted(g, ann.id), [2, 4, 6, 8], "pool two is untouched by what she spent in pool one");
+  submit(g, ann.id, { text: "b", bet: 8 }); finish(g);                  // pool two: Ann spends 8 as well
+  assert.deepEqual(sorted(g, ann.id), [2, 4, 6], "pool one remembers its 8 across the question and the other pool");
+  assert.throws(() => submit(g, ann.id, { text: "c", bet: 8 }), /valid value/, "8 is spent in pool one, even after other questions and another pool");
+  submit(g, ann.id, { text: "c", bet: 6 }); finish(g);                  // pool one: 8 and 6 spent
+  // Round two: the current question is an ordinary one; pools carry on across the round break.
+  assert.equal(items(g)[g.cursor].type, "text_qa");
+  submit(g, ann.id, { text: "z" }); finish(g);                          // now on pool two (d)
+  assert.deepEqual(sorted(g, ann.id), [2, 4, 6], "pool two across the round break: only her 8 is spent");
+  assert.throws(() => submit(g, ann.id, { text: "d", bet: 8 }), /valid value/, "pool two's 8 stays spent in the next round");
+  assert.deepEqual(sorted(g, bob.id), [2, 4, 6, 8], "Bob has spent nothing anywhere");
+  submit(g, ann.id, { text: "d", bet: 2 }); finish(g);                  // now on pool one (e)
+  assert.deepEqual(sorted(g, ann.id), [2, 4], "pool one in round two: her 8 and 6 are spent, and pool two's 2 did not touch it");
+  assert.equal(Object.keys(g.poolUsed).sort().join(), "one,two");
+  assert.deepEqual(g.poolUsed.one[ann.id].slice().sort((x, y) => x - y), [6, 8]);
+  assert.deepEqual(g.poolUsed.two[ann.id].slice().sort((x, y) => x - y), [2, 8]);
+  assert.equal(g.poolUsed.one[bob.id], undefined, "Bob never spent in pool one");
+});
