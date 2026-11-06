@@ -93,3 +93,15 @@ test("PIN rejoin: right PIN returns the same player; wrong PINs lock after 10", 
   assert.ok(!JSON.stringify(playerView(g, first.id)).includes(first.pin!.hash));
   assert.ok(!JSON.stringify(hostView(g)).includes(first.pin!.hash));
 });
+
+test("stylesheet braces balance, so one bad edit cannot swallow the rules below it", async () => {
+  const { readFileSync } = await import("node:fs");
+  const css = readFileSync(new URL("../public/styles.css", import.meta.url), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+  let depth = 0;
+  for (const ch of css) {
+    if (ch === "{") depth++;
+    if (ch === "}") depth--;
+    assert.ok(depth >= 0, "closing brace without an opening one");
+  }
+  assert.equal(depth, 0, "unclosed brace in styles.css");
+});

@@ -21,7 +21,15 @@ export async function buildApp(cfg: Config, db: Db, hosts: HostDirectory) {
   });
   await app.register(helmet);
   await app.register(cookie);
-  await app.register(rateLimit, { max: 120, timeWindow: "1 minute" });
+  await app.register(rateLimit, {
+    max: 300,
+    timeWindow: "1 minute",
+    // Pages, scripts, fonts and images are not worth limiting, and a phone loads a dozen of them.
+    allowList: (req) => req.method === "GET" && !/^\/(api|auth)\//.test(req.url),
+    // Friends at one party share a public IP, so players are counted by their own session cookie.
+    // Joining and logging in are the abuse targets, and those stay per IP: a cookie can't be used to dodge them.
+    keyGenerator: (req) => (/^\/(api\/join|auth\/)/.test(req.url) ? req.ip : (req.cookies?.trivia_player ?? req.cookies?.trivia_session ?? req.ip)),
+  });
   await app.register(fastifyStatic, { root: fileURLToPath(new URL("../public", import.meta.url)) });
   registerRoutes(app, cfg, db, hosts, new GameStore(db));
   return app;

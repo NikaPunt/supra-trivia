@@ -104,6 +104,20 @@ export function scene() {
 
 const MARK = `<svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="10" fill="#142252"/><circle cx="40" cy="22" r="9" fill="#efe6cf"/><path d="M0 46Q18 36 34 44T64 40V64H0Z" fill="#6f7a24"/><path d="M0 54Q22 46 40 52T64 50V64H0Z" fill="#2a2f12"/><path d="M12 30q4-5 8 0q4-5 8 0" fill="none" stroke="#0b0a08" stroke-width="2.400" stroke-linecap="round"/></svg>`;
 
+export const DESIGNS = [["pirosmani", "Pirosmani"], ["supper", "Supper club"], ["paper", "Paper & ink"], ["show", "Game show"]];
+
+/** A dropdown for choosing the look. The choice is remembered on this device. */
+export function designPicker() {
+  const current = document.documentElement.dataset.design || "pirosmani";
+  const sel = h("select", { "aria-label": "Look" }, DESIGNS.map(([v, label]) => h("option", { value: v, selected: v === current }, label)));
+  sel.addEventListener("change", () => {
+    document.documentElement.dataset.design = sel.value;
+    try { localStorage.setItem("trivia-design", sel.value); } catch { /* private mode: the choice just won't stick */ }
+  });
+  return h("label", { class: "picker" }, h("span", {}, "Look"), sel);
+}
+document.querySelector("footer.foot")?.append(designPicker());
+
 export function brand(href = "/") {
   const a = h("a", { href, class: "brand", "aria-label": "Trivia home" });
   a.innerHTML = MARK; // constant markup
@@ -116,7 +130,7 @@ export async function hostHeader(el, { requireHost = true } = {}) {
   if (!host && requireHost) { location.href = "/auth/login"; return null; }
   mount(el, brand("/host.html"), h("span", { class: "grow" }),
     host.role === "admin" ? h("a", { href: "/admin.html", class: "btn" }, "Admin") : null,
-    h("span", { class: "muted" }, host.name), h("span", { class: `badge ${host.role}` }, host.role),
+    designPicker(), h("span", { class: "muted" }, host.name), h("span", { class: `badge ${host.role}` }, host.role),
     h("button", { onclick: async () => { await api("/auth/logout", { method: "POST" }); location.href = "/"; } }, "Log out"));
   return host;
 }

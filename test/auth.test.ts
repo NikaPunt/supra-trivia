@@ -175,3 +175,23 @@ test("kicked players are locked out", async () => {
   assert.equal((await app.inject({ url: "/api/play/state", headers: player })).statusCode, 401);
   await app.close();
 });
+
+test("rate limits: static files are exempt, players are counted per cookie, joining stays per IP", async () => {
+  const { app } = await setup();
+  const origin = { origin: cfg.BASE_URL };
+  for (let i = 0; i < 400; i++) assert.equal((await app.inject("/styles.css")).statusCode, 200);
+
+  // Two phones behind one IP each get their own allowance on player endpoints.
+  const codes: number[] = [];
+  for (let i = 0; i < 400; i++) codes.push((await app.inject({ url: "/api/play/state", headers: { cookie: `trivia_player=phone${i % 2}` }, remoteAddress: "10.0.0.9" })).statusCode);
+  assert.ok(!codes.includes(429), "two phones on one IP are not throttled together");
+
+  // Joining is the guessing target: changing the cookie must not reset its per-IP limit.
+  let blocked = false;
+  for (let i = 0; i < 40; i++) {
+    const r = await app.inject({ method: "POST", url: "/api/join", headers: { ...origin, cookie: `trivia_player=x${i}` }, payload: { code: "ZZZZZ", nickname: "a" }, remoteAddress: "10.0.0.7" });
+    if (r.statusCode === 429) blocked = true;
+  }
+  assert.ok(blocked, "join attempts are limited per IP regardless of cookie");
+  await app.close();
+});

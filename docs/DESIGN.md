@@ -1,4 +1,20 @@
-# Design: after Niko Pirosmani
+# Design
+
+Four looks, chosen from the **Look** dropdown in the page footer (and in the host header). The choice is remembered on that device only, so the projector, each phone and the host can all use a different one.
+
+| Look | Character |
+|---|---|
+| **Pirosmani** (default) | Black oilcloth, ochre and midnight blue, painted signboards, the night scene. Follows the device's light setting with a cream tablecloth version |
+| **Supper club** | Your 0.1 look refined: warm black, cream and gold, a quiet serif, hairline rules |
+| **Paper and ink** | A printed quiz sheet: warm paper, black ink, heavy rules, one vermilion, a stamped answer type |
+| **Game show** | Saturated cobalt, a bright white board, chunky type, rounded shapes |
+
+## Adding a look
+Every look sets the same semantic tokens (`--ground`, `--panel`, `--accent`, `--board`, fonts, radius and so on) in one `html[data-design="name"]` block at the end of `public/styles.css`. Add the block, then add the name to `DESIGNS` in `public/js/common.js` and to the pattern in `public/js/theme.js`. A test keeps the stylesheet's braces balanced.
+
+---
+
+## Pirosmani: after Niko Pirosmani
 
 The look takes its cue from the paintings of Niko Pirosmani (ნიკო ფიროსმანი, 1862-1918), the Georgian primitivist who painted shop signs and feast scenes, often on black oilcloth.
 
@@ -17,7 +33,7 @@ The look takes its cue from the paintings of Niko Pirosmani (ნიკო ფი
 - The join page credits the painter: ნიკო ფიროსმანი.
 
 ## Fonts
-All self-hosted from `public/fonts/` (nothing loads from a third party), all SIL Open Font License 1.1. Licence texts are in that folder.
+All self-hosted from `public/fonts/` (nothing loads from a third party), all SIL Open Font License 1.1: Fraunces, Alegreya Sans, Noto Georgian, and Bricolage Grotesque (Game show). Licence texts are in that folder.
 
 ## Changing it
 - Colours: the `:root` block at the top of `public/styles.css` (and the light-mode override just below it).
