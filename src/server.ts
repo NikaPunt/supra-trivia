@@ -4,5 +4,6 @@ import { buildApp } from "./app.js";
 import { HostDirectory } from "./hosts.js";
 
 const cfg = loadConfig();
-const app = await buildApp(cfg, openDb(cfg.DB_PATH), HostDirectory.fromFile(cfg.HOSTS_FILE));
-await app.listen({ port: cfg.PORT, host: "0.0.0.0" });
+const hosts = cfg.HOSTS_JSON ? HostDirectory.fromLists(JSON.parse(cfg.HOSTS_JSON)) : HostDirectory.fromFile(cfg.HOSTS_FILE);
+const app = await buildApp(cfg, openDb(cfg.DB_PATH), hosts);
+await app.listen({ port: cfg.PORT, host: cfg.HOST });

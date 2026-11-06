@@ -1,0 +1,38 @@
+# systemd unit for running without Docker. See docs/DEPLOY.md, "Node and systemd".
+#   sudo cp deploy/systemd/trivia.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now trivia
+[Unit]
+Description=Trivia
+After=network.target
+
+[Service]
+Type=simple
+User=trivia
+Group=trivia
+WorkingDirectory=/opt/trivia
+# DB_PATH=/var/lib/trivia/trivia.db  HOSTS_FILE=/etc/trivia/hosts.json  HOST=127.0.0.1  plus the secrets
+EnvironmentFile=/etc/trivia/trivia.env
+ExecStart=/usr/bin/node dist/server.js
+Restart=on-failure
+RestartSec=3
+
+# /var/lib/trivia, created and owned by the service user
+StateDirectory=trivia
+
+# Hardening: the app only needs to read its files, write its database and listen on one port.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictNamespaces=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+LockPersonality=true
+CapabilityBoundingSet=
+SystemCallFilter=@system-service
+
+[Install]
+WantedBy=multi-user.target

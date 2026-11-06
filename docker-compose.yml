@@ -1,3 +1,5 @@
+# Docker behind a reverse proxy you already run (Nginx Proxy Manager, Traefik, ...). See docs/DEPLOY.md, option A.
+# Other options (Caddy, Cloudflare Tunnel, systemd, Fly.io) live in deploy/.
 services:
   trivia:
     build: .

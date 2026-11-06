@@ -1,0 +1,7 @@
+# Caddy gets and renews the certificate for {$DOMAIN} by itself.
+{$DOMAIN} {
+	reverse_proxy trivia:3000 {
+		# Live updates are server-sent events, so never hold the response back.
+		flush_interval -1
+	}
+}

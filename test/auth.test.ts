@@ -200,3 +200,11 @@ test("rate limits: static files are exempt, players are counted per cookie, join
   assert.ok(blocked, "join attempts are limited per IP regardless of cookie");
   await app.close();
 });
+
+test("config: listen address defaults to all interfaces and can be pinned; hosts can be inline JSON", () => {
+  assert.equal(loadConfig(env).HOST, "0.0.0.0");
+  assert.equal(loadConfig({ ...env, HOST: "127.0.0.1" }).HOST, "127.0.0.1");
+  const inline = HostDirectory.fromLists(JSON.parse(loadConfig({ ...env, HOSTS_JSON: '{"admins":["a@x.com"],"hosts":["b@x.com"]}' }).HOSTS_JSON!));
+  assert.equal(inline.roleOf("A@x.com"), "admin");
+  assert.equal(inline.roleOf("b@x.com"), "host");
+});

@@ -6,7 +6,7 @@ Host your own live trivia night. The **host** builds a trivia from modules and r
 - How to write a good trivia: [docs/GUIDELINES.md](docs/GUIDELINES.md) and [docs/THEME_BANK.md](docs/THEME_BANK.md). The app is built around them.
 - Question types: [docs/MODULES.md](docs/MODULES.md).
 - Look and feel (after Niko Pirosmani): [docs/DESIGN.md](docs/DESIGN.md).
-- Deployment (Debian, Docker, Nginx Proxy Manager, your own domain): [docs/DEPLOY.md](docs/DEPLOY.md).
+- Deployment (Docker with your proxy, Caddy, Cloudflare Tunnel, systemd and nginx, Fly.io): [docs/DEPLOY.md](docs/DEPLOY.md).
 - Scoring, guess limits and manual points: [docs/SCORING.md](docs/SCORING.md).
 - Known bugs: [docs/BUGS.md](docs/BUGS.md).
 
