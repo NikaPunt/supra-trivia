@@ -372,3 +372,36 @@ test("pools never leak into each other: split by other questions, across rounds,
   assert.deepEqual(g.poolUsed.two[ann.id].slice().sort((x, y) => x - y), [2, 8]);
   assert.equal(g.poolUsed.one[bob.id], undefined, "Bob never spent in pool one");
 });
+
+test("pool names are matched ignoring capitals and spaces, and the first question decides the set's values", () => {
+  const rounds = roundsSchema.parse([{ title: "R", modules: [
+    conf("a", "Confidence Set", [8, 6, 4, 2]),
+    conf("b", "  confidence   set ", [10, 5]),       // same set, typed differently, with different values
+    conf("c", "CONFIDENCE SET", [1, 2, 3]),
+    conf("d", "Other", [3, 1]),
+  ] }]);
+  const cfgs = rounds[0].modules.map((m) => m.config as { poolId: string; poolValues: number[] });
+  assert.deepEqual(cfgs.slice(0, 3).map((c) => c.poolId), ["Confidence Set", "Confidence Set", "Confidence Set"], "one name for the set");
+  for (const c of cfgs.slice(0, 3)) assert.deepEqual(c.poolValues, [8, 6, 4, 2], "everyone in the set offers the first question's values");
+  assert.deepEqual(cfgs[3].poolValues, [3, 1], "a different set keeps its own");
+  assert.equal(cfgs[3].poolId, "Other");
+
+  // And in play: a value spent under one spelling is spent under all of them.
+  const g = newGame({ hostEmail: "h@example.com", triviaId: "t", title: "T", rounds, code: "ABCDE", maxGuesses: 3 });
+  const ann = joinPlayer(g, "Ann").player;
+  act(g, { action: "begin" });
+  submit(g, ann.id, { text: "a", bet: 8 }); finish(g);
+  assert.deepEqual(options(g, ann.id), [6, 4, 2], "8 is gone for the question typed with other capitals and spaces");
+  assert.throws(() => submit(g, ann.id, { text: "b", bet: 8 }), /valid value/);
+  assert.throws(() => submit(g, ann.id, { text: "b", bet: 10 }), /valid value/, "the later question's own values are not offered");
+});
+
+test("a game saved before names were unified still treats differently typed pools as one", () => {
+  // Rounds stored in an old game bypass the schema, so the engine itself compares names loosely.
+  const raw = { title: "R", modules: [{ type: "confidence", config: { question: "q", answers: ["a"], poolId: "Set", poolValues: [8, 6] } }, { type: "confidence", config: { question: "q", answers: ["b"], poolId: " set ", poolValues: [8, 6] } }] };
+  const g = newGame({ hostEmail: "h@example.com", triviaId: "t", title: "T", rounds: [raw] as any, code: "ABCDE", maxGuesses: 3 });
+  const ann = joinPlayer(g, "Ann").player;
+  act(g, { action: "begin" });
+  submit(g, ann.id, { text: "a", bet: 8 }); finish(g);
+  assert.deepEqual(options(g, ann.id), [6]);
+});

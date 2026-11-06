@@ -22,7 +22,7 @@ Confidence values, wagers and every other bound are enforced by the server, not 
 For any answer the host clicks **Right**, **Half**, **Wrong**, or types any amount in steps of 0.5 and presses **Set**. For a confidence stake or a wager the buttons show what they award (e.g. Right +15, Wrong -15). This works while the question is open, closed or revealed and overrides automatic scoring. The host console also flags pending answers as "looks right" or "no match".
 
 ## Confidence sets and wagers
-- **Confidence set:** all questions with the same pool name share a set of values (e.g. 8, 6, 4, 2). Each player spends each value once. A value is spent once the question finishes, even if their answer was wrong. A question they never answered spends nothing.
+- **Confidence set:** all questions in the same set (names match ignoring capitals and spaces) share a list of values (e.g. 8, 6, 4, 2). Each player spends each value once. A value is spent once the question finishes, even if their answer was wrong. A question they never answered spends nothing.
 - **Final wager (non-Jeopardy):** the team sends answer and wager together. The wager can be 0 up to the maximum. Right wins it, wrong loses it.
 - **Wager capped by team score** (a checkbox on each Final wager or Final Jeopardy block, off by default): a team can wager at most the whole points it has banked, and that block's own maximum is ignored (its box is greyed out). A team on zero can only wager 0. Other wager blocks are unaffected. The cap tells a team its own score, though not anyone else's, a little before the round-end scoreboard.
 

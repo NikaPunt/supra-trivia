@@ -59,7 +59,30 @@ export const roundsSchema = z
       modules: z.array(moduleInstance).max(50),
     }),
   )
-  .max(30);
+  .max(30)
+  .transform((rounds) => unifyPools(rounds));
+
+/** How two pool names are compared: capitals and extra spaces make no difference. */
+export const poolKey = (name: string): string => name.trim().replace(/\s+/g, " ").toLowerCase();
+
+/**
+ * Confidence questions that name the same pool are one set, however the name was typed. The first question in the set
+ * decides its name and its values, so every question offers the same values and no pool can split in two by a typo.
+ */
+function unifyPools<T extends { modules: { type: string; config: any }[] }>(rounds: T[]): T[] {
+  const sets = new Map<string, { name: string; values: number[] }>();
+  for (const r of rounds) {
+    for (const m of r.modules) {
+      if (m.type !== "confidence") continue;
+      const key = poolKey(String(m.config.poolId));
+      const set = sets.get(key) ?? { name: String(m.config.poolId).trim().replace(/\s+/g, " "), values: [...m.config.poolValues] };
+      sets.set(key, set);
+      m.config.poolId = set.name;
+      m.config.poolValues = [...set.values];
+    }
+  }
+  return rounds;
+}
 
 /** The secret overall theme that links the questions. Players guess it any time for bonus points. */
 export const themeSchema = z.object({

@@ -15,7 +15,7 @@ The header above a question reads `Round 1: Hodgepodge · 1/6`. The count is ove
 | **Question and answer** (`text_qa`) | Players type a short answer. Accepted answers ignore case and punctuation. Points per question, in halves |
 | **Multiple choice** (`multiple_choice`) | 2-6 options. Good for Odd One Out and Two Truths & a Lie |
 | **Closest number** (`numeric_closest`) | The closest guess wins, ties share. The classic tie-breaking **Separator** ("closest without going over" style triangulation) |
-| **Confidence set** (`confidence`) | Questions sharing a *pool name* and values (e.g. 8, 6, 4, 2). Each player spends each value once, on the question they feel surest about. Right earns the value |
+| **Confidence set** (`confidence`) | Questions in the same *set* share one list of values (e.g. 8, 6, 4, 2). Each player spends each value once, on the question they feel surest about. Right earns the value. See [Confidence sets](#confidence-sets) |
 | **Final wager (non-Jeopardy)** (`wager`) | Players see the question and send an answer and a wager together, up to a maximum. Right wins the wager, wrong loses it |
 | **Final Jeopardy** (`jeopardy`) | The same scoring, but the wager comes first, before anyone sees the question. Players see only the **category** and lock in a wager (they can change it until you show the question); then you press **Show the question**, the answer clock starts, and they answer. The wager is kept by the server, so it cannot be altered once the question is up |
 
@@ -48,3 +48,9 @@ The builder is generic: it reads `fields` from `/api/modules`, so drag-and-drop,
 node tools/convert-v01.mjs path/to/questions.json > my-trivia.json
 ```
 Then use **Import JSON** in the builder. The converter keeps rounds, sections, the question (the clues and the ask become one text, including numbered steps, the cast and year, puzzle boards and track lists), accepted answers, fun facts, confidence sets (each led by its category), Final Jeopardy and the secret theme. Trivias saved with the older separate clue boxes are folded into one question automatically.
+
+## Confidence sets
+A set is a group of confidence questions that share one list of values, each spendable once per team.
+- **The builder makes mistakes hard.** A Confidence block picks its set from a dropdown of the sets already in the trivia, or **New set…**. A new block joins the last set by default and copies its values. Values are entered once: editing them on any block changes the whole set.
+- **Warnings** appear on the block, they never stop you saving: a set with one question; more questions than values (the last ones can't bet); more values than questions (some go unused).
+- **The server enforces it too.** Set names are compared ignoring capitals and extra spaces, and the first question in a set decides its name and values, so a typo or an imported file cannot split a set in two or give one question different values. Games already in progress compare names the same loose way.
