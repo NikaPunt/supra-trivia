@@ -40,10 +40,28 @@ export function live(url, refresh) {
   setInterval(refresh, 15000);
 }
 
+/** What a player answered, with any stake (confidence points, wager) appended. */
 export function describeAnswer(item, value) {
   const v = value?.[item.input.key];
-  if (item.input.kind === "choice") return item.public.options?.[v] ?? item.config?.options?.[v] ?? "?";
-  return String(v);
+  const text = item.input.kind === "choice" ? (item.public.options?.[v] ?? "?") : String(v);
+  const stake = item.stakeKey ? value?.[item.stakeKey] : undefined;
+  return stake === undefined ? text : `${text}  (stake ${stake})`;
+}
+
+/** The framing every question carries: pinned answer type, category, tier, then the two clues. */
+export function questionBlock(it) {
+  const p = it.public;
+  return [
+    h("div", { class: "row" },
+      it.section ? h("span", { class: "badge" }, it.section) : null,
+      p.category ? h("span", { class: "badge" }, p.category) : null,
+      p.tier ? h("span", { class: "badge" }, p.tier) : null,
+      p.answerType ? h("span", { class: "badge pin" }, `Answer: ${p.answerType}`) : null),
+    p.clue1 ? h("p", { class: "clue" }, h("strong", {}, "Clue 1. "), p.clue1) : null,
+    p.clue2 ? h("p", { class: "clue" }, h("strong", {}, "Clue 2. "), p.clue2) : null,
+    h("h1", {}, p.question),
+    p.hint ? h("p", { class: "muted" }, `Hint: ${p.hint}`) : null,
+  ];
 }
 
 export async function hostHeader(el, { requireHost = true } = {}) {

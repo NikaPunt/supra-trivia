@@ -6,11 +6,17 @@ import { roundsSchema, settingsSchema } from "./modules/index.js";
 
 const id = z.object({ id: z.uuid() });
 const actionSchema = z.union([
-  z.object({ action: z.enum(["begin", "close", "reopen", "reveal", "next", "end"]) }),
+  z.object({ action: z.enum(["begin", "close", "reopen", "reveal", "next", "end", "theme_reveal"]) }),
   z.object({ action: z.literal("kick"), playerId: z.uuid() }),
-  z.object({ action: z.literal("review"), answerId: z.uuid(), points: z.number().min(0).max(1000).multipleOf(0.5) }),
+  z.object({ action: z.literal("review"), answerId: z.uuid(), points: z.number().min(-1000).max(1000).multipleOf(0.5) }),
+  z.object({ action: z.literal("theme_review"), guessId: z.uuid(), points: z.number().min(0).max(1000).multipleOf(0.5) }),
 ]);
 const MAX_ACTIVE_PER_HOST = 5;
+
+const sessionSettings = (raw: string) => {
+  const s = settingsSchema.parse(JSON.parse(raw));
+  return { maxGuesses: s.maxGuesses, theme: s.theme };
+};
 
 /** Server-sent events: the client is told something changed and refetches its own view. */
 export function openStream(req: FastifyRequest, reply: FastifyReply, ctx: Ctx, gameId: string) {
@@ -56,7 +62,7 @@ export function registerSessionRoutes(
     const u = req.host_session!;
     if (store.activeCountFor(u.email) >= MAX_ACTIVE_PER_HOST) return reply.code(429).send({ error: `at most ${MAX_ACTIVE_PER_HOST} active sessions` });
     try {
-      const g = newGame({ hostEmail: u.email, triviaId: row.id, title: row.title, rounds: roundsSchema.parse(JSON.parse(row.rounds)), code: store.newCode(), maxGuesses: settingsSchema.parse(JSON.parse(row.settings)).maxGuesses });
+      const g = newGame({ hostEmail: u.email, triviaId: row.id, title: row.title, rounds: roundsSchema.parse(JSON.parse(row.rounds)), code: store.newCode(), ...sessionSettings(row.settings) });
       store.save(g);
       return reply.code(201).send({ id: g.id, code: g.code });
     } catch (e) {

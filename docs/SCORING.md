@@ -1,19 +1,32 @@
-# Scoring and guesses
+# Scoring, guesses and the scoreboard
 
 ## Points
-- Each question has a **Points** value the host types in the builder (default 1; theme guess bonus default 2). Halves are allowed.
+- Each question has a **Points** value you type in the builder (default 1, halves allowed). Confidence questions use their pool values; a wager uses the player's wager.
 - Closest-number questions give the full points to the closest guess; ties share them.
-- A player's score for a question is the best answer they have, so several approved guesses never stack.
+- A player's result for a question is their best scored answer, so several guesses never stack.
 
 ## Guess limits
 - Trivia setting **Guesses each player gets per question**, default **3**. `0` means unlimited.
-- A single question can override it ("Max guesses for this question"; blank uses the trivia setting).
-- Changing an answer on a single-answer question uses a guess; multi-guess questions (theme guess) keep every guess.
-- The setting is a number of guesses in total, so 3 means the first guess plus two retries.
-- "Unlimited" is capped at 20 guesses per player per question so live state stays small.
+- A single question can override it (blank uses the trivia setting).
+- Changing an answer uses a guess. 3 means the first answer plus two retries.
+- "Unlimited" is capped at 20 per question so live state stays small.
 
-## Hidden until reveal
-Players never see whether an answer was right, what it earned, or any scoreboard until the host reveals the question (BUG-002). They only see how many guesses they have left.
+## Hidden until it is over (BUG-002)
+Players never see whether an answer was right, what it earned, or any scoreboard until the host reveals the question. They only see their guesses left.
+**Scoreboards appear only at the end of each round and at the end of the game**, as in the 0.1 philosophy, so no one can watch their score move mid-round.
 
 ## Manual marking
-For any answer the host can click **Right** (full points), **Half**, **Wrong**, or type any amount in steps of 0.5 and press **Set**. This works while the question is open, closed or revealed, and overrides automatic scoring.
+For any answer the host clicks **Right**, **Half**, **Wrong**, or types any amount in steps of 0.5 and presses **Set**. For a confidence stake or a wager the buttons show what they award (e.g. Right +15, Wrong -15). This works while the question is open, closed or revealed and overrides automatic scoring. The host console also flags pending answers as "looks right" or "no match".
+
+## Confidence sets and wagers
+- **Confidence set:** all questions with the same pool name share a set of values (e.g. 8, 6, 4, 2). Each player spends each value once. A value is spent once the question finishes, even if their answer was wrong. A question they never answered spends nothing.
+- **Final wager:** the wager can be 0 up to the maximum. Right wins it, wrong loses it.
+
+## The secret overall theme
+- Set in the builder under **Overall theme**: the theme itself, a hint, and a formal explanation.
+- Once the game starts, players can guess it **any time** (up to 5 guesses each). The host sees the guesses, with a suggested bonus that shrinks the later they were made (4 at question 1, 3, 2, then 1 from question 4), and approves or rejects each, or types their own amount.
+- The bonus is **hidden** and not added to scores until the host presses **Reveal theme** (or the game ends, which reveals it automatically). The reveal shows the secret and its formal explanation to everyone and clears the guess list.
+- A player earns their best approved guess once, never a sum.
+
+## Getting back in (PIN)
+When joining, players can set an optional 4-digit PIN. Joining again with the same name and PIN returns the same player, scores and all. After 10 wrong PINs for a name, that name is locked.

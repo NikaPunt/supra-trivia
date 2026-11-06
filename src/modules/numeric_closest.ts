@@ -1,21 +1,24 @@
 import { z } from "zod";
-import { pointsField, type TriviaModule } from "./types.js";
+import { clueFields, detailFields, frameShape, framePublic, pointsField, pointsSchema, type TriviaModule } from "./types.js";
 
 const config = z.object({
+  ...frameShape,
   question: z.string().min(1).max(500),
   value: z.number().finite(),
-  points: z.number().min(0).max(1000).multipleOf(0.5).default(1),
+  points: pointsSchema.default(1),
 });
 const answer = z.object({ value: z.number().finite() });
 
 export const numericClosest: TriviaModule<z.infer<typeof config>, z.infer<typeof answer>> = {
   type: "numeric_closest",
-  label: "Closest number",
-  description: "The player closest to the true number wins the points. Ties share them.",
+  label: "Closest number (Separator)",
+  description: "Triangulation: the closest guess wins, ties share. Ideal as the tie-breaking Separator.",
   fields: [
-    { key: "question", label: "Question", kind: "textarea" },
+    ...clueFields,
+    { key: "question", label: "The question", kind: "textarea" },
     { key: "value", label: "True number", kind: "number", default: 0 },
     pointsField,
+    ...detailFields,
   ],
   input: { kind: "number", key: "value" },
   configSchema: config,
@@ -27,6 +30,6 @@ export const numericClosest: TriviaModule<z.infer<typeof config>, z.infer<typeof
     return new Map(answers.map((a, i) => [a.playerId, dist[i] === best ? c.points : 0]));
   },
   points: (c) => c.points,
-  publicView: (c) => ({ question: c.question }),
+  publicView: (c) => ({ ...framePublic(c), question: c.question }),
   solution: (c) => String(c.value),
 };

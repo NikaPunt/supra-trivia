@@ -1,47 +1,56 @@
-# Modules
+# Question types (modules)
 
-A trivia is an ordered list of **rounds**. Each round is an ordered list of **modules**, which are the building blocks the host drags into the builder.
-Every module is one file in `src/modules/` and registered in `src/modules/index.ts`.
+A trivia is an ordered list of **rounds**; each round is an ordered list of **questions**, and each question is one of these types. Rounds have a title and a description for the rules of their special categories. A question can carry a **section** label (e.g. "Hodgepodge", "Before & After", "Confidence Set").
+Every type is one file in `src/modules/` registered in `src/modules/index.ts`.
 
-## Contract
+## What every question has (the question frame)
+These follow [GUIDELINES.md](GUIDELINES.md). All are optional, and the builder suggests filling them in:
 
+| Field | Purpose |
+|---|---|
+| Clue 1 | The harder, clever enthusiast angle |
+| Clue 2 | The broader foothold so casual players have an angle |
+| Answer type | Pinned on screen ("Country", "Person", "Film") to avoid grading disputes |
+| Category | Rotate sub-genres across history, science, geography, food, pop culture |
+| Tier | Layup, Sweet Spot, Stretch or Separator, for the 2-5-2-1 meter |
+| Fun fact | Shown at the reveal ("why" / the deduction) |
+
+## Built-in types
+
+| Type | How it works |
+|---|---|
+| **Question and answer** (`text_qa`) | Players type a short answer. Accepted answers ignore case and punctuation. Points per question, in halves |
+| **Multiple choice** (`multiple_choice`) | 2-6 options. Good for Odd One Out and Two Truths & a Lie |
+| **Closest number** (`numeric_closest`) | The closest guess wins, ties share. The classic tie-breaking **Separator** ("closest without going over" style triangulation) |
+| **Confidence set** (`confidence`) | Questions sharing a *pool name* and values (e.g. 8, 6, 4, 2). Each player spends each value once, on the question they feel surest about. Right earns the value |
+| **Final wager** (`wager`) | Players wager up to a maximum. Right wins the wager, wrong loses it |
+
+The **secret overall theme** is not a question type: it is a setting of the whole trivia (see [SCORING.md](SCORING.md)).
+
+## The module contract
 | Part | Purpose |
-|------|---------|
-| `type` | Stable id stored in the database, e.g. `text_qa` |
-| `label`, `description` | Shown in the builder palette |
-| `fields` | Form fields the builder renders for the host (`text`, `textarea`, `number`, `list`, `index`). No UI code is needed |
-| `input` | How players answer: `text`, `choice` or `number`, and whether several answers are allowed (`multi`) |
-| `configSchema` | zod schema validating what the host enters. Validation runs on every save |
-| `answerSchema` | zod schema validating what a player submits |
-| `score(config, answer)` | Returns points awarded (0 means wrong). Must be pure |
-| `scoreAll` (optional) | Scores all answers together, e.g. closest-wins |
-| `points(config)` | Points a host-approved answer earns |
-| `publicView(config)` | What players see while the question is live. Must never contain the answer |
-| `solution(config)` | The answer text shown at reveal |
+|---|---|
+| `type`, `label`, `description` | Shown in the builder palette |
+| `fields` | Form fields the builder renders (`text`, `textarea`, `number`, `list`, `numlist`, `index`, `select`). No UI code needed |
+| `input` | How players answer: `text`, `choice` or `number` |
+| `configSchema` / `answerSchema` | zod schemas. The server validates every save and every answer |
+| `score(config, answer)` | Pure; points awarded (0 wrong; a wager may be negative) |
+| `scoreAll` (optional) | Score all answers together, e.g. closest-wins |
+| `points(config)` | What an approved answer earns |
+| `stake`, `pool` (optional) | Players stake a value on their answer (confidence points, a wager), optionally from a pool spent once |
+| `fullPoints`, `wrongPoints` (optional) | What the host's Right / Wrong buttons award when it depends on the answer |
+| `publicView(config)` | What players may see while the question is live. Must never contain the answer |
+| `solution(config)` | The answer text shown at the reveal |
 
-Config is validated on the server.
-
-The builder (`public/js/builder.js`) is generic: it reads `fields` from `/api/modules`, so drag-and-drop, forms and validation work for any new module automatically. The server never trusts client-side validation.
-
-## Built-in modules
-
-Point values are set per question in the builder and may be in halves (e.g. 1.5). Every module's `points` field defaults to 1 (theme guess bonus: 2).
-
-### `text_qa` - Question and answer
-Host enters a question, the accepted answers (case and punctuation insensitive) and points. Players type a short answer.
-
-### `multiple_choice` - Multiple choice
-Host enters a question, 2 to 6 options, which option is correct, and points. Players pick one.
-
-### `theme_guess` - Theme guess
-Host enters a hidden theme and a hint. Players may guess the theme during a round and the host approves or rejects each guess for bonus points.
-Guesses are held for the current question only and capped at 5 per player (see BUG-001 in `BUGS.md`). Exact matches are auto-approved at reveal.
-
-### `numeric_closest` - Closest number
-Host enters a question and the true number. The closest guess wins the points.
-
-## Adding a module
-
-1. Create `src/modules/<type>.ts` exporting a `TriviaModule`.
+## Adding a type
+1. Create `src/modules/<type>.ts` exporting a `TriviaModule`; spread `clueFields` and `detailFields` into its `fields` so it gets the question frame.
 2. Register it in `src/modules/index.ts`.
-3. Add a section above and a test in `test/modules.test.ts`.
+3. Add a row above and a test in `test/`.
+
+The builder is generic: it reads `fields` from `/api/modules`, so drag-and-drop, forms and validation work for new types automatically.
+
+## Bringing over a 0.1 trivia
+```bash
+node tools/convert-v01.mjs path/to/questions.json > my-trivia.json
+```
+Then use **Import JSON** in the builder. The converter keeps rounds, sections, clues, answer types, accepted answers, fun facts, confidence sets, Final Jeopardy and the secret theme.

@@ -2,10 +2,10 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import type { Ctx } from "./context.js";
 import { PLAYER_COOKIE, PLAYER_MAX_AGE, signPlayer, verifyPlayer } from "./auth.js";
-import { GameError, addPlayer, playerView, submit, type Game } from "./game.js";
+import { GameError, joinPlayer, playerView, submit, submitTheme, type Game } from "./game.js";
 import { openStream } from "./sessions.js";
 
-const join = z.object({ code: z.string().min(3).max(10), nickname: z.string().min(1).max(40) });
+const join = z.object({ code: z.string().min(3).max(10), nickname: z.string().min(1).max(40), pin: z.string().max(4).optional() });
 
 export function registerPlayRoutes(app: FastifyInstance, ctx: Ctx) {
   const { store, cfg, cookieOpts } = ctx;
@@ -33,9 +33,9 @@ export function registerPlayRoutes(app: FastifyInstance, ctx: Ctx) {
     const g = store.getByCode(body.data.code);
     if (!g) return reply.code(404).send({ error: "no active session with that code" });
     try {
-      const p = addPlayer(g, body.data.nickname);
+      const { player } = joinPlayer(g, body.data.nickname, body.data.pin);
       store.save(g);
-      const token = await signPlayer(cfg, { sid: g.id, pid: p.id });
+      const token = await signPlayer(cfg, { sid: g.id, pid: player.id });
       return reply.setCookie(PLAYER_COOKIE, token, { ...cookieOpts, maxAge: PLAYER_MAX_AGE }).send({ ok: true });
     } catch (e) {
       return fail(reply, e);
@@ -52,6 +52,18 @@ export function registerPlayRoutes(app: FastifyInstance, ctx: Ctx) {
     if (!s) return;
     try {
       submit(s.g, s.pid, (req.body as any)?.value);
+      store.save(s.g);
+      return { ok: true };
+    } catch (e) {
+      return fail(reply, e);
+    }
+  });
+
+  app.post("/api/play/theme", { config: { rateLimit: { max: 20, timeWindow: "1 minute" } } }, async (req, reply) => {
+    const s = await me(req, reply);
+    if (!s) return;
+    try {
+      submitTheme(s.g, s.pid, String((req.body as any)?.guess ?? ""));
       store.save(s.g);
       return { ok: true };
     } catch (e) {

@@ -1,0 +1,92 @@
+{
+  "title": "Monthly Trivia Night",
+  "settings": {
+    "maxGuesses": 3,
+    "theme": {
+      "secret": "Sample Calibration Deck (Replace with Monthly Theme)",
+      "hint": "",
+      "formal": ""
+    }
+  },
+  "rounds": [
+    {
+      "title": "Round 1: Lateral Connections",
+      "subtitle": "Standard 2-Clue Pinning — Every prompt gives you two angles to deduce a famous answer.",
+      "modules": [
+        {
+          "type": "text_qa",
+          "config": {
+            "category": "Geography",
+            "answerType": "Country",
+            "tier": "Layup",
+            "clue1": "Its national flag is the only sovereign flag in the world that is not a four-sided rectangle, instead using two stacked pennants.",
+            "clue2": "Located in the Himalayas, it is home to eight of the world's ten tallest mountains, including Mount Everest.",
+            "funFact": "The two triangles represent the Himalayas and the two major religions of the country: Hinduism and Buddhism.",
+            "question": "Which Asian country is this?",
+            "answers": [
+              "Nepal",
+              "nepal",
+              "federal democratic republic of nepal"
+            ],
+            "points": 10
+          }
+        },
+        {
+          "type": "text_qa",
+          "config": {
+            "category": "Food & Science",
+            "answerType": "Food / Condiment",
+            "tier": "Sweet Spot",
+            "clue1": "In the 1830s, Dr. John Cook Bennett promoted this everyday table item as a concentrated patent medicine sold in pill form to cure indigestion.",
+            "clue2": "Originally made in Asia from fermented fish brine ('koe-chiap'), it was transformed in 1876 by Henry J. Heinz using ripe red tomatoes and vinegar.",
+            "funFact": "Wait times for pouring glass bottles of Heinz ketchup are governed by non-Newtonian shear-thinning fluid dynamics!",
+            "question": "What ubiquitous condiment is this?",
+            "answers": [
+              "Ketchup",
+              "ketchup",
+              "catsup",
+              "tomato ketchup",
+              "heinz ketchup"
+            ],
+            "points": 10
+          }
+        },
+        {
+          "type": "text_qa",
+          "config": {
+            "category": "Pop Culture & Tech",
+            "answerType": "Board Game",
+            "tier": "Stretch",
+            "clue1": "Patented in 1904 by feminist Georgist activist Elizabeth Magie as 'The Landlord's Game', it was originally designed to demonstrate how untaxed land monopolies bankrupt tenants.",
+            "clue2": "After Parker Brothers bought the rights in the 1930s, its street names were permanently modeled after neighborhoods in Atlantic City, New Jersey.",
+            "funFact": "Magie's original game actually had two rule sets: 'Prosperity' (where everyone won when land value rose) and 'Monopolist' (where one player bankrupted everyone).",
+            "question": "What classic board game is this?",
+            "answers": [
+              "Monopoly",
+              "monopoly"
+            ],
+            "points": 10
+          }
+        },
+        {
+          "type": "text_qa",
+          "config": {
+            "category": "History & Triangulation",
+            "answerType": "Year (Closest Wins Bonus)",
+            "tier": "Separator",
+            "clue1": "It was the same calendar year that the British Empire officially handed sovereignty of Hong Kong back to China AND IBM's Deep Blue defeated Garry Kasparov.",
+            "clue2": "In cinemas that year, James Cameron's 'Titanic' began its record-shattering box office run, while the first 'Harry Potter' book was published in the UK.",
+            "funFact": "July 1, 1997 marked the Hong Kong handover; Deep Blue beat Kasparov in May 1997; Titanic released in December 1997.",
+            "question": "What exact calendar year connects all four of these events?",
+            "answers": [
+              "1997",
+              "'97",
+              "97"
+            ],
+            "points": 15
+          }
+        }
+      ]
+    }
+  ]
+}

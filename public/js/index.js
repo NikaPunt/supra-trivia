@@ -3,7 +3,7 @@ $("#code").value = new URLSearchParams(location.search).get("code") ?? "";
 $("#join").addEventListener("submit", async (e) => {
   e.preventDefault();
   try {
-    await api("/api/join", { method: "POST", body: { code: $("#code").value, nickname: $("#nick").value } });
+    await api("/api/join", { method: "POST", body: { code: $("#code").value, nickname: $("#nick").value, pin: $("#pin").value || undefined } });
     location.href = "/play.html";
   } catch (err) { $("#err").textContent = err.message; }
 });

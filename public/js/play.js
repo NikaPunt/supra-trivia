@@ -1,19 +1,59 @@
-import { $, api, h, live, mount } from "./common.js";
+import { $, api, h, live, mount, questionBlock } from "./common.js";
 
-let picked = null;
-let lastKey = "";
+// Typed text survives re-renders caused by live updates.
+const drafts = { answer: "", theme: "", stake: "", key: "" };
 
 function board(state) {
   if (!state.leaderboard) return null;
-  return h("div", { class: "card" }, h("h2", {}, state.phase === "ended" ? "Final scores" : "Scores"),
+  return h("div", { class: "card" }, h("h2", {}, state.phase === "ended" ? "Final scores" : "Scores after this round"),
     state.leaderboard.map((r, i) => h("div", { class: `rank ${r.me ? "me" : ""}` }, h("span", {}, `${i + 1}. ${r.nickname}`), h("span", {}, r.points))),
     state.myRank && state.myRank > 10 ? h("p", { class: "muted" }, `You are #${state.myRank}`) : null);
 }
 
+function themeCard(state) {
+  const t = state.theme;
+  if (!t) return null;
+  if (t.revealed) {
+    return h("div", { class: "card theme-card" }, h("h2", {}, "The secret theme was…"), h("p", {}, h("strong", {}, t.secret)), t.formal ? h("p", {}, t.formal) : null,
+      t.myBonus ? h("p", {}, `You earned +${t.myBonus} for guessing it.`) : null);
+  }
+  if (state.phase === "lobby" || state.phase === "ended") {
+    return h("div", { class: "card theme-card" }, h("h2", {}, "There's a secret theme"), h("p", { class: "muted" }, `It links the whole game. Once we start, guess it any time for bonus points; earlier guesses are worth more.${t.hint ? ` Hint: ${t.hint}` : ""}`));
+  }
+  const field = h("input", { placeholder: "What connects it all?", maxlength: 200, value: drafts.theme, disabled: t.guessesLeft === 0 });
+  field.addEventListener("input", () => { drafts.theme = field.value; });
+  const err = h("p", { class: "err" });
+  const send = async () => {
+    if (!field.value.trim()) return;
+    try { await api("/api/play/theme", { method: "POST", body: { guess: field.value } }); drafts.theme = ""; await refresh(); }
+    catch (e) { err.textContent = e.message; }
+  };
+  field.addEventListener("keydown", (e) => { if (e.key === "Enter") send(); });
+  return h("div", { class: "card theme-card" }, h("h2", {}, "Secret theme"), t.hint ? h("p", { class: "muted" }, `Hint: ${t.hint}`) : null,
+    h("div", { class: "row" }, h("div", { class: "grow" }, field), h("button", { disabled: t.guessesLeft === 0, onclick: send }, "Guess")),
+    h("p", { class: "muted" }, `${t.guessesLeft} theme guesses left. You will learn if you got it when the host reveals the theme.`),
+    t.myGuesses.length ? h("div", { class: "muted" }, "Your guesses: " + t.myGuesses.join(", ")) : null, err);
+}
+
+function stakeInput(st) {
+  if (!st) return null;
+  const el = st.options
+    ? h("select", {}, h("option", { value: "" }, "choose…"), st.options.map((o) => h("option", { value: o }, String(o))))
+    : h("input", { type: "number", min: st.min, max: st.max, step: 1, placeholder: `${st.min}–${st.max}` });
+  el.value = drafts.stake;
+  el.addEventListener("input", () => { drafts.stake = el.value; });
+  return { el, node: h("div", {}, h("label", {}, st.label), el) };
+}
+
 function inputFor(state) {
   const { item } = state;
-  const err = h("p", { class: "err", id: "err" });
+  const err = h("p", { class: "err" });
+  const st = stakeInput(state.stake);
   const send = async (value) => {
+    if (st) {
+      if (st.el.value === "") { err.textContent = `Choose: ${state.stake.label}`; return; }
+      value[state.stake.key] = Number(st.el.value);
+    }
     try { await api("/api/play/answer", { method: "POST", body: { value } }); err.textContent = ""; await refresh(); }
     catch (e) { err.textContent = e.message; }
   };
@@ -21,44 +61,52 @@ function inputFor(state) {
   const mine = state.myAnswers;
   if (item.input.kind === "choice") {
     const cur = mine[0]?.value[item.input.key];
-    return h("div", {}, h("div", { class: "choices" }, item.public.options.map((o, i) =>
+    return h("div", {}, st?.node, h("div", { class: "choices" }, item.public.options.map((o, i) =>
       h("button", { class: i === cur ? "picked" : "", disabled: !open, onclick: () => send({ [item.input.key]: i }) }, o))), err);
   }
   const field = h("input", { type: item.input.kind === "number" ? "number" : "text", step: "any", maxlength: 200, disabled: !open, autocomplete: "off",
-    value: item.input.multi ? "" : (mine[0]?.value[item.input.key] ?? "") });
+    value: drafts.answer || (mine[0]?.value[item.input.key] ?? "") });
+  field.addEventListener("input", () => { drafts.answer = field.value; });
   const submit = () => {
     const raw = field.value.trim();
-    if (!raw) return;
-    send({ [item.input.key]: item.input.kind === "number" ? Number(raw) : raw }).then(() => { if (item.input.multi) field.value = ""; });
+    if (raw) send({ [item.input.key]: item.input.kind === "number" ? Number(raw) : raw });
   };
   field.addEventListener("keydown", (e) => { if (e.key === "Enter") submit(); });
-  return h("div", {}, field, h("div", { class: "row", style: "margin-top:8px" }, h("button", { class: "primary", disabled: !open, onclick: submit }, item.input.multi ? "Send guess" : (mine.length ? "Change answer" : "Lock in"))), err);
+  return h("div", {}, st?.node, field, h("div", { class: "row", style: "margin-top:8px" }, h("button", { class: "primary", disabled: !open, onclick: submit }, mine.length ? "Change answer" : "Lock in")), err);
 }
 
 function render(state) {
-  const key = JSON.stringify([state.phase, state.number, state.item?.type]);
+  const key = `${state.number}:${state.phase === "lobby"}`;
+  if (drafts.key !== key) { drafts.answer = ""; drafts.stake = ""; drafts.key = key; }
   const head = h("div", { class: "row" }, h("strong", {}, state.me), h("span", { class: "grow" }), h("span", { class: "muted" }, `Room ${state.code}`));
-  if (state.phase === "lobby") return mount($("#app"), head, h("div", { class: "card" }, h("h1", {}, state.title), h("p", {}, `Waiting for the host to start… ${state.players} joined.`)));
-  if (state.phase === "ended") return mount($("#app"), head, h("h1", {}, "That's a wrap!"), board(state));
+  if (state.phase === "lobby") return mount($("#app"), head, h("div", { class: "card" }, h("h1", {}, state.title), h("p", {}, `Waiting for the host to start… ${state.players} joined.`)), themeCard(state));
+  if (state.phase === "ended") return mount($("#app"), head, h("h1", {}, "That's a wrap!"), themeCard(state), board(state));
   const it = state.item;
   const mine = state.myAnswers;
   mount($("#app"), head,
     h("div", { class: "card" },
       h("div", { class: "muted" }, `${it.round} · ${state.number}/${state.total}`),
-      h("h1", {}, it.public.question),
-      it.public.hint ? h("p", { class: "muted" }, `Hint: ${it.public.hint}`) : null,
+      it.roundSubtitle ? h("div", { class: "muted" }, it.roundSubtitle) : null,
+      questionBlock(it),
       state.phase === "open" ? null : h("p", { class: "muted" }, state.phase === "closed" ? "Answers are closed." : "Revealed."),
       inputFor(state),
       state.guessesLeft !== null ? h("p", { class: "muted" }, `Guesses left: ${state.guessesLeft}`) : null,
-      mine.length && it.input.multi ? h("div", {}, h("h2", {}, "Your guesses"), mine.map((a) => h("div", {}, `${a.value[it.input.key]}${a.status ? (a.points > 0 ? ` ✓ +${a.points}` : " ✗") : ""}`))) : null,
-      mine.length && !it.input.multi && mine[0].status ? h("p", {}, mine[0].points > 0 ? `+${mine[0].points} points` : "No points this time.") : null,
-      it.solution ? h("p", {}, h("strong", {}, "Answer: "), it.solution) : null),
-    board(state));
-  lastKey = key;
+      mine.length && !it.input.multi && mine[0].status ? h("p", {}, mine[0].points > 0 ? `+${mine[0].points} points` : mine[0].points < 0 ? `${mine[0].points} points` : "No points this time.") : null,
+      it.solution ? h("p", {}, h("strong", {}, "Answer: "), it.solution) : null,
+      it.funFact ? h("p", { class: "muted" }, it.funFact) : null),
+    themeCard(state), board(state));
 }
 
+let lastSig = "";
 async function refresh() {
-  try { render(await api("/api/play/state")); }
+  try {
+    const state = await api("/api/play/state");
+    // Don't yank the keyboard away mid-typing when nothing that matters changed.
+    const sig = JSON.stringify([state.phase, state.number, state.guessesLeft, state.theme?.revealed, state.theme?.guessesLeft, state.myAnswers.length, state.leaderboard?.length, state.stake?.options]);
+    if (sig === lastSig && document.activeElement?.closest("#app") && /INPUT|SELECT/.test(document.activeElement.tagName)) return;
+    lastSig = sig;
+    render(state);
+  }
   catch (e) { if (e.status === 401) location.href = "/"; }
 }
 refresh();

@@ -2,15 +2,22 @@ import { z } from "zod";
 import type { TriviaModule } from "./types.js";
 import { textQa } from "./text_qa.js";
 import { multipleChoice } from "./multiple_choice.js";
-import { themeGuess } from "./theme_guess.js";
 import { numericClosest } from "./numeric_closest.js";
+import { confidence } from "./confidence.js";
+import { wager } from "./wager.js";
 
-export const modules: TriviaModule[] = [textQa, multipleChoice, themeGuess, numericClosest];
+export const modules: TriviaModule[] = [textQa, multipleChoice, numericClosest, confidence, wager];
 const byType = new Map(modules.map((m) => [m.type, m]));
 export const getModule = (type: string) => byType.get(type);
 
 const moduleInstance = z
-  .object({ type: z.string(), config: z.unknown(), maxGuesses: z.number().int().min(0).max(50).optional() })
+  .object({
+    type: z.string(),
+    config: z.unknown(),
+    /** Group label inside a round, e.g. "Hodgepodge" or "Before & After". */
+    section: z.string().max(60).optional(),
+    maxGuesses: z.number().int().min(0).max(50).optional(),
+  })
   .transform((m, ctx) => {
     const mod = getModule(m.type);
     if (!mod) {
@@ -22,21 +29,32 @@ const moduleInstance = z
       ctx.addIssue({ code: "custom", message: `${m.type}: ${parsed.error.message}` });
       return z.NEVER;
     }
-    return { type: m.type, config: parsed.data, maxGuesses: m.maxGuesses };
+    return { type: m.type, config: parsed.data, section: m.section, maxGuesses: m.maxGuesses };
   });
 
 export const roundsSchema = z
   .array(
     z.object({
       title: z.string().min(1).max(100),
+      /** Shown when the round opens, e.g. the rules of its special categories. */
+      subtitle: z.string().max(300).optional(),
       modules: z.array(moduleInstance).max(50),
     }),
   )
   .max(30);
 
+/** The secret overall theme that links the questions. Players guess it any time for bonus points. */
+export const themeSchema = z.object({
+  secret: z.string().min(1).max(200),
+  hint: z.string().max(300).default(""),
+  /** The full explanation shown when the theme is revealed. */
+  formal: z.string().max(600).default(""),
+});
+
 export const settingsSchema = z.object({
   /** Guesses each player gets per question. 0 means unlimited (still capped by the engine). */
   maxGuesses: z.number().int().min(0).max(50).default(3),
+  theme: themeSchema.optional(),
 });
 export type Settings = z.infer<typeof settingsSchema>;
 

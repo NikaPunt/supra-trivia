@@ -37,3 +37,9 @@ table { width:100%; border-collapse:collapse; } td, th { text-align:left; paddin
 .mod .head { display:flex; gap:8px; align-items:center; cursor:grab; }
 /* deck */
 body.deck { font-size:1.6rem; } body.deck main { max-width:1200px; } body.deck .q { font-size:3rem; margin:.5em 0; }
+.badge.pin { color:var(--fg); border-color:var(--accent); background:color-mix(in srgb, var(--accent) 15%, transparent); }
+.clue { margin:.3em 0; }
+.theme-card { border-color:var(--accent); }
+.meter { display:flex; gap:6px; flex-wrap:wrap; font-size:.85rem; margin:6px 0; } .meter .ok { color:var(--ok); border-color:var(--ok); } .meter .warn { color:var(--bad); border-color:var(--bad); }
+.warnline { color:var(--bad); font-size:.8rem; margin:2px 0; }
+body.deck .clue { font-size:1.6rem; }

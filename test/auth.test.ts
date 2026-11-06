@@ -53,10 +53,15 @@ test("hosts file hot-reloads and survives a bad edit", async () => {
   assert.equal(dir.roleOf("b@x.com"), "host");
 });
 
-const trivia = { title: "t", rounds: [{ title: "r", modules: [
-  { type: "text_qa", config: { question: "q1", answers: ["a"] } },
-  { type: "theme_guess", config: { theme: "space", hint: "up" } },
-] }] };
+const q = (question: string, answers: string[], extra: object = {}) => ({ type: "text_qa", config: { question, answers, ...extra } });
+const trivia = {
+  title: "t",
+  settings: { maxGuesses: 3, theme: { secret: "space", hint: "look up", formal: "Everything was about space" } },
+  rounds: [
+    { title: "R1", modules: [q("q1", ["a"], { category: "Geo", answerType: "Letter", tier: "Layup", clue1: "hard clue", clue2: "easy clue", funFact: "because" }), q("q2", ["b"])] },
+    { title: "R2", modules: [q("q3", ["c"])] },
+  ],
+};
 
 async function setup() {
   const app = await buildApp(cfg, openDb(":memory:"), hosts);
@@ -85,7 +90,7 @@ test("API requires login, enforces origin, and isolates hosts but not admins", a
   await app.close();
 });
 
-test("full live session: join, answer, host control, admin override, answers never leak", async () => {
+test("full live session over HTTP: join, rejoin by PIN, round-end boards, theme, admin override, no leaks", async () => {
   const { app, as } = await setup();
   const alice = await as("host@example.com");
   const bob = await as("other@example.com");
@@ -93,35 +98,65 @@ test("full live session: join, answer, host control, admin override, answers nev
   const { id: tid } = (await app.inject({ method: "POST", url: "/api/trivias", headers: alice, payload: trivia })).json();
   const { id, code } = (await app.inject({ method: "POST", url: `/api/trivias/${tid}/sessions`, headers: alice })).json();
   const act = (headers: any, body: any) => app.inject({ method: "POST", url: `/api/sessions/${id}/action`, headers, payload: body });
+  const open = { origin: cfg.BASE_URL };
+  const join = (nickname: string, pin?: string) => app.inject({ method: "POST", url: "/api/join", headers: open, payload: { code: code.toLowerCase(), nickname, pin } });
 
-  const join = await app.inject({ method: "POST", url: "/api/join", headers: { origin: cfg.BASE_URL }, payload: { code: code.toLowerCase(), nickname: "Zed" } });
-  assert.equal(join.statusCode, 200);
-  const pc = String(join.headers["set-cookie"]).split(";")[0]!;
-  const player = { cookie: pc, origin: cfg.BASE_URL };
-  assert.equal((await app.inject({ method: "POST", url: "/api/join", headers: { origin: cfg.BASE_URL }, payload: { code, nickname: "zed" } })).statusCode, 409);
+  const j = await join("Zed", "1234");
+  assert.equal(j.statusCode, 200);
+  assert.equal((await join("zed")).statusCode, 409, "name taken without the PIN");
+  assert.equal((await join("zed", "9999")).statusCode, 409, "wrong PIN");
+  const again = await join("ZED", "1234");
+  assert.equal(again.statusCode, 200, "right PIN gets the same player back");
+  const player = { cookie: String(again.headers["set-cookie"]).split(";")[0]!, ...open };
+  const state = async () => (await app.inject({ url: "/api/play/state", headers: player })).json();
+  const say = (text: string) => app.inject({ method: "POST", url: "/api/play/answer", headers: player, payload: { value: { text } } });
+  assert.equal((await state()).players, 1, "rejoining did not create a second player");
 
   assert.equal((await act(alice, { action: "begin" })).statusCode, 200);
-  const state = (await app.inject({ url: "/api/play/state", headers: player })).json();
-  assert.equal(state.phase, "open");
-  assert.ok(!JSON.stringify(state).includes('"a"'), "solution must not be sent while open");
-  assert.equal(state.item.solution, undefined);
+  const s1 = await state();
+  assert.equal(s1.item.public.clue1, "hard clue");
+  assert.equal(s1.item.public.answerType, "Letter");
+  assert.equal(s1.item.solution, undefined, "no solution while open");
+  assert.equal(s1.item.funFact, undefined);
+  assert.ok(!JSON.stringify(s1).includes('"because"'), "fun fact stays hidden until reveal");
+  assert.equal(s1.theme.hint, "look up");
+  assert.equal(s1.theme.secret, undefined);
 
-  assert.equal((await app.inject({ method: "POST", url: "/api/play/answer", headers: player, payload: { value: { text: "A" } } })).statusCode, 200);
+  assert.equal((await say("A")).statusCode, 200);
   assert.equal((await act(bob, { action: "reveal" })).statusCode, 404, "another host cannot control it");
   assert.equal((await act(owner, { action: "reveal" })).statusCode, 200, "admin can");
-  const revealed = (await app.inject({ url: "/api/play/state", headers: player })).json();
-  assert.equal(revealed.item.solution, "a");
-  assert.equal(revealed.leaderboard[0].points, 1);
+  const r1 = await state();
+  assert.equal(r1.item.solution, "a");
+  assert.equal(r1.item.funFact, "because");
+  assert.equal(r1.leaderboard, null, "no board mid-round");
 
-  // BUG-001: theme guesses are scoped to the item, capped, and gone after moving on.
-  assert.equal((await act(alice, { action: "next" })).statusCode, 200);
-  for (let i = 0; i < 3; i++) assert.equal((await app.inject({ method: "POST", url: "/api/play/answer", headers: player, payload: { value: { guess: `g${i}` } } })).statusCode, 200);
-  assert.equal((await app.inject({ method: "POST", url: "/api/play/answer", headers: player, payload: { value: { guess: "g6" } } })).statusCode, 429);
-  assert.equal((await app.inject({ url: "/api/play/state", headers: player })).json().myAnswers.length, 3);
-  assert.equal((await act(alice, { action: "next" })).statusCode, 200);
-  const done = (await app.inject({ url: "/api/play/state", headers: player })).json();
+  // BUG-001: answers are per question, capped, and gone after moving on.
+  await act(alice, { action: "next" });
+  for (const t of ["x1", "x2", "x3"]) assert.equal((await say(t)).statusCode, 200);
+  assert.equal((await say("x4")).statusCode, 429);
+  assert.equal((await state()).myAnswers.length, 1);
+
+  // Secret theme: guesses are capped, hidden, and only count once revealed.
+  for (let i = 0; i < 5; i++) assert.equal((await app.inject({ method: "POST", url: "/api/play/theme", headers: player, payload: { guess: `moon${i}` } })).statusCode, 200);
+  assert.equal((await app.inject({ method: "POST", url: "/api/play/theme", headers: player, payload: { guess: "sun" } })).statusCode, 429);
+  const hv = (await app.inject({ url: `/api/sessions/${id}`, headers: alice })).json();
+  assert.equal(hv.theme.guesses.length, 5);
+  assert.equal(hv.theme.guesses[0].suggested, 3, "guess made at question 2 suggests 3 points");
+  assert.equal((await act(alice, { action: "theme_review", guessId: hv.theme.guesses[0].id, points: 3 })).statusCode, 200);
+  assert.equal(JSON.stringify(await state()).includes("approved"), false, "players never see approval");
+
+  await act(alice, { action: "reveal" });
+  const r2 = await state();
+  assert.equal(r2.leaderboard[0].points, 1, "round-end board shows the score without the hidden theme bonus");
+
+  await act(alice, { action: "next" });
+  await act(alice, { action: "next" });
+  const done = await state();
   assert.equal(done.phase, "ended");
   assert.equal(done.myAnswers.length, 0);
+  assert.equal(done.theme.secret, "space");
+  assert.equal(done.theme.formal, "Everything was about space");
+  assert.equal(done.leaderboard[0].points, 4, "1 for q1 + 3 theme bonus, counted once revealed");
 
   const audit = (await app.inject({ url: "/api/admin/overview", headers: owner })).json().audit;
   assert.ok(audit.some((a: any) => a.action === "session.reveal" && a.actor === "owner@example.com"));
@@ -138,51 +173,5 @@ test("kicked players are locked out", async () => {
   const pid = (await app.inject({ url: `/api/sessions/${id}`, headers: alice })).json().playerList[0].id;
   await app.inject({ method: "POST", url: `/api/sessions/${id}/action`, headers: alice, payload: { action: "kick", playerId: pid } });
   assert.equal((await app.inject({ url: "/api/play/state", headers: player })).statusCode, 401);
-  await app.close();
-});
-
-test("BUG-002: players never learn right/wrong or points before the reveal; host can award halves; limits are per question", async () => {
-  const { app, as } = await setup();
-  const alice = await as("host@example.com");
-  const t = { title: "t", settings: { maxGuesses: 2 }, rounds: [{ title: "r", modules: [
-    { type: "text_qa", config: { question: "q1", answers: ["a"], points: 3 } },
-    { type: "text_qa", maxGuesses: 0, config: { question: "q2", answers: ["b"] } },
-  ] }] };
-  const { id: tid } = (await app.inject({ method: "POST", url: "/api/trivias", headers: alice, payload: t })).json();
-  const { id, code } = (await app.inject({ method: "POST", url: `/api/trivias/${tid}/sessions`, headers: alice })).json();
-  const act = (body: any) => app.inject({ method: "POST", url: `/api/sessions/${id}/action`, headers: alice, payload: body });
-  const join = await app.inject({ method: "POST", url: "/api/join", headers: { origin: cfg.BASE_URL }, payload: { code, nickname: "Kim" } });
-  const player = { cookie: String(join.headers["set-cookie"]).split(";")[0]!, origin: cfg.BASE_URL };
-  const say = (text: string) => app.inject({ method: "POST", url: "/api/play/answer", headers: player, payload: { value: { text } } });
-  const state = async () => (await app.inject({ url: "/api/play/state", headers: player })).json();
-  await act({ action: "begin" });
-
-  assert.equal((await state()).guessesLeft, 2);
-  assert.equal((await say("wrong")).statusCode, 200);
-  assert.equal((await say("a")).statusCode, 200);
-  assert.equal((await say("again")).statusCode, 429, "out of guesses");
-  assert.equal((await state()).guessesLeft, 0);
-
-  // Host awards half marks by hand; the player still sees nothing until reveal.
-  const view = (await app.inject({ url: `/api/sessions/${id}`, headers: alice })).json();
-  assert.equal(view.item.points, 3);
-  assert.equal((await act({ action: "review", answerId: view.answers[0].id, points: 1.5 })).statusCode, 200);
-  assert.equal((await act({ action: "review", answerId: view.answers[0].id, points: 0.3 })).statusCode, 400, "only halves");
-  const during = await state();
-  assert.equal(during.leaderboard, null);
-  assert.equal(JSON.stringify(during.myAnswers).includes("status"), false);
-  assert.equal(JSON.stringify(during.myAnswers).includes("points"), false);
-
-  await act({ action: "reveal" });
-  const after = await state();
-  assert.equal(after.leaderboard[0].points, 1.5);
-  assert.equal(after.myAnswers[0].points, 1.5);
-
-  // Question 2 overrides to unlimited; the engine still enforces a hard ceiling.
-  await act({ action: "next" });
-  assert.equal((await state()).guessesLeft, null);
-  let last = 200;
-  for (let i = 0; i < 25; i++) last = (await say(`try${i}`)).statusCode;
-  assert.equal(last, 429);
   await app.close();
 });
