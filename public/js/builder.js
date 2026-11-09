@@ -10,6 +10,26 @@ if (id) state = await api(`/api/trivias/${id}`);
 state.settings ??= { maxGuesses: 3 };
 state.settings.timeLimit ??= 180;
 
+// ---- local draft cache ----
+// A copy of the work in progress is kept in this browser only (never sent to the server, never replaces the saved trivia).
+// On the next visit the host is offered it back. Saving clears it.
+const DRAFT_KEY = `trivia-draft:${id ?? "new"}`;
+const snap = () => JSON.stringify(state);
+let baseline = snap();   // what the server (or a fresh page) has
+let pendingDraft = null; // an older unsaved draft found on load, waiting for restore/discard
+const readDraft = () => { try { const d = JSON.parse(localStorage.getItem(DRAFT_KEY)); return d && typeof d.state === "string" ? d : null; } catch { return null; } };
+const clearDraft = () => { try { localStorage.removeItem(DRAFT_KEY); } catch {} };
+let draftTimer;
+function cacheDraft() {
+  clearTimeout(draftTimer);
+  draftTimer = setTimeout(() => {
+    if (pendingDraft) return; // do not overwrite the found draft until the host decides
+    const now = snap();
+    try { if (now === baseline) localStorage.removeItem(DRAFT_KEY); else localStorage.setItem(DRAFT_KEY, JSON.stringify({ at: Date.now(), state: now })); } catch {}
+  }, 800);
+}
+{ const d = readDraft(); if (d && d.state !== baseline) pendingDraft = d; else if (d) clearDraft(); }
+
 // The editor keeps friendly shapes (lists as arrays of raw lines, numbers as typed); toApi() cleans them for the server.
 const defaultFor = (f) => (f.kind === "list" || f.kind === "numlist" ? (Array.isArray(f.default) ? [...f.default] : [""]) : (f.default ?? ""));
 /** A new question starts in the same section as the one before it, so a run of Hodgepodge needs typing once. */
@@ -125,7 +145,13 @@ function toApi() {
 function load(data) {
   state = { title: data.title ?? "Imported trivia", settings: data.settings ?? { maxGuesses: 3 }, rounds: data.rounds ?? [] };
   if (!state.rounds.length) state.rounds = [{ title: "Round 1", modules: [] }];
-  render();
+  // Typing mutates state without re-rendering, so listen for edits on the page itself.
+$("#app").addEventListener("input", cacheDraft);
+$("#app").addEventListener("change", cacheDraft);
+window.addEventListener("pagehide", () => { clearTimeout(draftTimer); if (!pendingDraft) try { if (snap() !== baseline) localStorage.setItem(DRAFT_KEY, JSON.stringify({ at: Date.now(), state: snap() })); } catch {} });
+window.addEventListener("beforeunload", (e) => { if (snap() !== baseline) { e.preventDefault(); e.returnValue = ""; } });
+
+render();
 }
 
 // ---- drag and drop ----
@@ -137,7 +163,13 @@ function drop(toRound, toIndex) {
   if (drag.from === "palette") mod = blank(drag.type, list[(toIndex ?? list.length) - 1]);
   else { mod = state.rounds[drag.r].modules.splice(drag.i, 1)[0]; if (drag.r === toRound && toIndex !== undefined && drag.i < toIndex) toIndex--; }
   list.splice(toIndex ?? list.length, 0, mod);
-  drag = null; render();
+  drag = null; // Typing mutates state without re-rendering, so listen for edits on the page itself.
+$("#app").addEventListener("input", cacheDraft);
+$("#app").addEventListener("change", cacheDraft);
+window.addEventListener("pagehide", () => { clearTimeout(draftTimer); if (!pendingDraft) try { if (snap() !== baseline) localStorage.setItem(DRAFT_KEY, JSON.stringify({ at: Date.now(), state: snap() })); } catch {} });
+window.addEventListener("beforeunload", (e) => { if (snap() !== baseline) { e.preventDefault(); e.returnValue = ""; } });
+
+render();
 }
 
 function fieldInput(m, f) {
@@ -314,10 +346,22 @@ function typoCard() {
       g.map((n) => h("button", { onclick: () => unify(g, n) }, `Use “${n}” everywhere`)))));
 }
 
+function draftBanner() {
+  if (!pendingDraft) return null;
+  const d = pendingDraft;
+  return h("div", { class: "card typo" }, h("strong", {}, `You have unsaved changes from ${new Date(d.at).toLocaleString()}`),
+    h("p", { class: "muted" }, "They were kept in this browser but never saved to the server."),
+    h("div", { class: "row" },
+      h("button", { class: "primary", onclick: () => { state = JSON.parse(d.state); pendingDraft = null; render(); cacheDraft(); } }, "Restore them"),
+      h("button", { onclick: () => { pendingDraft = null; clearDraft(); render(); } }, "Discard")));
+}
+
 function render() {
   syncRuns();
+  cacheDraft();
   const total = state.rounds.reduce((a, r) => a + r.modules.length, 0);
   mount($("#app"),
+    draftBanner(),
     h("div", { class: "row" }, h("input", { class: "grow", value: state.title, maxlength: 120, "aria-label": "Trivia title", oninput: (e) => { state.title = e.target.value; } }),
       h("button", { class: "primary", onclick: save }, "Save"), h("a", { class: "btn", href: "/host.html" }, "Back")),
     h("p", { class: "err", id: "err" }),
@@ -357,7 +401,8 @@ async function save() {
   const err = $("#err");
   try {
     if (id) await api(`/api/trivias/${id}`, { method: "PUT", body: toApi() });
-    else { const r = await api("/api/trivias", { method: "POST", body: toApi() }); location.href = `/builder.html?id=${r.id}`; return; }
+    else { const r = await api("/api/trivias", { method: "POST", body: toApi() }); baseline = snap(); clearDraft(); location.href = `/builder.html?id=${r.id}`; return; }
+    baseline = snap(); clearDraft();
     err.style.color = "var(--ok)"; err.textContent = "Saved.";
   } catch (e) { err.style.color = ""; err.textContent = `Could not save: ${e.message}`; }
 }
@@ -373,5 +418,11 @@ async function importFile(e) {
   try { load(JSON.parse(await file.text())); } catch { $("#err").textContent = "That file is not valid trivia JSON."; }
 }
 async function loadSample() { load(await (await fetch("/starter.json")).json()); }
+
+// Typing mutates state without re-rendering, so listen for edits on the page itself.
+$("#app").addEventListener("input", cacheDraft);
+$("#app").addEventListener("change", cacheDraft);
+window.addEventListener("pagehide", () => { clearTimeout(draftTimer); if (!pendingDraft) try { if (snap() !== baseline) localStorage.setItem(DRAFT_KEY, JSON.stringify({ at: Date.now(), state: snap() })); } catch {} });
+window.addEventListener("beforeunload", (e) => { if (snap() !== baseline) { e.preventDefault(); e.returnValue = ""; } });
 
 render();
