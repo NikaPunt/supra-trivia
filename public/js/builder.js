@@ -1,34 +1,73 @@
-import { $, api, h, hostHeader, mount } from "./common.js";
-await hostHeader($("#bar"));
+import { $, api, deviceId, h, hostHeader, mount } from "./common.js";
+const me = await hostHeader($("#bar"));
 
 const id = new URLSearchParams(location.search).get("id");
 const mods = await api("/api/modules");
 const byType = Object.fromEntries(mods.map((m) => [m.type, m]));
 
 let state = { title: "My trivia", settings: { maxGuesses: 3, timeLimit: 180 }, rounds: [{ title: "Round 1", modules: [] }] };
-if (id) state = await api(`/api/trivias/${id}`);
+let savedAt = 0; // when the server's copy was last saved; a draft built on an older copy is out of date
+if (id) { state = await api(`/api/trivias/${id}`); savedAt = state.updated_at ?? 0; }
 state.settings ??= { maxGuesses: 3 };
 state.settings.timeLimit ??= 180;
 
-// ---- local draft cache ----
-// A copy of the work in progress is kept in this browser only (never sent to the server, never replaces the saved trivia).
-// On the next visit the host is offered it back. Saving clears it.
-const DRAFT_KEY = `trivia-draft:${id ?? "new"}`;
-const snap = () => JSON.stringify(state);
+// ---- draft cache ----
+// Unsaved work is copied to this browser at once and to the server a few seconds later, so it survives a reload, a crash, or
+// opening the trivia on another device. It is only ever a draft: the saved trivia changes when the host hits Save, and Save clears the draft.
+// A brand-new trivia has no id on the server yet, so its draft stays in this browser only.
+// Drafts are never dropped for being big. If one cannot be stored somewhere, the page says so, so the host can Save or Export JSON.
+const DRAFT_KEY = `trivia-draft:${me?.email ?? "?"}:${id ?? "new"}`; // per person, so a shared browser never offers one host's work to another
+const snap = () => JSON.stringify({ title: state.title, settings: state.settings, rounds: state.rounds }); // editable parts only
 let baseline = snap();   // what the server (or a fresh page) has
-let pendingDraft = null; // an older unsaved draft found on load, waiting for restore/discard
+let pendingDraft = null; // an unsaved draft found on load, waiting for restore/discard
+let serverDraft = false; // whether the server is holding a draft of ours
 const readDraft = () => { try { const d = JSON.parse(localStorage.getItem(DRAFT_KEY)); return d && typeof d.state === "string" ? d : null; } catch { return null; } };
-const clearDraft = () => { try { localStorage.removeItem(DRAFT_KEY); } catch {} };
-let draftTimer;
-function cacheDraft() {
-  clearTimeout(draftTimer);
-  draftTimer = setTimeout(() => {
-    if (pendingDraft) return; // do not overwrite the found draft until the host decides
-    const now = snap();
-    try { if (now === baseline) localStorage.removeItem(DRAFT_KEY); else localStorage.setItem(DRAFT_KEY, JSON.stringify({ at: Date.now(), state: now })); } catch {}
-  }, 800);
+const clearLocal = () => { try { localStorage.removeItem(DRAFT_KEY); } catch {} };
+let draftTimer, serverTimer, inflight = Promise.resolve(), localFailed = false, serverFailed = "";
+const note = () => {
+  const el = $("#draftnote"); if (!el) return;
+  const msgs = [];
+  if (localFailed) msgs.push("This browser has no room to keep a draft");
+  if (serverFailed) msgs.push(serverFailed);
+  if (msgs.length) { el.className = "warnline"; el.textContent = `${msgs.join(". ")}. Save, or Export JSON, so you don't lose your work.`; }
+  else { el.className = "muted"; el.textContent = lastBackup ? `Draft backed up at ${lastBackup}` : ""; }
+};
+let lastBackup = "";
+const clock = () => new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+const saveLocal = () => { // base says which saved copy the draft grew from, so a draft is judged by the server's clock, not this device's
+  try { localStorage.setItem(DRAFT_KEY, JSON.stringify({ at: Date.now(), base: savedAt, state: snap() })); localFailed = false; } catch { localFailed = true; }
+  note();
+};
+
+function pushServer() {
+  if (!id || pendingDraft) return inflight;
+  const now = snap();
+  const job = now === baseline
+    ? (serverDraft ? api(`/api/trivias/${id}/draft`, { method: "DELETE" }).then(() => { serverDraft = false; }) : Promise.resolve())
+    : api(`/api/trivias/${id}/draft`, { method: "PUT", body: { state: now } }).then(() => { serverDraft = true; serverFailed = ""; lastBackup = clock(); });
+  return (inflight = inflight.then(() => job).catch((e) => { serverFailed = e.status === 413 || e.status === 400 ? "This draft is too big to back up to the server" : "Could not back up the draft to the server"; }).then(note));
 }
-{ const d = readDraft(); if (d && d.state !== baseline) pendingDraft = d; else if (d) clearDraft(); }
+async function clearDraft() { // used by Discard: drops the draft everywhere
+  clearTimeout(draftTimer); clearTimeout(serverTimer); clearLocal();
+  await inflight;
+  if (id) { try { await api(`/api/trivias/${id}/draft`, { method: "DELETE" }); } catch {} serverDraft = false; }
+}
+function cacheDraft() {
+  clearTimeout(draftTimer); clearTimeout(serverTimer);
+  if (pendingDraft) return; // do not overwrite the found draft until the host decides
+  draftTimer = setTimeout(() => { if (snap() === baseline) { clearLocal(); localFailed = false; note(); } else saveLocal(); }, 800);
+  serverTimer = setTimeout(pushServer, 3000);
+}
+{ // On load, offer back the newest unsaved draft, whether it was cached here or on the server (say, from another device).
+  let local = readDraft();
+  // A browser draft grown from an older saved copy than the server has now (it was saved from somewhere else since) would overwrite newer work, so it is dropped.
+  if (local && id && (local.base !== undefined ? local.base < savedAt : local.at < savedAt)) { clearLocal(); local = null; }
+  let remote = null;
+  if (id) { try { remote = (await api(`/api/trivias/${id}/draft`)).draft; serverDraft = !!remote; } catch {} }
+  const newest = [local, remote].filter(Boolean).sort((x, y) => y.at - x.at)[0];
+  if (newest && newest.state !== baseline) pendingDraft = newest;
+  else { clearLocal(); if (remote) pushServer(); }
+}
 
 // The editor keeps friendly shapes (lists as arrays of raw lines, numbers as typed); toApi() cleans them for the server.
 const defaultFor = (f) => (f.kind === "list" || f.kind === "numlist" ? (Array.isArray(f.default) ? [...f.default] : [""]) : (f.default ?? ""));
@@ -145,13 +184,7 @@ function toApi() {
 function load(data) {
   state = { title: data.title ?? "Imported trivia", settings: data.settings ?? { maxGuesses: 3 }, rounds: data.rounds ?? [] };
   if (!state.rounds.length) state.rounds = [{ title: "Round 1", modules: [] }];
-  // Typing mutates state without re-rendering, so listen for edits on the page itself.
-$("#app").addEventListener("input", cacheDraft);
-$("#app").addEventListener("change", cacheDraft);
-window.addEventListener("pagehide", () => { clearTimeout(draftTimer); if (!pendingDraft) try { if (snap() !== baseline) localStorage.setItem(DRAFT_KEY, JSON.stringify({ at: Date.now(), state: snap() })); } catch {} });
-window.addEventListener("beforeunload", (e) => { if (snap() !== baseline) { e.preventDefault(); e.returnValue = ""; } });
-
-render();
+  render();
 }
 
 // ---- drag and drop ----
@@ -350,7 +383,7 @@ function draftBanner() {
   if (!pendingDraft) return null;
   const d = pendingDraft;
   return h("div", { class: "card typo" }, h("strong", {}, `You have unsaved changes from ${new Date(d.at).toLocaleString()}`),
-    h("p", { class: "muted" }, "They were kept in this browser but never saved to the server."),
+    h("p", { class: "muted" }, "They were backed up as a draft but never saved to the trivia itself."),
     h("div", { class: "row" },
       h("button", { class: "primary", onclick: () => { state = JSON.parse(d.state); pendingDraft = null; render(); cacheDraft(); } }, "Restore them"),
       h("button", { onclick: () => { pendingDraft = null; clearDraft(); render(); } }, "Discard")));
@@ -365,6 +398,7 @@ function render() {
     h("div", { class: "row" }, h("input", { class: "grow", value: state.title, maxlength: 120, "aria-label": "Trivia title", oninput: (e) => { state.title = e.target.value; } }),
       h("button", { class: "primary", onclick: save }, "Save"), h("a", { class: "btn", href: "/host.html" }, "Back")),
     h("p", { class: "err", id: "err" }),
+    id ? h("p", { class: "muted", id: "draftnote" }) : null,
     h("div", { class: "row" },
       h("span", { class: total > 50 ? "warnline" : "muted" }, `${total} question${total === 1 ? "" : "s"}${total > 50 ? ": over 50 tires players out" : ""}`),
       h("span", { class: "grow" }),
@@ -399,10 +433,12 @@ function render() {
 
 async function save() {
   const err = $("#err");
+  clearTimeout(draftTimer); clearTimeout(serverTimer);
+  await inflight; // a draft upload still on its way must not land after the save
   try {
     if (id) await api(`/api/trivias/${id}`, { method: "PUT", body: toApi() });
-    else { const r = await api("/api/trivias", { method: "POST", body: toApi() }); baseline = snap(); clearDraft(); location.href = `/builder.html?id=${r.id}`; return; }
-    baseline = snap(); clearDraft();
+    else { const r = await api("/api/trivias", { method: "POST", body: toApi() }); baseline = snap(); clearLocal(); location.href = `/builder.html?id=${r.id}`; return; }
+    baseline = snap(); clearLocal(); serverDraft = false; localFailed = false; serverFailed = ""; lastBackup = ""; note();
     err.style.color = "var(--ok)"; err.textContent = "Saved.";
   } catch (e) { err.style.color = ""; err.textContent = `Could not save: ${e.message}`; }
 }
@@ -422,7 +458,16 @@ async function loadSample() { load(await (await fetch("/starter.json")).json());
 // Typing mutates state without re-rendering, so listen for edits on the page itself.
 $("#app").addEventListener("input", cacheDraft);
 $("#app").addEventListener("change", cacheDraft);
-window.addEventListener("pagehide", () => { clearTimeout(draftTimer); if (!pendingDraft) try { if (snap() !== baseline) localStorage.setItem(DRAFT_KEY, JSON.stringify({ at: Date.now(), state: snap() })); } catch {} });
+window.addEventListener("pagehide", () => {
+  clearTimeout(draftTimer); clearTimeout(serverTimer);
+  if (pendingDraft || snap() === baseline) return;
+  saveLocal(); // synchronous, so it finishes even as the page closes, whatever the size
+  // keepalive lets the request finish after the page is gone; browsers cap such bodies at about 64 KB, so a bigger draft relies on the browser copy and on the upload made when the tab was hidden
+  const body = JSON.stringify({ state: snap() });
+  if (id && body.length < 60000) fetch(`/api/trivias/${id}/draft`, { method: "PUT", keepalive: true, credentials: "same-origin", headers: { "content-type": "application/json", "x-device": deviceId() }, body }).catch(() => {});
+});
+// Switching tabs or locking the phone is the last reliable moment to upload a draft of any size.
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden" && !pendingDraft && snap() !== baseline) { clearTimeout(serverTimer); saveLocal(); pushServer(); } });
 window.addEventListener("beforeunload", (e) => { if (snap() !== baseline) { e.preventDefault(); e.returnValue = ""; } });
 
 render();

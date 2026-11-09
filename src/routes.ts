@@ -21,6 +21,11 @@ declare module "fastify" {
 const trivia = z.object({ title: z.string().min(1).max(120), settings: settingsSchema.default({ maxGuesses: 3, timeLimit: 180 }), rounds: roundsSchema });
 /** Enough for any real use; stops a runaway script or a stuck button filling the database. */
 export const MAX_TRIVIAS_PER_HOST = 100;
+/** A builder draft is the editor's own working shape, possibly half-finished, so it is stored as given and only ever handed back to the same host. */
+export const MAX_DRAFT_BYTES = 1_000_000;
+/** Request size for a draft: the draft is JSON inside JSON, so quoting can nearly double it. A draft must never be refused for being bigger than a trivia can be saved. */
+const DRAFT_REQUEST_LIMIT = 3 * 1024 * 1024;
+const draftBody = z.object({ state: z.string().max(MAX_DRAFT_BYTES).refine((x) => { try { const v = JSON.parse(x); return !!v && typeof v === "object" && !Array.isArray(v); } catch { return false; } }) });
 export const idParam = z.object({ id: z.uuid() });
 
 export function registerRoutes(app: FastifyInstance, cfg: Config, db: Db, hosts: HostDirectory, store: GameStore) {
@@ -98,8 +103,11 @@ export function registerRoutes(app: FastifyInstance, cfg: Config, db: Db, hosts:
     const all = u.role === "admin" && (req.query as any).all === "1";
     if (!all) seedSample(u.email);
     return db
-      .prepare(`SELECT id, title, host_email AS owner, updated_at FROM trivias ${all ? "" : "WHERE host_email = ?"} ORDER BY updated_at DESC`)
-      .all(...(all ? [] : [u.email]));
+      .prepare(`SELECT id, title, host_email AS owner, updated_at,
+          EXISTS (SELECT 1 FROM drafts d WHERE d.trivia_id = trivias.id AND d.host_email = ? AND d.updated_at >= trivias.updated_at) AS has_draft
+        FROM trivias ${all ? "" : "WHERE host_email = ?"} ORDER BY updated_at DESC`)
+      .all(...(all ? [u.email] : [u.email, u.email]))
+      .map((r: any) => ({ ...r, has_draft: !!r.has_draft }));
   });
 
   const full = (email: string) => (db.prepare("SELECT COUNT(*) AS n FROM trivias WHERE host_email = ?").get(email) as { n: number }).n >= MAX_TRIVIAS_PER_HOST;
@@ -117,7 +125,7 @@ export function registerRoutes(app: FastifyInstance, cfg: Config, db: Db, hosts:
     return reply.code(201).send({ id });
   });
 
-  type Row = { id: string; host_email: string; title: string; rounds: string; settings: string };
+  type Row = { id: string; host_email: string; title: string; rounds: string; settings: string; updated_at: number };
   const load = (req: FastifyRequest): Row | undefined => {
     const u = req.host_session!;
     const row = db.prepare("SELECT * FROM trivias WHERE id = ?").get(idParam.parse(req.params).id) as Row | undefined;
@@ -133,7 +141,7 @@ export function registerRoutes(app: FastifyInstance, cfg: Config, db: Db, hosts:
     const raw = JSON.parse(row.rounds);
     // Older trivias are folded into the one-question form on the way out, so the builder only ever sees the new shape.
     const upgraded = roundsSchema.safeParse(raw);
-    return { id: row.id, title: row.title, owner: row.host_email, settings: settingsSchema.parse(JSON.parse(row.settings)), rounds: upgraded.success ? upgraded.data : raw };
+    return { id: row.id, title: row.title, owner: row.host_email, updated_at: row.updated_at, settings: settingsSchema.parse(JSON.parse(row.settings)), rounds: upgraded.success ? upgraded.data : raw };
   });
 
   app.put("/api/trivias/:id", { preHandler: requireHost }, async (req, reply) => {
@@ -144,7 +152,36 @@ export function registerRoutes(app: FastifyInstance, cfg: Config, db: Db, hosts:
     db.prepare("UPDATE trivias SET title = ?, rounds = ?, settings = ?, updated_at = ? WHERE id = ?").run(
       body.data.title, JSON.stringify(body.data.rounds), JSON.stringify(body.data.settings), Date.now(), row.id,
     );
+    db.prepare("DELETE FROM drafts WHERE trivia_id = ? AND host_email = ?").run(row.id, req.host_session!.email); // saved, so the draft has done its job
     touchOthers(req, row, "trivia.edit");
+    return { ok: true };
+  });
+
+  // ---- drafts: a private copy of unsaved builder work, one per host per trivia. Saving the trivia clears it. ----
+  app.get("/api/trivias/:id/draft", { preHandler: requireHost }, async (req, reply) => {
+    const row = load(req);
+    if (!row) return reply.code(404).send({ error: "not found" });
+    const d = db.prepare("SELECT data, updated_at FROM drafts WHERE trivia_id = ? AND host_email = ?").get(row.id, req.host_session!.email) as { data: string; updated_at: number } | undefined;
+    // A draft older than the saved version (it was saved from another device since) is out of date and not offered.
+    if (!d || d.updated_at < row.updated_at) return { draft: null };
+    return { draft: { at: d.updated_at, state: d.data } };
+  });
+
+  app.put("/api/trivias/:id/draft", { preHandler: requireHost, bodyLimit: DRAFT_REQUEST_LIMIT }, async (req, reply) => {
+    const row = load(req);
+    if (!row) return reply.code(404).send({ error: "not found" });
+    const body = draftBody.safeParse(req.body);
+    if (!body.success) return reply.code(400).send({ error: "invalid draft" });
+    db.prepare("INSERT INTO drafts (trivia_id, host_email, data, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(trivia_id, host_email) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at").run(
+      row.id, req.host_session!.email, body.data.state, Date.now(),
+    );
+    return { ok: true };
+  });
+
+  app.delete("/api/trivias/:id/draft", { preHandler: requireHost }, async (req, reply) => {
+    const row = load(req);
+    if (!row) return reply.code(404).send({ error: "not found" });
+    db.prepare("DELETE FROM drafts WHERE trivia_id = ? AND host_email = ?").run(row.id, req.host_session!.email);
     return { ok: true };
   });
 

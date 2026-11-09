@@ -9,7 +9,7 @@ async function render() {
     live.length ? live.map((s) => h("div", { class: "card row" }, h("strong", { class: "code", style: "font-size:1.4rem" }, s.code), h("span", { class: "grow" }, `${s.title} · ${s.players} players · ${s.phase}`),
       h("a", { class: "btn primary", href: `/session.html?id=${s.id}` }, "Open"))) : emptyState("No active sessions."),
     h("div", { class: "row" }, h("h1", { class: "grow" }, "Your trivias"), h("a", { class: "btn primary", href: "/builder.html" }, "New trivia")),
-    trivias.length ? trivias.map((t) => h("div", { class: "card row" }, h("span", { class: "grow" }, t.title),
+    trivias.length ? trivias.map((t) => h("div", { class: "card row" }, h("span", { class: "grow" }, t.title, t.has_draft ? h("span", { class: "muted", title: "You have unsaved changes backed up for this trivia. Open it to restore them." }, " (draft)") : null),
       h("a", { class: "btn", href: `/builder.html?id=${t.id}` }, "Edit"),
       h("button", { title: "Make a copy to edit", onclick: async (e) => {
         e.target.disabled = true;

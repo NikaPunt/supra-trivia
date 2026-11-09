@@ -26,6 +26,7 @@ Everything the app limits, so nothing is a surprise. All of these are enforced b
 ## Sizes
 | What | Limit |
 |---|---|
+| A builder draft (unsaved work backed up to the server) | up to 1 million characters, more than a trivia can be saved at, so a draft is never refused for being big. If one cannot be stored, the builder says so on the page. One per host per trivia |
 | Players (teams) in a session | 100 |
 | Player or team name | 1 to 24 letters, numbers, spaces and `_ . ' -` |
 | PIN | exactly 4 digits |

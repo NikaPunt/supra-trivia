@@ -19,6 +19,14 @@ export function openDb(path: string): Db {
       updated_at INTEGER NOT NULL
     );
     CREATE INDEX IF NOT EXISTS trivias_host ON trivias(host_email);
+    -- Work in progress from the builder. Never read by games or listings; the saved trivia only changes when the host hits Save.
+    CREATE TABLE IF NOT EXISTS drafts (
+      trivia_id  TEXT NOT NULL REFERENCES trivias(id) ON DELETE CASCADE,
+      host_email TEXT NOT NULL,
+      data       TEXT NOT NULL,
+      updated_at INTEGER NOT NULL,
+      PRIMARY KEY (trivia_id, host_email)
+    );
     CREATE TABLE IF NOT EXISTS games (
       id         TEXT PRIMARY KEY,
       code       TEXT NOT NULL,
