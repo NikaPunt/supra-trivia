@@ -48,7 +48,13 @@ export class GameStore {
     // The state and the records that go with it are written together or not at all.
     this.write = db.transaction((g: Game, records: GameRecord[]) => {
       this.upsert.run(g.id, g.code, g.hostEmail, g.phase === "ended" ? 1 : 0, JSON.stringify(g), Date.now());
-      for (const r of records) this.addRecord.run(g.id, r.at, r.kind, JSON.stringify(r.data));
+      for (const r of records) {
+        // A taken-back "Next question" removes what it had filed, in order, so the question is filed afresh when the host moves on again.
+        if (r.kind === "retract") {
+          const d = r.data as { number: number; theme: boolean };
+          db.prepare("DELETE FROM game_records WHERE game_id = ? AND ((kind = 'question' AND json_extract(data, '$.number') = ?) OR (kind = 'theme' AND ? = 1))").run(g.id, d.number, d.theme ? 1 : 0);
+        } else this.addRecord.run(g.id, r.at, r.kind, JSON.stringify(r.data));
+      }
     });
     this.prune();
     for (const row of db.prepare("SELECT id, state FROM games").iterate() as IterableIterator<{ id: string; state: string }>) {

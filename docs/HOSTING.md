@@ -19,6 +19,11 @@ Each question moves through four steps, always in this order, and the console on
 
 **Final Jeopardy** questions add one step at the start: players see only the category and place their wagers, you press **Show the question** when you are ready (the console says how many have wagered), and from then on it runs as above. The answer clock starts when the question is shown.
 
+## Fixing a slip
+- **A wrong mark.** After the reveal the answers are still open to marking: change any of them with the buttons beside each answer. Nothing is banked until you press **Next question**.
+- **Next question pressed by mistake.** Until a team answers the new question (or wagers on it, or you show a Final Jeopardy question), the console offers **Go back to the previous question**. It puts the last question back exactly as it was at its reveal: its answers and marks, the confidence values it used, and, if it was the step into round two, the theme going back to secret with its guesses. The session record is corrected too, and the step is logged. It works once, and never on a finished game.
+- Once players have answered the new question there is no going back, so decide quickly. **Reopen answers** still covers closing a question too early.
+
 You cannot reveal before closing, or move on before revealing. The server enforces it too, so a stale tab or a second host window cannot skip a step.
 
 ## The timer

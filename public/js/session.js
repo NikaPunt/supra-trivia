@@ -15,6 +15,11 @@ let lastState = null;
 
 // ---- the controls: one step at a time, in the order the game runs ----
 
+/** Offered only while the new question has had nothing done to it, so taking it back loses nothing. */
+const undoNote = (s) => s.canUndo
+  ? h("p", { class: "muted" }, "Pressed Next by mistake? ", h("button", { class: "linklike", onclick: () => { if (confirm("Go back to the previous question's answer? Its marks will be open to change again.")) act({ action: "undo_next" })(); } }, "Go back to the previous question"))
+  : null;
+
 function controls(s) {
   const live = s.playerList.filter((p) => !p.kicked);
   const done = live.filter((p) => p.answered).length;
@@ -28,7 +33,8 @@ function controls(s) {
         const wagered = (s.wagers ?? []).filter((w) => w.wager !== null).length;
         return h("div", { class: "steps" },
           h("div", { class: "row" }, s.paused ? btn("Resume", { action: "resume" }, "primary") : [btn("Show the question", { action: "showclue" }, "primary"), btn("Pause", { action: "pause" })]),
-          h("p", { class: wagered === live.length && live.length ? "ready" : "muted" }, `${wagered} of ${live.length} have wagered${wagered === live.length && live.length ? ": everyone is in" : ""}`));
+          h("p", { class: wagered === live.length && live.length ? "ready" : "muted" }, `${wagered} of ${live.length} have wagered${wagered === live.length && live.length ? ": everyone is in" : ""}`),
+          undoNote(s));
       }
       const all = done === live.length && live.length;
       const extend = s.timer ? btn("Add 30 seconds", { action: "extend", seconds: 30 }) : null;
@@ -39,14 +45,16 @@ function controls(s) {
       }
       return h("div", { class: "steps" },
         h("div", { class: "row" }, btn("Close answers", { action: "close" }, "primary"), btn("Pause", { action: "pause" }), extend),
-        h("p", { class: all ? "ready" : "muted" }, `${done} of ${live.length} answered${all ? ": everyone is in" : ""}`));
+        h("p", { class: all ? "ready" : "muted" }, `${done} of ${live.length} answered${all ? ": everyone is in" : ""}`),
+        undoNote(s));
     }
     case "closed":
       return h("div", { class: "steps" },
         h("div", { class: "row" }, btn("Reveal the answer", { action: "reveal" }, "primary"), btn("Reopen answers", { action: "reopen" })),
         h("p", { class: "muted" }, `Answers are closed (${done} of ${live.length} answered).`));
     case "revealed":
-      return h("div", { class: "steps" }, btn(last ? "Finish the game" : s.roundEnd ? "Next round" : "Next question", { action: "next" }, "primary"));
+      return h("div", { class: "steps" }, btn(last ? "Finish the game" : s.roundEnd ? "Next round" : "Next question", { action: "next" }, "primary"),
+        h("p", { class: "muted" }, "You can still change any mark below until you press this."));
     default:
       return h("div", { class: "steps" }, h("p", { class: "muted" }, "The session has ended."));
   }

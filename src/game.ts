@@ -103,12 +103,42 @@ export interface Game {
   /** Bonus earned for guessing the theme; counts towards totals only once the theme is revealed. */
   themeBonus: Record<string, number>;
   history: { cursor: number; type: string; points: Record<string, number> }[];
+  /** What the last "Next question" changed, kept until the new question gets its first answer so the host can undo a slip. */
+  undo?: UndoPoint;
   createdAt: number;
   endedAt: number | null;
 }
 
+/**
+ * Everything "Next question" finishes for the question it leaves: its answers and guesses, the points and pool values it banked,
+ * and (when moving into round two) the theme going public. Taken just before moving on and kept only until the new question
+ * has an answer, a guess or a wager, so putting it back never has to untangle anything players did afterwards.
+ */
+export interface UndoPoint {
+  cursor: number;
+  scores: Record<string, number>;
+  poolUsed: Game["poolUsed"];
+  answers: Answer[];
+  attempts: Record<string, number>;
+  guessLog: GuessEntry[];
+  wagers: Record<string, number>;
+  clueShown: boolean;
+  historyLen: number;
+  /** Set only when this step made the theme public; the theme state is put back only then. */
+  theme?: { guesses: ThemeGuess[]; bonus: Record<string, number> };
+}
+
+/** True when the host may take back the last "Next question": nothing has happened on the new question that would be lost. */
+export function canUndoNext(g: Game): boolean {
+  if (g.phase !== "open" || !g.undo) return false;
+  const it = currentItem(g);
+  if (!it) return false;
+  if (g.answers.length || (g.guessLog ?? []).length || Object.keys(g.wagers ?? {}).length) return false;
+  return !twoStepOf(it) || !g.clueShown; // a Final Jeopardy question the players have already seen is not taken back
+}
+
 export type Action =
-  | { action: "begin" | "close" | "reopen" | "reveal" | "next" | "end" | "theme_reveal" | "pause" | "resume" | "showclue" | "lock" | "unlock" }
+  | { action: "begin" | "close" | "reopen" | "reveal" | "next" | "end" | "theme_reveal" | "pause" | "resume" | "showclue" | "lock" | "unlock" | "undo_next" }
   /** Clears a name's wrong-PIN lock, so its team can get back in at once. */
   | { action: "letin"; playerId: string }
   /** Gives the open question more time. */
@@ -124,7 +154,7 @@ export type Action =
  * which files them in their own table. Nothing here is ever sent to players.
  */
 export interface GameRecord {
-  kind: "question" | "theme";
+  kind: "question" | "theme" | "retract";
   at: number;
   data: Record<string, unknown>;
 }
@@ -505,6 +535,7 @@ const need = (ok: boolean, msg: string) => {
 };
 
 function finishGame(g: Game): void {
+  g.undo = undefined;
   g.deadline = null;
   revealTheme(g);
   g.phase = "ended";
@@ -570,6 +601,12 @@ export function act(g: Game, a: Action): void {
       need(g.phase === "revealed", g.phase === "open" || g.phase === "closed" ? "reveal the answer first" : "session is not running");
       // Going into round two, or finishing, makes the theme public.
       if ((items(g)[g.cursor + 1]?.roundIdx ?? Infinity) >= 1) needThemeGuessesMarked(g);
+      const before: UndoPoint = {
+        cursor: g.cursor, scores: structuredClone(g.scores), poolUsed: structuredClone(g.poolUsed), answers: structuredClone(g.answers),
+        attempts: structuredClone(g.attempts), guessLog: structuredClone(g.guessLog ?? []), wagers: structuredClone(g.wagers ?? {}),
+        clueShown: !!g.clueShown, historyLen: g.history.length,
+      };
+      const themeBefore = { guesses: structuredClone(g.themeGuesses), bonus: structuredClone(g.themeBonus), revealed: g.themeRevealed };
       finishItem(g);
       if (g.cursor + 1 < items(g).length) {
         g.cursor++;
@@ -577,8 +614,42 @@ export function act(g: Game, a: Action): void {
         openItem(g);
         // The theme is public from round two on, as in the first Tuesday trivia.
         if (items(g)[g.cursor]!.roundIdx >= 1) revealTheme(g);
-      } else finishGame(g);
+        if (g.themeRevealed && !themeBefore.revealed) before.theme = { guesses: themeBefore.guesses, bonus: themeBefore.bonus };
+        g.undo = before;
+      } else {
+        g.undo = undefined;
+        finishGame(g);
+      }
       break;
+    // Takes back a "Next question" pressed by mistake, while the new question has had nothing done to it.
+    case "undo_next": {
+      const u = g.undo;
+      need(!!u, "there is nothing to undo");
+      need(canUndoNext(g), "the new question already has answers, so it can no longer be taken back");
+      const gone = new Set(g.players.filter((p) => p.kicked).map((p) => p.id));
+      const keep = <T,>(o: Record<string, T>) => Object.fromEntries(Object.entries(o).filter(([id]) => !gone.has(id)));
+      g.history.length = u!.historyLen;
+      g.scores = keep(u!.scores);
+      g.poolUsed = Object.fromEntries(Object.entries(u!.poolUsed).map(([pool, byPlayer]) => [pool, keep(byPlayer)]));
+      g.answers = u!.answers.filter((x) => !gone.has(x.playerId));
+      g.attempts = keep(u!.attempts);
+      g.guessLog = u!.guessLog.filter((x) => !gone.has(x.playerId));
+      g.wagers = keep(u!.wagers);
+      g.clueShown = u!.clueShown;
+      if (u!.theme) {
+        g.themeRevealed = false;
+        g.themeGuesses = u!.theme.guesses.filter((x) => !gone.has(x.playerId));
+        g.themeBonus = keep(u!.theme.bonus);
+      }
+      file(g, "retract", { number: u!.cursor + 1, theme: !!u!.theme });
+      g.cursor = u!.cursor;
+      g.phase = "revealed";
+      g.deadline = null;
+      g.paused = false;
+      g.pausedLeft = null;
+      g.undo = undefined;
+      break;
+    }
     case "end":
       need(g.phase !== "ended", "already ended");
       if (inPlay(g)) finishItem(g);
@@ -764,6 +835,7 @@ export function hostView(g: Game) {
     hostEmail: g.hostEmail,
     maxGuesses: g.maxGuesses,
     locked: !!g.locked,
+    canUndo: canUndoNext(g),
     // Teams that wagered and sent no answer, and what that costs them (Final Jeopardy with the rule on).
     forfeits: [...forfeits(g)].map(([pid, lost]) => ({ nickname: nick.get(pid) ?? "?", lost })),
     item: itemMeta(g, true),
@@ -831,6 +903,7 @@ export function reviveGame(raw: unknown): Game {
   if (!isObj(g.themeBonus)) g.themeBonus = {};
   if (!isObj(g.wagers)) g.wagers = {};
   if (!isObj(g.theme)) g.theme = null;
+  if (!isObj(g.undo)) delete g.undo;
   g.themeRevealed = !!g.themeRevealed;
   if (typeof g.createdAt !== "number") g.createdAt = 0;
   if (typeof g.endedAt !== "number") g.endedAt = null;

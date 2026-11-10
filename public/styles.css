@@ -573,3 +573,8 @@ html[data-design="pirosmani"] body.deck .lobby h1::after { margin-inline: auto; 
   header.bar > .muted { display: none; } /* the role badge stays; the name is the first thing to go on a small phone */
   header.bar .badge { padding-inline: 0.5rem; letter-spacing: 0.08em; }
 }
+
+/* a button that reads as part of a sentence */
+button.linklike { all: unset; cursor: pointer; text-decoration: underline; color: var(--accent-text); font-weight: 600; }
+button.linklike:hover { text-decoration-thickness: 2px; }
+button.linklike:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }

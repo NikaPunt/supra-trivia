@@ -6,14 +6,14 @@ import { roundsSchema, settingsSchema } from "./modules/index.js";
 
 const id = z.object({ id: z.uuid() });
 const actionSchema = z.union([
-  z.object({ action: z.enum(["begin", "close", "reopen", "reveal", "next", "end", "theme_reveal", "pause", "resume", "showclue", "lock", "unlock"]) }),
+  z.object({ action: z.enum(["begin", "close", "reopen", "reveal", "next", "end", "theme_reveal", "pause", "resume", "showclue", "lock", "unlock", "undo_next"]) }),
   z.object({ action: z.enum(["kick", "letin"]), playerId: z.uuid() }),
   z.object({ action: z.literal("extend"), seconds: z.number().int().min(5).max(600).optional() }),
   z.object({ action: z.literal("review"), answerId: z.uuid(), points: z.number().min(-1000).max(1000).multipleOf(0.5) }),
   z.object({ action: z.literal("theme_review"), guessId: z.uuid(), points: z.number().min(0).max(1000).multipleOf(0.5) }),
 ]);
 const MAX_ACTIVE_PER_HOST = 5;
-const MILESTONES = new Set(["begin", "end", "kick", "lock", "unlock", "letin", "theme_reveal"]);
+const MILESTONES = new Set(["begin", "end", "kick", "lock", "unlock", "letin", "theme_reveal", "undo_next"]);
 
 const sessionSettings = (raw: string) => {
   const s = settingsSchema.parse(JSON.parse(raw));
