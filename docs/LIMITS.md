@@ -27,15 +27,16 @@ Everything the app limits, so nothing is a surprise. All of these are enforced b
 | What | Limit |
 |---|---|
 | A builder draft (unsaved work backed up to the server) | up to 1 million characters, more than a trivia can be saved at, so a draft is never refused for being big. If one cannot be stored, the builder says so on the page. One per host per trivia |
-| Players (teams) in a session | 100 |
+| Players (teams) in a session | 100 at the table; removed players do not count. 400 joins in all, removed or not. The host can close the room to new players |
 | Player or team name | 1 to 24 letters, numbers, spaces and `_ . ' -` |
-| PIN | exactly 4 digits |
+| PIN | exactly 4 digits. 10 wrong in a row lock the name for 5 minutes; the host can lift the lock |
+| Live-update connections | 20 per team or host per session, 600 per session. Past that a screen checks every 3 seconds instead |
 | An answer | 1 to 200 characters |
 | A question | up to 1200 characters; up to 20 accepted answers of up to 200 characters; a multiple choice has 2 to 6 options |
 | A trivia | title up to 120 characters; up to 30 rounds; up to 50 questions per round |
 | Trivias per host | 100 (creating or duplicating beyond that is refused) |
 | Active sessions per host | 5 |
 | Any request body | 256 KB |
-| Requests | 300 a minute per player or host (static files are not counted); joining and logging in are limited per address |
+| Requests | 300 a minute per joined player or signed-in host (static files are not counted); everyone else, and all joining and logging in, is counted per address. A made-up cookie or `X-Forwarded-For` does not change who you are counted as |
 
 Hosts can still do anything the builder allows within these limits; the limits only stop mistakes and abuse.

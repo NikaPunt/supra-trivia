@@ -192,10 +192,23 @@ test("rate limits: static files are exempt, players are counted per cookie, join
   const origin = { origin: cfg.BASE_URL };
   for (let i = 0; i < 400; i++) assert.equal((await app.inject("/styles.css")).statusCode, 200);
 
-  // Two phones behind one IP each get their own allowance on player endpoints.
+  // Two phones behind one IP, each joined as its own player, get their own allowance on player endpoints.
+  const host = { cookie: `trivia_session=${await signSession(cfg, { email: "host@example.com", name: "h" })}`, origin: cfg.BASE_URL };
+  const tid = (await app.inject({ method: "POST", url: "/api/trivias", headers: host, payload: trivia })).json().id;
+  const { code } = (await app.inject({ method: "POST", url: `/api/trivias/${tid}/sessions`, headers: host })).json();
+  const phones: string[] = [];
+  for (const nickname of ["one", "two"]) {
+    const r = await app.inject({ method: "POST", url: "/api/join", headers: origin, payload: { code, nickname }, remoteAddress: "10.0.0.9" });
+    phones.push(String(r.headers["set-cookie"]).split(";")[0]!);
+  }
   const codes: number[] = [];
-  for (let i = 0; i < 400; i++) codes.push((await app.inject({ url: "/api/play/state", headers: { cookie: `trivia_player=phone${i % 2}` }, remoteAddress: "10.0.0.9" })).statusCode);
+  for (let i = 0; i < 400; i++) codes.push((await app.inject({ url: "/api/play/state", headers: { cookie: phones[i % 2]! }, remoteAddress: "10.0.0.9" })).statusCode);
   assert.ok(!codes.includes(429), "two phones on one IP are not throttled together");
+
+  // A cookie that proves nothing earns no allowance of its own: a new made-up value each time is still one address.
+  const junk: number[] = [];
+  for (let i = 0; i < 400; i++) junk.push((await app.inject({ url: "/api/me", headers: { cookie: `trivia_player=junk${i}` }, remoteAddress: "10.0.0.8" })).statusCode);
+  assert.ok(junk.includes(429), "made-up cookies do not dodge the limit");
 
   // Joining is the guessing target: changing the cookie must not reset its per-IP limit.
   let blocked = false;

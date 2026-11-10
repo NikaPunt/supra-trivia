@@ -76,7 +76,9 @@ function answersCard(s, it) {
     s.answers.length ? h("table", { class: "stack" }, s.answers.map((a) => h("tr", {}, h("td", {}, a.nickname),
       h("td", {}, describeAnswer(it, a.value), a.status === "pending" && a.suggest !== null ? h("span", { class: a.suggest > 0 ? "badge" : "muted" }, a.suggest > 0 ? "  looks right" : "  no match") : null),
       h("td", {}, a.status === "pending" ? "" : a.points > 0 ? `${fmt(a.points)}` : a.points < 0 ? `${a.points}` : "0"),
-      h("td", {}, award(a))))) : h("p", { class: "muted" }, "None yet."));
+      h("td", {}, award(a))))) : h("p", { class: "muted" }, "None yet."),
+    // Final Jeopardy: teams that wagered and sent nothing lose the wager, once answers are closed.
+    s.forfeits?.length ? h("p", { class: "muted" }, "No answer, so the wager is lost: " + s.forfeits.map((f) => `${f.nickname} (${fmt(-f.lost)})`).join(", ")) : null);
 }
 
 // ---- the theme ----
@@ -108,8 +110,13 @@ function themePanel(s) {
 function playersPanel(s) {
   return [
     h("div", { class: "card" }, h("h2", {}, "Players"), s.playerList.length ? h("table", { class: "stack" }, s.playerList.map((p) => h("tr", {},
-      h("td", {}, p.kicked ? h("s", {}, p.nickname) : p.nickname), h("td", {}, p.answered ? "answered" : ""), h("td", { class: "muted" }, p.hasPin ? "PIN set" : ""),
-      h("td", {}, p.kicked ? "removed" : h("button", { class: "danger", onclick: () => { if (confirm(`Remove ${p.nickname}?`)) act({ action: "kick", playerId: p.id })(); } }, "Remove"))))) : h("p", { class: "muted" }, "Nobody yet.")),
+      h("td", {}, p.kicked ? h("s", {}, p.nickname) : p.nickname), h("td", {}, p.answered ? "answered" : ""),
+      // Too many wrong PINs lock a name for a few minutes. If the team is in front of you, let them straight back in.
+      h("td", { class: "muted" }, p.pinLocked && !p.kicked ? h("span", { class: "row" }, "locked: wrong PINs", h("button", { onclick: act({ action: "letin", playerId: p.id }) }, "Let back in")) : p.hasPin ? "PIN set" : ""),
+      h("td", {}, p.kicked ? "removed" : h("button", { class: "danger", onclick: () => { if (confirm(`Remove ${p.nickname}?`)) act({ action: "kick", playerId: p.id })(); } }, "Remove"))))) : h("p", { class: "muted" }, "Nobody yet."),
+      s.phase !== "ended" ? h("div", { class: "row", style: "margin-top:.8rem" },
+        s.locked ? btn("Reopen the room", { action: "unlock" }) : btn("Close the room to new players", { action: "lock" }),
+        h("span", { class: "muted grow" }, s.locked ? "Closed: nobody new can join. Teams already here can still get back in with their name and PIN." : "Everyone here? Close the room so nobody else can join with the code.")) : null),
     h("div", { class: "card" }, h("h2", {}, "Scores"), s.leaderboard.map((r, i) => h("div", { class: "rank" }, h("span", {}, `${i + 1}. ${r.nickname}`), h("span", {}, r.points))),
       s.theme && !s.theme.revealed ? h("p", { class: "muted" }, "Theme bonuses are not included until the theme is revealed.") : null),
   ];
@@ -157,8 +164,9 @@ function render(s) {
       ];
   mount($("#app"),
     h("div", { class: "card row" }, h("div", {}, h("div", { class: "eyebrow" }, "Room code"), h("div", { class: "code" }, s.code)),
-      h("div", { class: "grow" }, h("strong", {}, s.title), h("div", { class: "muted" }, `${s.paused ? "paused" : s.phase} · ${s.players} players · ${s.maxGuesses === 0 ? "unlimited" : s.maxGuesses} guesses each · join at ${location.origin}`),
-        h("p", {}, h("a", { class: "btn", href: `/deck.html?id=${id}`, target: "_blank", rel: "noopener" }, "Open the projector view")))),
+      h("div", { class: "grow" }, h("strong", {}, s.title), h("div", { class: "muted" }, `${s.paused ? "paused" : s.phase} · ${s.players} players${s.locked ? " · room closed" : ""} · ${s.maxGuesses === 0 ? "unlimited" : s.maxGuesses} guesses each · join at ${location.origin}`),
+        h("p", { class: "row" }, h("a", { class: "btn", href: `/deck.html?id=${id}`, target: "_blank", rel: "noopener" }, "Open the projector view"),
+          s.phase === "ended" ? h("a", { class: "btn primary", href: `/record.html?id=${id}` }, "See the full record") : null))),
     tabBar(s),
     h("div", { role: "tabpanel", id: "panel", "aria-labelledby": `tab-${tab}` }, panel),
     // Ending is kept well away from the step buttons, so it is never one slip away.

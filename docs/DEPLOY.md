@@ -156,13 +156,52 @@ Use `https://your-app.fly.dev` as the redirect URI in step 1, or add your own do
 ---
 
 ## Proxy headers and the listen address
-The app uses the `X-Forwarded-For` header from your proxy to tell visitors apart for rate limiting, and it assumes only the proxy can reach it. Docker setups here publish no ports; non-Docker setups should set `HOST=127.0.0.1`. Do not expose the app's port to the internet directly.
+The app reads the visitor's address from the `X-Forwarded-For` header to tell visitors apart for rate limiting. It believes that header only from senders listed in `TRUST_PROXY`, and takes the first address, reading from the app outwards, that is not one of them. A visitor can therefore put anything they like in the header and still be counted under their real address, whether your proxy overwrites the header or appends to it (Nginx Proxy Manager appends).
+
+- The default trusts private addresses (`loopback, linklocal, uniquelocal`), which is where a proxy on the same machine or the same Docker network lives. Every setup on this page works with it.
+- If devices you do not trust share that private network with the app, narrow it to your proxy alone, for example the Docker network's range: `TRUST_PROXY=172.18.0.0/16` (find it with `docker network inspect YOUR_PROXY_NETWORK --format '{{(index .IPAM.Config 0).Subnet}}'`).
+- `TRUST_PROXY=false` believes nobody; use it only if the app faces the internet with no proxy.
+- Docker setups here publish no ports; non-Docker setups should set `HOST=127.0.0.1` so only the proxy can reach the app.
+
+To check: `curl -H 'X-Forwarded-For: 1.2.3.4' https://YOUR-ADDRESS/api/me`, then look at the app's log. `remoteAddress` on that request must be your own address, not `1.2.3.4`.
 
 ## Backups
-Everything worth keeping is the `data/` folder (the database), plus your `.env` and hosts file. Copy them however you like; the backup holds your secrets, so keep it private. To restore, stop the app and put `trivia.db` back at `DB_PATH`.
+Everything worth keeping is the database in `data/`, plus your `.env` and hosts file.
+
+- **Do not copy `trivia.db` with `cp` while the app runs.** The database keeps recent changes in side files (`-wal`, `-shm`) and a plain copy can come out incomplete. [`deploy/backup.sh`](../deploy/backup.sh) uses SQLite's own backup, checks the copy, keeps the last 30, and exits non-zero on any failure. Run it nightly from cron:
+  ```
+  30 3 * * * /path/to/trivia/deploy/backup.sh /path/to/trivia /mnt/backup/trivia >> /var/log/trivia-backup.log 2>&1
+  ```
+- **Keep a copy somewhere else.** A backup on a drive in the same machine does not survive theft, fire or a bad power supply. Send the backup folder off the machine with something that encrypts before uploading (restic, or rclone with a crypt remote): the backup holds your secrets.
+- **Know when it fails.** Have cron mail you, or end the cron line with a ping to an uptime service (`&& curl -fsS https://hc-ping.com/YOUR-ID`), so a week of silent failures cannot happen.
+- **Run it by hand before every update.**
+
+### Restoring
+1. Stop the app: `docker compose stop trivia`.
+2. Move the current `data/` aside (`mv data data.broken`), make a new `data/`, and copy the backup's `trivia.db` into it. Remove any `trivia.db-wal` and `trivia.db-shm` next to it: they belong to the old database.
+3. Put back `.env` and `config/hosts.json` if they were lost. The same `SESSION_SECRET` keeps everyone signed in; a new one signs everyone out and nothing else.
+4. Start the app: `docker compose up -d`, then `docker compose logs trivia`. A line saying a stored game "could not be loaded and was skipped" names a game that is damaged; everything else is running.
+
+Try this once on another folder before you need it.
 
 ## Updating
-Docker: `git pull && docker compose up -d --build` (use the same `-f` file you started with). Existing data is kept; the database only ever gains columns.
+```bash
+deploy/backup.sh . /mnt/backup/trivia                                   # or however you back up
+git pull
+TRIVIA_TAG=$(git rev-parse --short HEAD) docker compose up -d --build   # use the same -f file you started with
+docker compose logs --tail 50 trivia
+```
+Existing data is kept. The database is brought up to date by itself, in numbered steps that only ever add to it, and games and trivias saved by any earlier version load as they are: a game that was running picks up where it stopped, with the rules it started under.
+
+**Going back:** each build is tagged with its commit, so the previous one is still on the machine: `docker image ls supra-trivia`, then `TRIVIA_TAG=<previous tag> docker compose up -d` (without `--build`). An older build refuses to open a database that a newer one has changed the structure of, and says so in its log; in that case restore the backup you took before updating.
+
+Avoid updating while a game is being played: the restart takes a few seconds and every screen reconnects by itself, but there is no reason to test that on a live audience.
+
+## Watching it
+- `GET /healthz` answers 200 only when the database answers too. Point an uptime check at `https://YOUR-ADDRESS/healthz`.
+- The compose files cap the container's memory and the size of its logs, and stop it cleanly.
+- What the app logs, the audit log, and the record kept of every session are described in [LOGGING.md](LOGGING.md). The admin page shows the server's state at a glance.
+- `GAME_RETENTION_DAYS` deletes finished sessions after that many days. The default, 0, keeps them forever; they cost disk space only.
 
 ## Hardening checklist
 - The container runs as a non-root user with a read-only filesystem and no capabilities, and publishes no ports.

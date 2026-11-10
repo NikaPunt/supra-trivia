@@ -30,6 +30,7 @@ export function registerPlayRoutes(app: FastifyInstance, ctx: Ctx) {
       reply.clearCookie(PLAYER_COOKIE, cookieOpts).code(401).send({ error: "not in a session" });
       return null;
     }
+    req.who = `player:${p.nickname}@${g.code}`;
     return { g, pid: p.id };
   };
 
@@ -39,11 +40,16 @@ export function registerPlayRoutes(app: FastifyInstance, ctx: Ctx) {
     const g = store.getByCode(body.data.code);
     if (!g) return reply.code(404).send({ error: "no active session with that code" });
     try {
-      const { player } = joinPlayer(g, body.data.nickname, body.data.pin);
+      const { player, rejoined } = joinPlayer(g, body.data.nickname, body.data.pin);
       store.save(g);
+      req.who = `player:${player.nickname}@${g.code}`;
+      req.log.info({ code: g.code, player: player.nickname, rejoined }, "joined");
       const token = await signPlayer(cfg, { sid: g.id, pid: player.id });
       return reply.setCookie(PLAYER_COOKIE, token, { ...cookieOpts, maxAge: PLAYER_MAX_AGE }).send({ ok: true });
     } catch (e) {
+      // Wrong PINs and locked names change the game too (the count, the lock), and are what an owner looks for after trouble.
+      store.save(g);
+      req.log.warn({ code: g.code, player: body.data.nickname.slice(0, 24), reason: (e as Error).message }, "join refused");
       return fail(reply, e);
     }
   });
@@ -89,8 +95,8 @@ export function registerPlayRoutes(app: FastifyInstance, ctx: Ctx) {
     }
   });
 
-  app.get("/api/play/events", async (req, reply) => {
+  app.get("/api/play/events", { config: { rateLimit: { max: 60, timeWindow: "1 minute" } } }, async (req, reply) => {
     const s = await me(req, reply);
-    if (s) openStream(req, reply, ctx, s.g.id);
+    if (s) return openStream(req, reply, ctx, s.g.id, `p:${s.pid}`);
   });
 }

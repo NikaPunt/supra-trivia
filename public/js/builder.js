@@ -221,7 +221,7 @@ function fieldInput(m, f) {
 const fieldRow = (m, f) => {
   if (m.type === "confidence" && f.key === "poolValues") return poolValuesRow(m, f);
   if (f.kind === "checkbox") {
-    return h("label", { class: "check" }, h("input", { type: "checkbox", checked: !!m.config[f.key], onchange: (e) => { m.config[f.key] = e.target.checked; render(); } }),
+    return h("label", { class: "check" }, h("input", { type: "checkbox", checked: !!(m.config[f.key] ?? f.default), onchange: (e) => { m.config[f.key] = e.target.checked; render(); } }),
       ` ${f.label}`, f.help ? h("small", { class: "muted" }, ` (${f.help})`) : null);
   }
   const off = f.key === "maxWager" && !!m.config.capByScore;
@@ -436,7 +436,20 @@ async function save() {
   clearTimeout(draftTimer); clearTimeout(serverTimer);
   await inflight; // a draft upload still on its way must not land after the save
   try {
-    if (id) await api(`/api/trivias/${id}`, { method: "PUT", body: toApi() });
+    if (id) {
+      // Say which saved version this page started from, so work saved elsewhere since is never overwritten unseen.
+      let r;
+      try { r = await api(`/api/trivias/${id}`, { method: "PUT", body: { ...toApi(), ...(savedAt ? { base: savedAt } : {}) } }); }
+      catch (e) {
+        if (e.status !== 409 || !e.conflict) throw e;
+        if (!confirm("This trivia was saved somewhere else since you opened it here (another tab or device, or an admin).\n\nOK: save this page's version over it.\nCancel: keep the other version; nothing here is lost, and you can export it or reload to see theirs.")) {
+          err.style.color = ""; err.textContent = "Not saved: this trivia was changed somewhere else. Your work here is still on this page.";
+          return;
+        }
+        r = await api(`/api/trivias/${id}`, { method: "PUT", body: toApi() });
+      }
+      if (r.updated_at) savedAt = r.updated_at;
+    }
     else { const r = await api("/api/trivias", { method: "POST", body: toApi() }); baseline = snap(); clearLocal(); location.href = `/builder.html?id=${r.id}`; return; }
     baseline = snap(); clearLocal(); serverDraft = false; localFailed = false; serverFailed = ""; lastBackup = ""; note();
     err.style.color = "var(--ok)"; err.textContent = "Saved.";

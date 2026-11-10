@@ -3,8 +3,19 @@
 services:
   trivia:
     build: .
+    # Tag each build to be able to go back: TRIVIA_TAG=$(git rev-parse --short HEAD) docker compose up -d --build
+    image: supra-trivia:${TRIVIA_TAG:-latest}
     container_name: trivia
     restart: unless-stopped
+    init: true # hands "stop" to the app at once, so it shuts down cleanly
+    stop_grace_period: 15s
+    mem_limit: 512m
+    pids_limit: 200
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
     env_file: .env
     environment:
       DB_PATH: /data/trivia.db

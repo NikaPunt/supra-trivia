@@ -8,6 +8,8 @@ const config = z.object({
   answers: z.array(z.string().min(1).max(200)).min(1).max(20),
   maxWager: z.number().int().min(1).max(1000).default(20),
   capByScore: z.boolean().default(false),
+  /** A team that wagers and then sends no answer loses the wager, like a wrong answer. */
+  silentLoses: z.boolean().default(true),
 });
 const answer = z.object({ text: z.string().min(1).max(200), wager: z.number().int().min(0).max(1000) });
 
@@ -25,6 +27,7 @@ export const jeopardy: TriviaModule<z.infer<typeof config>, z.infer<typeof answe
     { key: "answers", label: "Answer", kind: "list", help: "the answer first, then any other spellings, one per line", placeholder: "Brooch" },
     { key: "maxWager", label: "Maximum wager", kind: "number", default: 20 },
     { key: "capByScore", label: "Wager capped by team score", kind: "checkbox", default: false, help: "a team can wager at most the points it has so far; the maximum above is then ignored" },
+    { key: "silentLoses", label: "No answer loses the wager", kind: "checkbox", default: true, help: "a team that wagers and then sends nothing loses its wager, as a wrong answer would; untick to let silence cost nothing" },
     ...detailFields,
   ],
   input: { kind: "text", key: "text" },

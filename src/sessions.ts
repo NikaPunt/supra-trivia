@@ -1,26 +1,32 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import type { Ctx } from "./context.js";
-import { GameError, act, deckView, hostView, newGame, type Game } from "./game.js";
+import { GameError, act, deckView, hostView, items, newGame, type Game } from "./game.js";
 import { roundsSchema, settingsSchema } from "./modules/index.js";
 
 const id = z.object({ id: z.uuid() });
 const actionSchema = z.union([
-  z.object({ action: z.enum(["begin", "close", "reopen", "reveal", "next", "end", "theme_reveal", "pause", "resume", "showclue"]) }),
-  z.object({ action: z.literal("kick"), playerId: z.uuid() }),
+  z.object({ action: z.enum(["begin", "close", "reopen", "reveal", "next", "end", "theme_reveal", "pause", "resume", "showclue", "lock", "unlock"]) }),
+  z.object({ action: z.enum(["kick", "letin"]), playerId: z.uuid() }),
   z.object({ action: z.literal("extend"), seconds: z.number().int().min(5).max(600).optional() }),
   z.object({ action: z.literal("review"), answerId: z.uuid(), points: z.number().min(-1000).max(1000).multipleOf(0.5) }),
   z.object({ action: z.literal("theme_review"), guessId: z.uuid(), points: z.number().min(0).max(1000).multipleOf(0.5) }),
 ]);
 const MAX_ACTIVE_PER_HOST = 5;
+const MILESTONES = new Set(["begin", "end", "kick", "lock", "unlock", "letin", "theme_reveal"]);
 
 const sessionSettings = (raw: string) => {
   const s = settingsSchema.parse(JSON.parse(raw));
   return { maxGuesses: s.maxGuesses, timeLimit: s.timeLimit, theme: s.theme };
 };
 
-/** Server-sent events: the client is told something changed and refetches its own view. */
-export function openStream(req: FastifyRequest, reply: FastifyReply, ctx: Ctx, gameId: string) {
+/**
+ * Server-sent events: the client is told something changed and refetches its own view.
+ * `viewer` names who is watching ("p:<player id>" or "h:<host email>") so connections can be capped per viewer.
+ */
+export function openStream(req: FastifyRequest, reply: FastifyReply, ctx: Ctx, gameId: string, viewer: string) {
+  // The page falls back to checking every few seconds when it has no stream, so refusing one costs nothing but chatter.
+  if (!ctx.streams.hasRoom(gameId, viewer)) return reply.code(429).send({ error: "too many live connections" });
   reply.hijack();
   const res = reply.raw;
   res.writeHead(200, {
@@ -34,10 +40,15 @@ export function openStream(req: FastifyRequest, reply: FastifyReply, ctx: Ctx, g
   // A named event (not a comment) so the page can see the stream is alive and fall back to polling if it is not.
   const beat = setInterval(() => res.write("event: ping\ndata: 1\n\n"), 15_000);
   ctx.store.bus.on(gameId, changed);
-  req.raw.on("close", () => {
+  const forget = ctx.streams.add(gameId, viewer, res);
+  const done = () => {
     clearInterval(beat);
     ctx.store.bus.off(gameId, changed);
-  });
+    forget();
+  };
+  req.raw.on("close", done);
+  res.on("close", done);
+  res.on("error", done);
 }
 
 export function registerSessionRoutes(
@@ -66,6 +77,7 @@ export function registerSessionRoutes(
     try {
       const g = newGame({ hostEmail: u.email, triviaId: row.id, title: row.title, rounds: roundsSchema.parse(JSON.parse(row.rounds)), code: store.newCode(), ...sessionSettings(row.settings) });
       store.save(g);
+      audit(req, "session.create", `session:${g.id}`, { code: g.code, title: g.title, trivia: row.id, ...(row.host_email !== u.email ? { owner: row.host_email, others: true } : {}) });
       return reply.code(201).send({ id: g.id, code: g.code });
     } catch (e) {
       if (e instanceof GameError) return reply.code(e.status).send({ error: e.message });
@@ -79,7 +91,7 @@ export function registerSessionRoutes(
     return store
       .list()
       .filter((g) => all || g.hostEmail === u.email)
-      .map((g) => ({ id: g.id, code: g.code, title: g.title, phase: g.phase, host: g.hostEmail, players: g.players.length, createdAt: g.createdAt }));
+      .map((g) => ({ id: g.id, code: g.code, title: g.title, phase: g.phase, host: g.hostEmail, players: g.players, createdAt: g.createdAt }));
   });
 
   app.get("/api/sessions/:id", { preHandler: requireHost }, async (req, reply) => {
@@ -92,9 +104,9 @@ export function registerSessionRoutes(
     return g ? deckView(g) : undefined;
   });
 
-  app.get("/api/sessions/:id/events", { preHandler: requireHost }, async (req, reply) => {
+  app.get("/api/sessions/:id/events", { preHandler: requireHost, config: { rateLimit: { max: 60, timeWindow: "1 minute" } } }, async (req, reply) => {
     const g = manage(req, reply);
-    if (g) openStream(req, reply, ctx, g.id);
+    if (g) return openStream(req, reply, ctx, g.id, `h:${req.host_session!.email}`);
   });
 
   app.post("/api/sessions/:id/action", { preHandler: requireHost }, async (req, reply) => {
@@ -109,15 +121,43 @@ export function registerSessionRoutes(
       throw e;
     }
     store.save(g);
+    if (parsed.data.action === "kick") ctx.streams.closeViewer(g.id, `p:${parsed.data.playerId}`);
     const u = req.host_session!;
-    if (parsed.data.action === "end" || u.email !== g.hostEmail) audit(u.email, `session.${parsed.data.action}`, `session:${g.id}`, { code: g.code, host: g.hostEmail });
+    const a = parsed.data;
+    const others = u.email !== g.hostEmail;
+    // On record: the steps that shape a session (start, end, who is in or out, the theme going public), and anything at all
+    // an admin does in somebody else's. Marking answers is not here; each mark is in the session's own record.
+    if (others || MILESTONES.has(a.action)) {
+      const player = "playerId" in a ? g.players.find((p) => p.id === a.playerId)?.nickname : undefined;
+      audit(req, `session.${a.action}`, `session:${g.id}`, {
+        code: g.code, host: g.hostEmail, ...(player ? { player } : {}), ...(others ? { others: true } : {}),
+        ...(a.action === "end" || g.phase === "ended" ? { players: g.players.filter((p) => !p.kicked).length, questions: g.history.length } : {}),
+      });
+    }
     return { ok: true };
   });
 
-  // ---- admin ----
-
-  app.get("/api/admin/overview", { preHandler: requireAdmin }, async () => ({
-    hosts: ctx.hosts.list(),
-    audit: ctx.db.prepare("SELECT at, actor, action, target, detail FROM audit ORDER BY id DESC LIMIT 100").all(),
-  }));
+  /**
+   * Everything kept about a session: who played, the final scores, and for every finished question what each team answered
+   * and earned. The owner and admins only. Sessions played before records were kept have scores but no answers.
+   */
+  app.get("/api/sessions/:id/record", { preHandler: requireHost }, async (req, reply) => {
+    const g = manage(req, reply);
+    if (!g) return;
+    const u = req.host_session!;
+    if (u.email !== g.hostEmail) audit(req, "session.record_view", `session:${g.id}`, { code: g.code, host: g.hostEmail, others: true });
+    const v = hostView(g);
+    const name = new Map(g.players.map((p) => [p.id, p.nickname]));
+    const all = items(g);
+    return {
+      id: g.id, code: g.code, title: g.title, host: g.hostEmail, phase: g.phase, createdAt: g.createdAt, endedAt: g.endedAt,
+      questions: all.length,
+      players: g.players.map((p) => ({ nickname: p.nickname, joinedAt: p.joinedAt, removed: p.kicked })),
+      leaderboard: v.leaderboard.map((r) => ({ nickname: r.nickname, points: r.points })),
+      themeBonuses: g.themeRevealed ? Object.fromEntries(Object.entries(g.themeBonus).map(([pid, p]) => [name.get(pid) ?? "?", p])) : {},
+      // Points per team for each finished question: kept for every session, old and new.
+      history: g.history.map((h) => ({ number: h.cursor + 1, round: all[h.cursor]?.roundTitle ?? "", type: h.type, points: Object.fromEntries(Object.entries(h.points).map(([pid, p]) => [name.get(pid) ?? "?", p])) })),
+      records: store.records(g.id),
+    };
+  });
 }

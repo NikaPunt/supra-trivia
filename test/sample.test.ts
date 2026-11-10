@@ -77,7 +77,11 @@ test("the whole sample can be played from lobby to final scoreboard", () => {
     const mk = (text: string, st: typeof pa, pick: "best" | "least") => ({ text, ...(st ? { [st.key]: stake(st, pick) } : {}) });
     submit(g, ann.id, mk(c.answers[0], pa, "best"));
     submit(g, bob.id, mk("definitely wrong", pb, "least"));
-    if (i === 3) { submitTheme(g, ann.id, "double o"); submitTheme(g, bob.id, "words with oo"); }
+    if (i === 3) {
+      submitTheme(g, ann.id, "double o"); submitTheme(g, bob.id, "words with oo");
+      // The host marks them as they come in; the game will not make the theme public over guesses still waiting.
+      for (const t of hostView(g).theme!.guesses) act(g, { action: "theme_review", guessId: t.id, points: t.nickname === "Ann" ? t.suggested : 0 });
+    }
     act(g, { action: "close" });
     act(g, { action: "reveal" });
     const hv = hostView(g);

@@ -147,7 +147,7 @@ function render(state) {
           mine.length
             ? h("div", { class: "yours" }, h("strong", {}, describeAnswer(it, mine[0].value)),
                 h("span", {}, mine[0].points > 0 ? `+${mine[0].points} points` : mine[0].points < 0 ? `${mine[0].points} points` : "No points"))
-            : h("p", { class: "muted" }, "You didn't answer this one."),
+            : h("p", { class: "muted" }, state.forfeit ? `You didn't answer this one, so your wager of ${state.forfeit} is lost.` : "You didn't answer this one."),
           guessHistory(state))
       : h("div", { class: "card" },
           state.phase === "closed" ? h("p", { class: "muted" }, "Answers are closed.") : null,

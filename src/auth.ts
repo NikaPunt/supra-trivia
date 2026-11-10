@@ -22,8 +22,12 @@ export interface Session {
   role: Role;
 }
 
-export async function signSession(cfg: Config, s: Pick<Session, "email" | "name">): Promise<string> {
-  return new SignJWT({ name: s.name })
+/**
+ * `epoch` is the host's sign-out counter at login (see `host_auth`). A session only verifies while it still matches,
+ * so raising the counter ends every session that host has. Sessions from before the counter existed carry none and count as 0.
+ */
+export async function signSession(cfg: Config, s: Pick<Session, "email" | "name">, epoch = 0): Promise<string> {
+  return new SignJWT({ name: s.name, ...(epoch ? { v: epoch } : {}) })
     .setProtectedHeader({ alg: "HS256" })
     .setSubject(s.email)
     .setIssuedAt()
@@ -32,16 +36,19 @@ export async function signSession(cfg: Config, s: Pick<Session, "email" | "name"
 }
 
 /** Returns the session only if the signature and expiry are valid and the email is still in the hosts file. */
-export async function verifySession(cfg: Config, hosts: HostDirectory, token: string | undefined): Promise<Session | null> {
+export async function verifySession(cfg: Config, hosts: HostDirectory, token: string | undefined, epochOf?: (email: string) => number): Promise<Session | null> {
   if (!token) return null;
+  let payload;
   try {
-    const { payload } = await jwtVerify(token, key(cfg), { algorithms: ["HS256"] });
-    const role = payload.sub ? hosts.roleOf(payload.sub) : null;
-    if (!payload.sub || !role) return null;
-    return { email: payload.sub, name: String(payload.name ?? payload.sub), role };
+    ({ payload } = await jwtVerify(token, key(cfg), { algorithms: ["HS256"] }));
   } catch {
     return null;
   }
+  const role = payload.sub ? hosts.roleOf(payload.sub) : null;
+  if (!payload.sub || !role) return null;
+  // Outside the try on purpose: if the database cannot answer, that is an error to report, not a reason to call someone signed out.
+  if (epochOf && (typeof payload.v === "number" ? payload.v : 0) !== epochOf(payload.sub)) return null;
+  return { email: payload.sub, name: String(payload.name ?? payload.sub), role };
 }
 
 interface LoginState {
@@ -75,7 +82,12 @@ export async function startLogin(cfg: Config) {
   return { url: url.toString(), cookie, maxAge: LOGIN_TTL_S };
 }
 
-export class LoginError extends Error {}
+export class LoginError extends Error {
+  /** `email` is set when Google vouched for who it was and we turned them away, so the refusal can be put on record. */
+  constructor(message: string, public email?: string) {
+    super(message);
+  }
+}
 
 export async function finishLogin(
   cfg: Config,
@@ -117,7 +129,7 @@ export async function finishLogin(
   const email = String(payload.email ?? "").toLowerCase();
   if (payload.email_verified !== true || !email) throw new LoginError("email not verified");
   const role = hosts.roleOf(email);
-  if (!role) throw new LoginError("not on the host allowlist");
+  if (!role) throw new LoginError("not on the host allowlist", email);
   return { email, name: String(payload.name ?? email), role };
 }
 
