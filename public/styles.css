@@ -558,3 +558,4 @@ html[data-design="pirosmani"] body.deck .lobby h1::after { margin-inline: auto; 
 @media (max-width: 640px) {
   table.stack td[data-label]::before { content: attr(data-label) ": "; color: var(--text-3); }
 }
+[hidden] { display: none !important; }

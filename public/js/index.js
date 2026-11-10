@@ -17,3 +17,12 @@ api("/api/me").then(({ host }) => {
     : [h("div", { class: "grow" }, h("strong", {}, "Hosting a trivia?"), h("p", { class: "muted" }, "Log in with Google to build and run your own.")),
        h("a", { class: "btn primary", href: "/auth/login" }, "Log in to host")]);
 }).catch(() => { $("#host").remove(); });
+
+// A phone that is already at a table gets a way straight back, so a stray visit to this page never strands a team that set no PIN.
+api("/api/play/state").then((s) => {
+  if (s.phase === "ended") return;
+  $("#resume").hidden = false;
+  mount($("#resume"),
+    h("div", { class: "grow" }, h("strong", {}, `You are at the table as ${s.me}`), h("p", { class: "muted" }, `Room ${s.code}`)),
+    h("a", { class: "btn primary", href: "/play.html" }, "Back to my game"));
+}).catch(() => {});
