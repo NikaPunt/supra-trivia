@@ -41,12 +41,16 @@ const moduleInstance = z
   .transform((m, ctx) => {
     const mod = getModule(m.type);
     if (!mod) {
-      ctx.addIssue({ code: "custom", message: `unknown module type: ${m.type}` });
+      ctx.addIssue({ code: "custom", message: `unknown question type: ${m.type}`, path: ["type"] });
       return z.NEVER;
     }
     const parsed = mod.configSchema.safeParse(upgradeLegacy(m.type, m.config));
     if (!parsed.success) {
-      ctx.addIssue({ code: "custom", message: `${m.type}: ${parsed.error.message}` });
+      // One issue per box, placed at that box, so the host can be told exactly which question and which box.
+      for (const i of parsed.error.issues) {
+        const x = i as { code: string; origin?: string; minimum?: unknown; maximum?: unknown };
+        ctx.addIssue({ code: "custom", message: i.message, path: ["config", ...i.path], params: { zod: x.code, origin: x.origin, minimum: x.minimum, maximum: x.maximum } });
+      }
       return z.NEVER;
     }
     return { type: m.type, config: parsed.data, section: m.section, maxGuesses: m.maxGuesses, timeLimit: m.timeLimit };

@@ -9,6 +9,7 @@ import { SCHEMA_VERSION } from "./db.js";
 import type { GameStore } from "./store.js";
 import { LOGIN_COOKIE, SESSION_COOKIE, SESSION_TTL_S, finishLogin, LoginError, signSession, startLogin, verifySession, type Session } from "./auth.js";
 import { modules, roundsSchema, settingsSchema } from "./modules/index.js";
+import { describeProblems } from "./problems.js";
 import { loadSample } from "./sample.js";
 import { registerSessionRoutes } from "./sessions.js";
 import { registerPlayRoutes } from "./play.js";
@@ -176,7 +177,7 @@ export function registerRoutes(app: FastifyInstance, cfg: Config, db: Db, hosts:
   app.post("/api/trivias", { preHandler: requireHost }, async (req, reply) => {
     if (full(req.host_session!.email)) return reply.code(429).send(tooMany);
     const body = trivia.safeParse(req.body);
-    if (!body.success) return reply.code(400).send({ error: body.error.message });
+    if (!body.success) return reply.code(400).send(describeProblems(req.body, body.error));
     const id = randomUUID();
     const now = Date.now();
     db.prepare("INSERT INTO trivias (id, host_email, title, rounds, created_at, updated_at, settings) VALUES (?, ?, ?, ?, ?, ?, ?)").run(
@@ -211,7 +212,7 @@ export function registerRoutes(app: FastifyInstance, cfg: Config, db: Db, hosts:
     const row = load(req);
     if (!row) return reply.code(404).send({ error: "not found" });
     const body = trivia.safeParse(req.body);
-    if (!body.success) return reply.code(400).send({ error: body.error.message });
+    if (!body.success) return reply.code(400).send(describeProblems(req.body, body.error));
     // The builder says which saved version it started from. If the trivia has been saved since (another tab, another device,
     // an admin), refuse rather than overwrite that work unseen; the builder then asks. A request without `base` saves as before.
     const base = (req.body as { base?: unknown } | null)?.base;

@@ -39,7 +39,7 @@ export async function api(path, { method = "GET", body } = {}) {
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw Object.assign(new Error(data.error || `error ${res.status}`), { status: res.status, conflict: !!data.conflict });
+  if (!res.ok) throw Object.assign(new Error(data.error || `error ${res.status}`), { status: res.status, conflict: !!data.conflict, problems: Array.isArray(data.problems) ? data.problems : null });
   return data;
 }
 

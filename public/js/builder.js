@@ -19,6 +19,7 @@ state.settings.timeLimit ??= 180;
 const DRAFT_KEY = `trivia-draft:${me?.email ?? "?"}:${id ?? "new"}`; // per person, so a shared browser never offers one host's work to another
 const snap = () => JSON.stringify({ title: state.title, settings: state.settings, rounds: state.rounds }); // editable parts only
 let baseline = snap();   // what the server (or a fresh page) has
+let saveProblems = []; // what the server said was wrong with the last save, shown on the page and on the questions it is about
 let pendingDraft = null; // an unsaved draft found on load, waiting for restore/discard
 let serverDraft = false; // whether the server is holding a draft of ours
 const readDraft = () => { try { const d = JSON.parse(localStorage.getItem(DRAFT_KEY)); return d && typeof d.state === "string" ? d : null; } catch { return null; } };
@@ -263,12 +264,15 @@ function card(r, i, m) {
   const isConf = m.type === "confidence";
   const inRun = n > 1 && (isConf || !!secKey(m.section));
   if (inRun) el.classList.add("inrun");
+  const bad = saveProblems.filter((p) => p.round === r && p.question === i);
+  if (bad.length) el.classList.add("bad");
   const bar = first && (isConf || inRun)
     ? h("div", { class: "runbar" }, h("strong", {}, isConf ? `Confidence set${secKey(m.section) ? ` · ${canon(m.section)}` : ""}` : canon(m.section)),
         h("span", { class: "muted" }, `${n} question${n === 1 ? "" : "s"}${isConf ? ` · values ${(m.config.poolValues ?? []).join(", ")}` : ""}`),
         isConf ? runWarnings(head, n).map((w) => h("p", { class: "warnline" }, w)) : null)
     : null;
   mount(el, bar,
+    bad.length ? h("div", { class: "badnote", role: "alert" }, bad.map((p) => h("p", {}, p.detail))) : null,
     h("div", { class: "head" }, h("strong", { class: "grow" }, `⠿ ${i + 1}. ${def.label}`),
       h("button", { onclick: toggle, "aria-expanded": m.open ? "true" : "false" }, m.open ? "Done" : "Edit"),
       h("button", { onclick: move(-1), "aria-label": "Move up" }, "↑"), h("button", { onclick: move(1), "aria-label": "Move down" }, "↓"),
@@ -397,10 +401,11 @@ function render() {
     draftBanner(),
     h("div", { class: "row" }, h("input", { class: "grow", value: state.title, maxlength: 120, "aria-label": "Trivia title", oninput: (e) => { state.title = e.target.value; } }),
       h("button", { class: "primary", onclick: save }, "Save"), h("a", { class: "btn", href: "/host.html" }, "Back")),
-    h("p", { class: "err", id: "err" }),
+    h("div", { class: "err", id: "err", role: "alert" }, problemList()),
     id ? h("p", { class: "muted", id: "draftnote" }) : null,
     h("div", { class: "row" },
       h("span", { class: total > 50 ? "warnline" : "muted" }, `${total} question${total === 1 ? "" : "s"}${total > 50 ? ": over 50 tires players out" : ""}`),
+      blankCount() ? h("span", { class: "warnline" }, `${blankCount()} empty question${blankCount() === 1 ? "" : "s"}: fill ${blankCount() === 1 ? "it" : "them"} in or remove ${blankCount() === 1 ? "it" : "them"} before saving`) : null,
       h("span", { class: "grow" }),
       h("button", { onclick: exportJson }, "Export JSON"), h("button", { onclick: () => $("#file").click() }, "Import JSON"),
       !id && !total ? h("button", { onclick: loadSample }, "Load sample trivia") : null,
@@ -432,6 +437,7 @@ function render() {
 }
 
 async function save() {
+  if (saveProblems.length) { saveProblems = []; render(); } // the page is rebuilt, so look the message box up after this
   const err = $("#err");
   clearTimeout(draftTimer); clearTimeout(serverTimer);
   await inflight; // a draft upload still on its way must not land after the save
@@ -453,7 +459,34 @@ async function save() {
     else { const r = await api("/api/trivias", { method: "POST", body: toApi() }); baseline = snap(); clearLocal(); location.href = `/builder.html?id=${r.id}`; return; }
     baseline = snap(); clearLocal(); serverDraft = false; localFailed = false; serverFailed = ""; lastBackup = ""; note();
     err.style.color = "var(--ok)"; err.textContent = "Saved.";
-  } catch (e) { err.style.color = ""; err.textContent = `Could not save: ${e.message}`; }
+  } catch (e) {
+    err.style.color = "";
+    if (e.problems?.length) { showProblems(e.problems); return; }
+    err.textContent = `Could not save: ${e.message}`;
+  }
+}
+
+// ---- what went wrong with a save, in words, with a way to get to each question ----
+const hasText = (c) => Object.values(c ?? {}).some((v) => (typeof v === "string" && v.trim()) || (Array.isArray(v) && v.some((x) => typeof x === "string" && x.trim())));
+const blankCount = () => state.rounds.reduce((a, r) => a + r.modules.filter((m) => !hasText(m.config)).length, 0);
+function problemList() {
+  if (!saveProblems.length) return null;
+  return h("div", { class: "problems" },
+    h("p", {}, h("strong", {}, `Not saved. ${saveProblems.length === 1 ? "One thing needs" : `${saveProblems.length} things need`} fixing first:`)),
+    h("ul", {}, saveProblems.map((p) => h("li", {}, p.question !== null
+      ? h("button", { class: "linklike", onclick: () => showQuestion(p.round, p.question) }, p.message)
+      : p.message))));
+}
+function showProblems(problems) {
+  saveProblems = problems;
+  for (const p of problems.slice(0, 10)) { const m = state.rounds[p.round]?.modules[p.question]; if (m) m.open = true; }
+  render();
+}
+function showQuestion(r, i) {
+  const m = state.rounds[r]?.modules[i]; if (!m) return;
+  if (!m.open) { m.open = true; render(); }
+  const card = [...document.querySelectorAll(".round")][r]?.querySelectorAll(".mod")[i];
+  card?.scrollIntoView({ block: "center", behavior: "smooth" });
 }
 
 function exportJson() {

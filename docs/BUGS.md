@@ -26,6 +26,7 @@
 | BUG-020 | One unreadable stored game stopped the server starting; finished games stayed in memory for ever | State was loaded unchecked and never let go | Games are checked on load and skipped if broken; finished games leave memory after a day; schema changes are numbered steps | `hardening`, `flow` |
 | BUG-021 | The sample trivia's answers were readable by anyone at `/starter.json` | It sat with the public files | Signed-in hosts only | `hardening` |
 | BUG-022 | The container took 10 seconds to stop and was then killed | No handler for the stop signal | Clean shutdown; streams, timers and the database are closed | manual run |
+| BUG-023 | A save that failed showed the raw validation output, so a host who added an empty Final Jeopardy by accident could not tell what was wrong or where | The server sent the validation library's own message, and the builder printed it as it came | The server names the round, the question, its type and the box in plain words, reports an empty question once, and the builder lists the problems, marks those questions and jumps to them. It also warns about empty questions before saving | `hardening`, driven in a real browser |
 
 ## How bugs are handled
 1. Reproduce it with a failing test.

@@ -107,6 +107,14 @@ h2 { font-size: 1.3rem; line-height: 1.25; margin: 0 0 0.6rem; font-variation-se
 .row { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
 .err { color: var(--danger); margin: 0.4rem 0; }
 .err:empty { display: none; }
+.problems { border: 1.5px solid var(--danger); border-radius: var(--radius); padding: 0.6rem 0.9rem; background: var(--panel); }
+.problems p { margin: 0 0 0.3rem; }
+.problems ul { margin: 0; padding-left: 1.1rem; }
+.problems li { margin: 0.25rem 0; }
+.linklike { background: none; border: 0; padding: 0; margin: 0; font: inherit; color: var(--danger); text-align: left; text-decoration: underline; cursor: pointer; box-shadow: none; min-height: 0; }
+.mod.bad { border-color: var(--danger); border-left-width: 4px; }
+.badnote { color: var(--danger); margin-bottom: 0.3rem; }
+.badnote p { margin: 0.1rem 0; }
 p { margin: 0.55rem 0; }
 td .badge { margin-left: 0.5rem; }
 .num, .rank > span:last-child, td.num { font-variant-numeric: tabular-nums lining-nums; }
