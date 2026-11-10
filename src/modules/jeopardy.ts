@@ -1,17 +1,17 @@
 import { z } from "zod";
-import { QUESTION_MAX, detailFields, frameShape, normalize, type TriviaModule } from "./types.js";
+import { answerText, QUESTION_MAX, detailFields, frameShape, normalize, type TriviaModule } from "./types.js";
 
 const config = z.object({
   ...frameShape,
   category: z.string().min(1).max(100),
   question: z.string().min(1).max(QUESTION_MAX),
-  answers: z.array(z.string().min(1).max(200)).min(1).max(20),
+  answers: z.array(answerText).min(1).max(20),
   maxWager: z.number().int().min(1).max(1000).default(20),
   capByScore: z.boolean().default(false),
   /** A team that wagers and then sends no answer loses the wager, like a wrong answer. */
   silentLoses: z.boolean().default(true),
 });
-const answer = z.object({ text: z.string().min(1).max(200), wager: z.number().int().min(0).max(1000) });
+const answer = z.object({ text: answerText, wager: z.number().int().min(0).max(1000) });
 
 /**
  * Final Jeopardy: players see only the category and lock in a wager, then the host shows the question and they answer.

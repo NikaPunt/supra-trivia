@@ -117,6 +117,7 @@ function inputFor(state) {
   field.addEventListener("input", () => { drafts.answer = field.value; });
   const submit = () => {
     const raw = field.value.trim();
+    if (item.input.kind === "text" && raw && !/[\p{L}\p{N}]/u.test(raw)) { err.textContent = "Your answer must have at least one letter or number."; return; }
     if (raw) send({ [item.input.key]: item.input.kind === "number" ? Number(raw) : raw });
   };
   field.addEventListener("keydown", (e) => { if (e.key === "Enter") submit(); });

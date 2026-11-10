@@ -289,7 +289,10 @@ export function submit(g: Game, playerId: string, value: unknown, device?: strin
   // For Final Jeopardy the wager was locked in earlier and is kept here; whatever the phone sends for it is ignored.
   const input = mod.twoStep ? { text: (value as { text?: unknown } | null)?.text, wager: g.wagers?.[playerId] ?? 0 } : value;
   const parsed = mod.answerSchema.safeParse(input);
-  if (!parsed.success) throw new GameError("invalid answer");
+  if (!parsed.success) {
+    const custom = parsed.error.issues.find((i) => i.code === "custom");
+    throw new GameError(custom ? `Your answer ${custom.message}` : "invalid answer");
+  }
 
   const st = stakeFor(g, it, playerId);
   if (st) {

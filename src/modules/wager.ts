@@ -1,14 +1,14 @@
 import { z } from "zod";
-import { QUESTION_MAX, detailFields, frameShape, normalize, type TriviaModule } from "./types.js";
+import { answerText, QUESTION_MAX, detailFields, frameShape, normalize, type TriviaModule } from "./types.js";
 
 const config = z.object({
   ...frameShape,
   question: z.string().min(1).max(QUESTION_MAX),
-  answers: z.array(z.string().min(1).max(200)).min(1).max(20),
+  answers: z.array(answerText).min(1).max(20),
   maxWager: z.number().int().min(1).max(1000).default(20),
   capByScore: z.boolean().default(false),
 });
-const answer = z.object({ text: z.string().min(1).max(200), wager: z.number().int().min(0).max(1000) });
+const answer = z.object({ text: answerText, wager: z.number().int().min(0).max(1000) });
 
 export const wager: TriviaModule<z.infer<typeof config>, z.infer<typeof answer>> = {
   type: "wager",

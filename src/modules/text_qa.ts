@@ -1,13 +1,13 @@
 import { z } from "zod";
-import { QUESTION_MAX, detailFields, frameShape, normalize, pointsField, pointsSchema, type TriviaModule } from "./types.js";
+import { answerText, QUESTION_MAX, detailFields, frameShape, normalize, pointsField, pointsSchema, type TriviaModule } from "./types.js";
 
 const config = z.object({
   ...frameShape,
   question: z.string().min(1).max(QUESTION_MAX),
-  answers: z.array(z.string().min(1).max(200)).min(1).max(20),
+  answers: z.array(answerText).min(1).max(20),
   points: pointsSchema.default(1),
 });
-const answer = z.object({ text: z.string().min(1).max(200) });
+const answer = z.object({ text: answerText });
 
 export const textQa: TriviaModule<z.infer<typeof config>, z.infer<typeof answer>> = {
   type: "text_qa",

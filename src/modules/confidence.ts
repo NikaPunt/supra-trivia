@@ -1,14 +1,14 @@
 import { z } from "zod";
-import { QUESTION_MAX, detailFields, frameShape, normalize, type TriviaModule } from "./types.js";
+import { answerText, QUESTION_MAX, detailFields, frameShape, normalize, type TriviaModule } from "./types.js";
 
 const config = z.object({
   ...frameShape,
   question: z.string().min(1).max(QUESTION_MAX),
-  answers: z.array(z.string().min(1).max(200)).min(1).max(20),
+  answers: z.array(answerText).min(1).max(20),
   poolId: z.string().min(1).max(30).default("confidence"),
   poolValues: z.array(z.number().positive().max(1000).multipleOf(0.5)).min(2).max(10),
 });
-const answer = z.object({ text: z.string().min(1).max(200), bet: z.number() });
+const answer = z.object({ text: answerText, bet: z.number() });
 
 /** Removes one occurrence of each used value, so a pool like [8, 6, 4, 2] can be spent once each. */
 const remaining = (values: number[], used: number[]) => {

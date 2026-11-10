@@ -13,8 +13,28 @@ const deviceOf = (req: FastifyRequest): string | undefined => {
   return /^[A-Za-z0-9_-]{8,64}$/.test(d) ? d : undefined;
 };
 
+/**
+ * Joining is limited by what an abuser has to get wrong, not by how many people arrive. A whole bar shares one public address,
+ * so successful joins are only held to a generous ceiling (they cost the server a PIN hash each), while refused ones (a wrong
+ * room code, a wrong PIN, a taken name) are counted tightly, which is what guessing room codes or PINs looks like.
+ */
+export const JOIN_ATTEMPTS_PER_MINUTE = 150;
+export const JOIN_FAILURES_PER_MINUTE = 30;
+const FAIL_WINDOW_MS = 60_000;
+
 export function registerPlayRoutes(app: FastifyInstance, ctx: Ctx) {
   const { store, cfg, cookieOpts } = ctx;
+  const failures = new Map<string, number[]>();
+  const recent = (ip: string): number[] => {
+    const now = Date.now();
+    const list = (failures.get(ip) ?? []).filter((t) => now - t < FAIL_WINDOW_MS);
+    if (list.length) failures.set(ip, list); else failures.delete(ip);
+    return list;
+  };
+  const miss = (ip: string) => { const l = recent(ip); l.push(Date.now()); failures.set(ip, l); };
+  const sweep = setInterval(() => { for (const ip of [...failures.keys()]) recent(ip); }, FAIL_WINDOW_MS);
+  sweep.unref();
+  app.addHook("onClose", async () => clearInterval(sweep));
 
   const fail = (reply: FastifyReply, e: unknown) => {
     if (e instanceof GameError) return reply.code(e.status).send({ error: e.message });
@@ -34,11 +54,12 @@ export function registerPlayRoutes(app: FastifyInstance, ctx: Ctx) {
     return { g, pid: p.id };
   };
 
-  app.post("/api/join", { config: { rateLimit: { max: 20, timeWindow: "1 minute" } } }, async (req, reply) => {
+  app.post("/api/join", { config: { rateLimit: { max: JOIN_ATTEMPTS_PER_MINUTE, timeWindow: "1 minute" } } }, async (req, reply) => {
+    if (recent(req.ip).length >= JOIN_FAILURES_PER_MINUTE) return reply.code(429).send({ error: "too many failed attempts from this network. Wait a minute and try again" });
     const body = join.safeParse(req.body);
     if (!body.success) return reply.code(400).send({ error: "enter a room code and a nickname" });
     const g = store.getByCode(body.data.code);
-    if (!g) return reply.code(404).send({ error: "no active session with that code" });
+    if (!g) { miss(req.ip); return reply.code(404).send({ error: "no active session with that code" }); }
     try {
       const { player, rejoined } = joinPlayer(g, body.data.nickname, body.data.pin);
       store.save(g);
@@ -49,6 +70,7 @@ export function registerPlayRoutes(app: FastifyInstance, ctx: Ctx) {
     } catch (e) {
       // Wrong PINs and locked names change the game too (the count, the lock), and are what an owner looks for after trouble.
       store.save(g);
+      if (e instanceof GameError && e.status !== 400) miss(req.ip); // a typo in a name is not guessing; a wrong PIN or a taken name is
       req.log.warn({ code: g.code, player: body.data.nickname.slice(0, 24), reason: (e as Error).message }, "join refused");
       return fail(reply, e);
     }

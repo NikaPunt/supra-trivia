@@ -68,6 +68,13 @@ export interface TriviaModule<C = any, A = any> {
 export const normalize = (s: string): string =>
   s.toLowerCase().normalize("NFKD").replace(/[^\p{L}\p{N}]+/gu, " ").trim();
 
+/** True when a text has at least one letter or number, so blanks and strings of punctuation are not answers. */
+export const hasSubstance = (s: string): boolean => /[\p{L}\p{N}]/u.test(s);
+export const NO_SUBSTANCE = "must have at least one letter or number, not just spaces or punctuation.";
+
+/** A typed answer, whether a player's guess or an accepted answer in the builder. */
+export const answerText = z.string().min(1).max(200).refine(hasSubstance, { message: NO_SUBSTANCE });
+
 // ---- shared pieces ----
 // A question is one box of text and an answer. Clues, answer types and tiers are guidance for the person
 // writing the trivia (docs/GUIDELINES.md), not extra boxes, so players only ever see the question as written.

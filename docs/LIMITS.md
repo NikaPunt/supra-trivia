@@ -31,12 +31,12 @@ Everything the app limits, so nothing is a surprise. All of these are enforced b
 | Player or team name | 1 to 24 letters, numbers, spaces and `_ . ' -` |
 | PIN | exactly 4 digits. 10 wrong in a row lock the name for 5 minutes; the host can lift the lock |
 | Live-update connections | 20 per team or host per session, 600 per session. Past that a screen checks every 3 seconds instead |
-| An answer | 1 to 200 characters |
+| An answer | 1 to 200 characters, with at least one letter or number (blank or punctuation-only answers are refused, and so are blank or punctuation-only accepted answers in the builder) |
 | A question | up to 1200 characters; up to 20 accepted answers of up to 200 characters; a multiple choice has 2 to 6 options |
 | A trivia | title up to 120 characters; up to 30 rounds; up to 50 questions per round |
 | Trivias per host | 100 (creating or duplicating beyond that is refused) |
 | Active sessions per host | 5 |
 | Any request body | 256 KB |
-| Requests | 300 a minute per joined player or signed-in host (static files are not counted); everyone else, and all joining and logging in, is counted per address. A made-up cookie or `X-Forwarded-For` does not change who you are counted as |
+| Requests | 300 a minute per joined player or signed-in host (static files are not counted); everyone else, and logging in, is counted per address. Joining is counted per address by what goes wrong, not by how many arrive: any number of successful joins (150 attempts a minute at most), but only 30 refused ones a minute (a wrong room code, a wrong PIN, a taken name; a typo in a name does not count), so a whole room can arrive over one shared address while guessing room codes or PINs is cut off. A made-up cookie or `X-Forwarded-For` does not change who you are counted as |
 
 Hosts can still do anything the builder allows within these limits; the limits only stop mistakes and abuse.

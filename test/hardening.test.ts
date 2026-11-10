@@ -1,4 +1,5 @@
 import { test } from "node:test";
+import { JOIN_FAILURES_PER_MINUTE } from "../src/play.js";
 import assert from "node:assert/strict";
 import Database from "better-sqlite3";
 import { scryptSync } from "node:crypto";
@@ -37,14 +38,14 @@ test("a visitor cannot pick the address they are counted under", async () => {
     const r = await app.inject({ method: "POST", url: "/api/join", headers: { ...origin, "x-forwarded-for": `10.9.${i}.1, 203.0.113.9` }, payload: { code: "ZZZZZ", nickname: "a" }, remoteAddress: "172.18.0.2" });
     if (r.statusCode === 429) blocked++;
   }
-  assert.equal(blocked, 20, "the join limit holds whatever the forged part says");
+  assert.equal(blocked, 40 - JOIN_FAILURES_PER_MINUTE, "the join limit holds whatever the forged part says");
   // A sender that is not a proxy is not believed at all.
   let direct = 0;
   for (let i = 0; i < 40; i++) {
     const r = await app.inject({ method: "POST", url: "/api/join", headers: { ...origin, "x-forwarded-for": `198.51.100.${i}` }, payload: { code: "ZZZZZ", nickname: "a" }, remoteAddress: "203.0.113.50" });
     if (r.statusCode === 429) direct++;
   }
-  assert.equal(direct, 20);
+  assert.equal(direct, 40 - JOIN_FAILURES_PER_MINUTE);
   await app.close();
 });
 
