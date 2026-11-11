@@ -578,3 +578,36 @@ html[data-design="pirosmani"] body.deck .lobby h1::after { margin-inline: auto; 
 button.linklike { all: unset; cursor: pointer; text-decoration: underline; color: var(--accent-text); font-weight: 600; }
 button.linklike:hover { text-decoration-thickness: 2px; }
 button.linklike:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* a theme guess the host marked wrong */
+.struck, .g.struck > span:first-child { text-decoration: line-through; text-decoration-thickness: 2px; opacity: 0.6; }
+
+/* ---- the projector scoreboard: the whole screen once a round is over ---- */
+body.deck .recap { margin: 0 0 0.6rem; font-size: clamp(1.1rem, 1.9vw, 2rem); }
+body.deck .sign.big { display: grid; grid-template-columns: repeat(var(--cols, 1), minmax(0, 1fr)); grid-template-rows: auto repeat(var(--rows, 6), auto); grid-auto-flow: column; column-gap: 3vw; align-content: start; } /* ranks read down each column */
+body.deck .sign.big > :not(.rank) { grid-column: 1 / -1; grid-row: 1; }
+body.deck .sign.big > .rank ~ :not(.rank) { grid-row: auto; }
+body.deck .sign.big h2 { font-size: clamp(1.8rem, 3.6vw, 3.6rem); }
+body.deck .sign.big .rank { font-size: clamp(1.4rem, min(4.6vw, calc(66vh / (var(--rows, 6) * 1.7))), 4.8rem); }
+body.deck .sign.big .rank > span:last-child, body.deck .sign.big .rank .pts { font-size: 1em; }
+
+/* ---- the player's "My answers" screen ---- */
+.history .total .big { font: 700 3rem/1.1 var(--display); font-variation-settings: var(--vs-quiet); color: var(--accent-text); }
+.history .hrow { margin-top: 0.7rem; }
+.history .hhead { display: flex; justify-content: space-between; gap: 0.75rem; align-items: baseline; }
+.history .hpts { font-weight: 700; white-space: nowrap; }
+.history .hrow.right .hpts, .history .hrow.partial .hpts { color: var(--ok); }
+.history .hrow.wrong .hpts, .history .hrow.none .hpts { color: var(--danger); }
+.history .hq { color: var(--text-2); font-size: 0.95rem; margin: 0.3rem 0 0.5rem; white-space: pre-line; overflow-wrap: anywhere; cursor: pointer; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.history .hq.open { display: block; -webkit-line-clamp: unset; }
+.history p { margin: 0.2rem 0; }
+
+/* ---- the host's "All questions" tab ---- */
+.outline h3 { margin: 1.2rem 0 0.4rem; }
+.outline .oq { margin-top: 0.6rem; }
+.outline .oq.done { opacity: 0.9; }
+.outline .oq.current { border-color: var(--accent); border-width: 2px; }
+.outline .oq.upcoming { opacity: 0.75; }
+.outline .ohead { display: flex; justify-content: space-between; align-items: baseline; gap: 0.75rem; }
+.outline .oqt { margin: 0.35rem 0 0.5rem; white-space: pre-line; overflow-wrap: anywhere; color: var(--text-2); }
+.outline summary { cursor: pointer; color: var(--accent-text); font-weight: 600; }

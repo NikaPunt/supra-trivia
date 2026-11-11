@@ -771,6 +771,9 @@ function guessesLeft(g: Game, playerId: string): number | null {
   return it && limit > 0 ? Math.max(0, limit - (g.attempts[playerId] ?? 0)) : null;
 }
 
+/** Teams listed on the projector's scoreboard; phones show the top 10. */
+export const DECK_BOARD_ROWS = 24;
+
 const themePublic = (g: Game) =>
   g.theme ? { hint: g.theme.hint, revealed: g.themeRevealed, ...(g.themeRevealed ? { secret: g.theme.secret, formal: g.theme.formal } : {}) } : null;
 
@@ -803,7 +806,8 @@ export function playerView(g: Game, playerId: string, device?: string) {
     theme: g.theme && {
       ...themePublic(g),
       // Oldest first. The team shares one allowance, so every phone sees every guess; `you` marks the ones sent from this phone.
-      myGuesses: mine.map((t) => ({ text: t.text, you: !!device && t.device === device })),
+      // `struck` is set only when the host marked the guess wrong; a right guess and one not yet looked at read the same, so nothing about the theme leaks.
+      myGuesses: mine.map((t) => ({ text: t.text, you: !!device && t.device === device, struck: t.status === "rejected" })),
       guessesLeft: g.themeRevealed ? 0 : MAX_THEME_GUESSES - mine.length,
       myBonus: g.themeRevealed ? (g.themeBonus[playerId] ?? 0) : null,
     },
@@ -820,7 +824,8 @@ export function deckView(g: Game) {
     theme: themePublic(g),
     answered: new Set(g.answers.map((a) => a.playerId)).size,
     wagered: g.players.filter((p) => !p.kicked && g.wagers?.[p.id] !== undefined).length,
-    leaderboard: board?.slice(0, 10).map((r) => ({ nickname: r.nickname, points: r.points })) ?? null,
+    // The big screen has room for more than a phone does.
+    leaderboard: board?.slice(0, DECK_BOARD_ROWS).map((r) => ({ nickname: r.nickname, points: r.points })) ?? null,
   };
 }
 
@@ -843,7 +848,7 @@ export function hostView(g: Game) {
     wagers: twoStepOf(it) ? g.players.filter((p) => !p.kicked).map((p) => ({ nickname: p.nickname, wager: g.wagers?.[p.id] ?? null })) : null,
     playerList: g.players.map((p) => ({ id: p.id, nickname: p.nickname, kicked: p.kicked, answered: answered.has(p.id), hasPin: !!p.pin, pinLocked: (p.pinLockedUntil ?? 0) > Date.now() })),
     answers: g.answers.map((a) => ({
-      id: a.id, playerId: a.playerId, nickname: nick.get(a.playerId) ?? "?", value: a.value, status: a.status, points: a.points,
+      id: a.id, playerId: a.playerId, nickname: nick.get(a.playerId) ?? "?", value: a.value, status: a.status, points: a.points, at: a.at,
       // What each button awards. Stakes make "Right" and "Wrong" depend on the answer.
       full: mod!.fullPoints?.(it!.config, a.value) ?? mod!.points(it!.config),
       wrong: mod!.wrongPoints?.(it!.config, a.value) ?? 0,
@@ -859,6 +864,76 @@ export function hostView(g: Game) {
     },
     leaderboard: ranking(g, g.phase === "revealed").map((r) => ({ id: r.id, nickname: r.nickname, points: r.points })),
   };
+}
+
+// ---- the whole night at a glance ----
+
+/** Every question with its answer and whether it is behind us, current, or still to come: the host's list for telling players what an earlier answer was. */
+export function outline(g: Game) {
+  return {
+    code: g.code, title: g.title, phase: g.phase, current: g.phase === "lobby" ? 0 : g.cursor + 1, total: items(g).length,
+    questions: items(g).map((it, i) => {
+      const mod = getModule(it.type)!;
+      const status = g.phase === "ended" || i < g.cursor ? "done" : g.phase !== "lobby" && i === g.cursor ? "current" : "upcoming";
+      const others: unknown = it.config.answers;
+      return {
+        number: i + 1, round: it.roundTitle, section: it.section ?? null, type: it.type, label: mod.label, status,
+        question: String(mod.publicView(it.config, true).question ?? ""),
+        answer: mod.solution(it.config),
+        // Other spellings the question accepts, when it has a list.
+        alsoAccepts: Array.isArray(others) ? others.slice(1).map(String) : [],
+        revealed: status === "done" || (status === "current" && g.phase === "revealed"),
+      };
+    }),
+  };
+}
+
+/**
+ * One team's finished questions for its own "My answers" tab: what it answered, what it earned, and the real answer when it
+ * did not get it right. Built from the permanent record of finished questions, so it only ever holds this team's own entries
+ * and never an answer that has not been revealed.
+ */
+export function playerHistory(g: Game, playerId: string, records: { kind: string; data: any }[]) {
+  const me = g.players.find((p) => p.id === playerId)?.nickname ?? "";
+  const rows = records
+    .filter((r) => r.kind === "question")
+    .map((r) => {
+      const d = r.data;
+      const mine = (d.answers as { team: string; answer: string; points: number; marked?: boolean }[]).find((a) => a.team === me);
+      const points: number = d.points?.[me] ?? 0;
+      const lost: number | undefined = d.forfeits?.[me];
+      const stake = !!getModule(d.type)?.stake || !!getModule(d.type)?.twoStep;
+      const right = points > 0;
+      const partial = right && !stake && !!mine?.marked && points < d.worth;
+      return {
+        number: d.number as number, round: d.round as string, section: (d.section ?? null) as string | null, question: d.question as string,
+        yourAnswer: mine?.answer ?? null,
+        points,
+        result: right ? (partial ? "partial" : "right") : mine ? "wrong" : "none",
+        // The real answer, only when the team did not get the whole thing.
+        solution: right && !partial ? null : (d.solution as string),
+        ...(lost ? { lostWager: lost } : {}),
+      };
+    });
+  // The question on screen counts as soon as its answer is revealed, so this total always agrees with the scoreboard.
+  const it = currentItem(g);
+  if (g.phase === "revealed" && it && !rows.some((r) => r.number === g.cursor + 1)) {
+    const mod = getModule(it.type)!;
+    const mine = g.answers.find((a) => a.playerId === playerId);
+    const points = itemPoints(g).get(playerId) ?? 0;
+    const lost = forfeits(g).get(playerId);
+    const stake = !!mod.stake || !!mod.twoStep;
+    const right = points > 0;
+    const partial = right && !stake && !!mine?.marked && points < mod.points(it.config);
+    rows.push({
+      number: g.cursor + 1, round: it.roundTitle, section: it.section ?? null, question: String(mod.publicView(it.config, true).question ?? ""),
+      yourAnswer: mine ? answerText(it, mine.value) : null, points, result: right ? (partial ? "partial" : "right") : mine ? "wrong" : "none",
+      solution: right && !partial ? null : mod.solution(it.config), ...(lost ? { lostWager: lost } : {}),
+    } as (typeof rows)[number]);
+  }
+  const bonus = g.themeRevealed ? (g.themeBonus[playerId] ?? 0) : 0;
+  const questions = rows.reduce((t, r) => t + r.points, 0);
+  return { me, rows, themeBonus: bonus, total: questions + bonus };
 }
 
 // ---- loading stored games ----

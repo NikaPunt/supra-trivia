@@ -16,7 +16,7 @@ function themeHistory(t) {
   const showWho = t.myGuesses.some((g) => !g.you); // only mention who when more than one phone is involved
   return h("div", { class: "theme-hist" },
     h("div", { class: "eyebrow" }, `Theme guesses · ${t.guessesLeft} of ${total} left`),
-    t.myGuesses.map((g, i) => h("div", { class: "g" },
+    t.myGuesses.map((g, i) => h("div", { class: `g${g.struck ? " struck" : ""}` },
       h("span", {}, `${i + 1}. ${g.text}`),
       h("span", { class: "muted" }, [showWho ? (g.you ? "you" : "a teammate") : "", `${total - (i + 1)} left`].filter(Boolean).join(" · ")))));
 }
@@ -158,6 +158,48 @@ function render(state) {
     themeCard(state), board(state), foot(state));
 }
 
+// ---- the two screens: the game, and the team's own finished questions (kept apart so it can't be mistaken for the live question) ----
+
+let view = "game"; // "game" | "history"
+let history = null;
+let lastState = null;
+
+function viewTabs() {
+  const tab = (key, label) => h("button", { role: "tab", "aria-selected": String(view === key), class: view === key ? "on" : "", onclick: () => switchTo(key) }, label);
+  return h("div", { class: "tabs", role: "tablist", "aria-label": "Your screens" }, tab("game", "The game"), tab("history", "My answers"));
+}
+
+const pts = (n) => `${n > 0 ? "+" : ""}${n}`;
+const RESULT = { right: "Right", partial: "Part right", wrong: "Not quite", none: "No answer" };
+
+/** The team's finished questions, newest first, with the real answer wherever the team did not get it. */
+function historyView(state) {
+  if (!history) return h("p", { class: "muted" }, "Loading your answers…");
+  const rows = [...history.rows].reverse();
+  return h("div", { class: "history" },
+    h("div", { class: "card total" }, h("div", { class: "eyebrow" }, "Your points so far"), h("div", { class: "big" }, String(history.total)),
+      history.themeBonus ? h("p", { class: "muted" }, `Includes +${history.themeBonus} for finding the secret theme.`) : null,
+      h("p", { class: "muted" }, "Each question is added here once its answer is revealed.")),
+    rows.length ? rows.map((r) => h("div", { class: `card hrow ${r.result}` },
+      h("div", { class: "hhead" }, h("span", { class: "eyebrow" }, `${r.number} · ${r.round}${r.section ? ` · ${r.section}` : ""}`), h("span", { class: "hpts" }, `${RESULT[r.result]} ${pts(r.points)}`)),
+      h("p", { class: "hq", title: "Tap to read all of it", onclick: (e) => e.currentTarget.classList.toggle("open") }, r.question),
+      h("p", {}, h("span", { class: "muted" }, "You said: "), h("strong", {}, r.yourAnswer ?? "no answer sent"), r.lostWager ? h("span", { class: "muted" }, `  (wager of ${r.lostWager} lost)`) : null),
+      r.solution ? h("p", {}, h("span", { class: "muted" }, "Answer: "), h("strong", {}, r.solution)) : null))
+      : h("p", { class: "muted" }, "Nothing here yet: your answers appear once each question is finished."));
+}
+
+async function loadHistory() {
+  try { history = await api("/api/play/history"); } catch (e) { if (e.status === 401) location.href = "/"; }
+}
+function drawHistory(state) {
+  mount($("#app"), viewTabs(), historyView(state), foot(state));
+}
+async function switchTo(key) {
+  view = key;
+  if (key === "history") { drawHistory(lastState); await loadHistory(); drawHistory(lastState); }
+  else { lastRaw = ""; lastSig = ""; lastShell = ""; render(lastState); $("#app").prepend(viewTabs()); }
+}
+
 const anim = {};
 let lastRaw = "";
 /**
@@ -183,6 +225,16 @@ async function refresh() {
   try {
     const state = await api("/api/play/state");
     syncClock(state.timer);
+    lastState = state;
+    if (view === "history" && state.phase !== "lobby") {
+      // On the answers screen: keep it current, and leave the game screen's typing and drafts alone.
+      const before = JSON.stringify(history);
+      await loadHistory();
+      if (history && (before !== JSON.stringify(history) || lastRaw !== "history")) drawHistory(state);
+      lastRaw = "history";
+      return;
+    }
+    if (view === "history") view = "game";
     // Nothing changed since the last draw: leave the page exactly as it is.
     const raw = stable(state);
     if (raw === lastRaw) return;
@@ -198,6 +250,7 @@ async function refresh() {
     const f = typing ? document.activeElement : null;
     const keep = f ? { label: f.getAttribute("aria-label"), at: f.selectionStart } : null;
     render(state);
+    if (state.phase !== "lobby") $("#app").prepend(viewTabs());
     if (keep?.label) {
       const el = [...document.querySelectorAll("#app input")].find((i) => i.getAttribute("aria-label") === keep.label);
       if (el && !el.disabled) { el.focus(); try { el.setSelectionRange(keep.at, keep.at); } catch { /* not a text box */ } }

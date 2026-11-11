@@ -157,8 +157,8 @@ test("theme guesses: teammates see each other's guesses, who sent them, and one 
   assert.match(dup.json().error, /your team already guessed that/);
 
   const ta = await theme(A), tb = await theme(B);
-  assert.deepEqual(ta.myGuesses, [{ text: "moon", you: true }, { text: "stars", you: false }]);
-  assert.deepEqual(tb.myGuesses, [{ text: "moon", you: false }, { text: "stars", you: true }]);
+  assert.deepEqual(ta.myGuesses, [{ text: "moon", you: true, struck: false }, { text: "stars", you: false, struck: false }]);
+  assert.deepEqual(tb.myGuesses, [{ text: "moon", you: false, struck: false }, { text: "stars", you: true, struck: false }]);
   assert.equal(ta.guessesLeft, 3);
   assert.equal(tb.guessesLeft, 3, "five guesses for the whole team, not five each");
 

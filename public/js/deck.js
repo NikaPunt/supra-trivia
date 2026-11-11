@@ -4,7 +4,7 @@ const id = new URLSearchParams(location.search).get("id");
 document.documentElement.classList.add("deck");
 
 function board(s) {
-  return s.leaderboard ? scoreSign(s.phase === "ended" ? "Final scores" : "Scores after this round", s.leaderboard, { ended: s.phase === "ended" }) : null;
+  return s.leaderboard ? scoreSign(s.phase === "ended" ? "Final scores" : "Scores after this round", s.leaderboard, { ended: s.phase === "ended", deck: true }) : null;
 }
 
 const foot = (s) => h("div", { class: "ft" }, h("span", {}, `Join at ${location.host}`), h("span", {}, `Room ${s.code}`));
@@ -15,6 +15,12 @@ function render(s) {
     return mount($("#app"), art("tamada", { size: "wide" }), h("div", { class: "toast" }, h("span", { class: "geo" }, "გაუმარჯოს!"), h("span", { class: "plain" }, "Thanks for playing!")), themeNote(s.theme), board(s), foot(s));
   }
   const it = s.item;
+  // After a round the scores are what the room is looking at: the question gives way to a single line with its answer.
+  if (s.leaderboard && s.phase === "revealed") {
+    return mount($("#app"),
+      h("p", { class: "recap" }, h("span", { class: "muted" }, `${it.round} · the last answer: `), h("strong", {}, it.solution ?? "")),
+      board(s), foot(s));
+  }
   mount($("#app"),
     questionBlock(it, timerOf(s)),
     s.paused ? h("div", { class: "paused-banner" }, art("bear", { size: "thumb" }), h("span", {}, "Paused")) : null,

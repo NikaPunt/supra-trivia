@@ -1,3 +1,4 @@
+import { deckGrid } from "./layout.js";
 import { HORN_MARK, art } from "./art.js";
 export { art };
 
@@ -237,8 +238,11 @@ export async function hostHeader(el, { requireHost = true } = {}) {
  * A scoreboard painted on a hanging sign: the rank in a medallion, the team's name, the points. After the last
  * question the winner gets the wine horn. `rows` are { nickname, points, me? } in rank order.
  */
-export function scoreSign(title, rows, { ended = false, extra = null } = {}) {
-  return h("div", { class: "card sign" },
+export function scoreSign(title, rows, { ended = false, extra = null, deck = false } = {}) {
+  // On the projector the board is the whole screen: long lists flow into columns and the text size follows the number of rows per column.
+  const grid = deckGrid(rows.length);
+  const style = deck ? `--cols:${grid.cols};--rows:${grid.rows}` : undefined;
+  return h("div", { class: `card sign${deck ? " big" : ""}`, style },
     h("div", { class: "signhead" }, h("h2", {}, title), ended ? null : art("still", { size: "thumb" })),
     rows.map((r, i) => h("div", { class: `rank${r.me ? " me" : ""}` },
       h("span", { class: "who" }, h("span", { class: "pos" }, String(i + 1)), h("span", { class: "nm" }, r.nickname), ended && i === 0 ? hornMark() : null),

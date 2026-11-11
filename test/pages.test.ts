@@ -78,3 +78,18 @@ test("the host console and the projector redraw and retry after a failed refresh
     assert.match(catchLine!, /status === 401\) \{ location\.href = "\/auth\/login"/, `${f} goes to sign-in when signed out, instead of retrying a refused request every few seconds`);
   }
 });
+
+test("the new screens are wired in: My answers on phones, All questions on the host console, answers sorted, wrong guesses crossed off", () => {
+  const play = src("js/play.js"), session = src("js/session.js"), css = src("styles.css"), common = src("js/common.js"), deck = src("js/deck.js");
+  assert.match(play, /\/api\/play\/history/);
+  assert.match(play, /"My answers"/);
+  assert.match(play, /g\.struck/);
+  assert.match(session, /\/api\/sessions\/\$\{id\}\/outline/);
+  assert.match(session, /"All questions"/);
+  assert.match(session, /answerOrder\(s\.answers\)/);
+  assert.match(session, /g\.status === "rejected" \? "struck"/);
+  assert.match(common, /deckGrid\(rows\.length\)/);
+  assert.match(deck, /deck: true/);
+  assert.match(css, /\.struck/);
+  assert.match(css, /body\.deck \.sign\.big/);
+});

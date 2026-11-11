@@ -1,3 +1,4 @@
+import { answerOrder } from "./layout.js";
 import { $, api, clock, describeAnswer, enterIfChanged, h, hostHeader, keepAwake, live, mount, questionBlock, revealBlock, stable, syncClock, timerOf } from "./common.js";
 await hostHeader($("#bar"));
 const id = new URLSearchParams(location.search).get("id");
@@ -81,7 +82,8 @@ function wagersCard(s) {
 
 function answersCard(s, it) {
   return h("div", { class: "card" }, h("h2", {}, `Answers (${s.answers.length})`),
-    s.answers.length ? h("table", { class: "stack" }, s.answers.map((a) => h("tr", {}, h("td", {}, a.nickname),
+    // Waiting answers first and the newest on top, so the one that just arrived is where the host is already looking; marked ones settle below.
+    s.answers.length ? h("table", { class: "stack" }, answerOrder(s.answers).map((a) => h("tr", {}, h("td", {}, a.nickname),
       h("td", {}, describeAnswer(it, a.value), a.status === "pending" && a.suggest !== null ? h("span", { class: a.suggest > 0 ? "badge" : "muted" }, a.suggest > 0 ? "  looks right" : "  no match") : null),
       h("td", {}, a.status === "pending" ? "" : a.points > 0 ? `${fmt(a.points)}` : a.points < 0 ? `${a.points}` : "0"),
       h("td", {}, award(a))))) : h("p", { class: "muted" }, "None yet."),
@@ -103,7 +105,7 @@ function themePanel(s) {
   return h("div", { class: "card theme-card" }, h("h2", {}, "Secret theme"),
     h("p", {}, h("strong", {}, t.secret), t.hint ? h("span", { class: "muted" }, `  ·  hint: ${t.hint}`) : null),
     t.guesses.length ? h("table", { class: "stack" }, t.guesses.map((g) => h("tr", {},
-      h("td", {}, g.nickname), h("td", {}, g.text), h("td", { class: "muted" }, `question ${g.atNumber}`),
+      h("td", { class: g.status === "rejected" ? "struck" : "" }, g.nickname), h("td", { class: g.status === "rejected" ? "struck" : "" }, g.text), h("td", { class: "muted" }, `question ${g.atNumber}`),
       h("td", {}, g.status === "pending" ? "" : g.points > 0 ? `approved ${fmt(g.points)}` : "rejected"),
       h("td", {}, h("span", { class: "row" },
         h("button", { class: "ok", onclick: act({ action: "theme_review", guessId: g.id, points: g.suggested }) }, `Approve (${fmt(g.suggested)})`),
@@ -111,6 +113,38 @@ function themePanel(s) {
         h("button", { class: "danger", onclick: act({ action: "theme_review", guessId: g.id, points: 0 }) }, "Reject")))))) : h("p", { class: "muted" }, "No guesses yet."),
     h("p", { class: "muted" }, `Approve gives the bonus: ${t.bonus} points, the same for every team that finds it, however early. Or type any amount and press Set. Bonuses stay hidden until the theme goes public.`),
     h("button", { class: "primary", onclick: () => { if (confirm("Reveal the theme to everyone and count the bonuses?")) act({ action: "theme_reveal" })(); } }, "Reveal theme"));
+}
+
+// ---- every question and answer, and where the night is up to ----
+
+let outline = null;
+/** Fetches the list; true when it differs from what is on screen (so an opened answer is not folded away by a refresh that changed nothing). */
+async function loadOutline() {
+  try {
+    const next = await api(`/api/sessions/${id}/outline`);
+    const changed = JSON.stringify(next) !== JSON.stringify(outline);
+    outline = next;
+    return changed;
+  } catch { return false; /* keep what is shown */ }
+}
+const STATUS = { done: "Done", current: "Now", upcoming: "Coming up" };
+
+/** The whole night in order, so a player's "what was number 7?" can be answered without scrolling back through the game. */
+function outlinePanel(s) {
+  if (!outline) return h("p", { class: "muted" }, "Loading…");
+  const where = outline.phase === "lobby" ? "Not started yet." : outline.phase === "ended" ? "The game is finished." : `Now on question ${outline.current} of ${outline.total}.`;
+  let round = null;
+  return h("div", { class: "outline" },
+    h("p", { class: "muted" }, where, " Upcoming answers are folded away until you open them."),
+    outline.questions.map((q) => {
+      const head = q.round !== round ? (round = q.round, h("h3", {}, q.round)) : null;
+      return [head, h("div", { class: `card oq ${q.status}`, id: q.status === "current" ? "oq-now" : undefined },
+        h("div", { class: "ohead" }, h("span", { class: "eyebrow" }, `${q.number}${q.section ? ` · ${q.section}` : ""}`), h("span", { class: `badge ${q.status === "current" ? "pin" : ""}` }, STATUS[q.status])),
+        h("p", { class: "oqt" }, q.question),
+        q.status === "upcoming"
+          ? h("details", {}, h("summary", {}, "Show answer"), h("p", {}, h("strong", {}, q.answer), q.alsoAccepts.length ? h("span", { class: "muted" }, `  also accepts: ${q.alsoAccepts.join(", ")}`) : null))
+          : h("p", {}, h("span", { class: "muted" }, "Answer: "), h("strong", {}, q.answer), q.alsoAccepts.length ? h("span", { class: "muted" }, `  also accepts: ${q.alsoAccepts.join(", ")}`) : null))];
+    }));
 }
 
 // ---- players and scores ----
@@ -140,8 +174,14 @@ function tabBar(s) {
     ["question", "Question", false],
     ...(s.theme ? [["theme", pending ? `Theme guesses (${pending})` : "Theme guesses", tab !== "theme" && fresh]] : []),
     ["players", "Players and scores", false],
+    ["outline", "All questions", false],
   ];
-  const go = (key) => { tab = key; try { sessionStorage.setItem("host-tab", key); } catch { /* fine */ } draw(lastState); };
+  const go = async (key) => {
+    tab = key; try { sessionStorage.setItem("host-tab", key); } catch { /* fine */ }
+    if (key === "outline") await loadOutline();
+    draw(lastState);
+    if (key === "outline") $("#oq-now")?.scrollIntoView({ block: "center" });
+  };
   return h("div", { class: "tabs", role: "tablist", "aria-label": "Host console" }, defs.map(([key, label, dot]) => {
     const b = h("button", { role: "tab", id: `tab-${key}`, "aria-selected": String(tab === key), "aria-controls": "panel", class: tab === key ? "on" : "", onclick: () => go(key) }, label,
       dot ? h("span", { class: "dot", role: "img", "aria-label": "new theme guesses" }) : null);
@@ -164,6 +204,7 @@ function render(s) {
   const panel =
     tab === "theme" && s.theme ? themePanel(s)
     : tab === "players" ? playersPanel(s)
+    : tab === "outline" ? outlinePanel(s)
     : [
         controls(s),
         it ? h("div", {}, h("div", { class: "eyebrow", style: "margin-top:1.1rem" }, `${it.label}${s.roundEnd ? " · last of round: the scoreboard shows on reveal" : ""}`), questionBlock(it, timerOf(s))) : null,
@@ -193,7 +234,8 @@ async function refresh() {
   try {
     const s = await api(`/api/sessions/${id}`);
     syncClock(s.timer);
-    if (stable(s) === lastRaw) return; // nothing changed: leave the page alone
+    const listChanged = tab === "outline" ? await loadOutline() : false; // the list moves with the game
+    if (stable(s) === lastRaw && !listChanged) return; // nothing changed: leave the page alone
     if (typing()) { waiting = s; return; }
     draw(s);
   } catch (e) { if (e.status === 401) { location.href = "/auth/login"; return; } lastRaw = ""; waiting = null; setTimeout(refresh, 3000); mount($("#app"), h("p", { class: "err" }, e.message)); } // forget what was drawn so the next good fetch redraws

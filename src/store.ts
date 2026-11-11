@@ -173,6 +173,18 @@ export class GameStore {
 
   /** The permanent record of a game: one entry per finished question, and one for the theme. Oldest first. */
   records(id: string): (GameRecord & { id: number })[] {
+    // Phones ask for their history often; the list only changes when a record is filed or withdrawn, so it is read again only then.
+    const sig = this.db.prepare("SELECT COUNT(*) AS n, COALESCE(MAX(id), 0) AS m FROM game_records WHERE game_id = ?").get(id) as { n: number; m: number };
+    const key = `${sig.n}:${sig.m}`;
+    const hit = this.recordCache.get(id);
+    if (hit && hit.key === key) return hit.list;
+    const list = this.readRecords(id);
+    this.recordCache.set(id, { key, list });
+    if (this.recordCache.size > 20) this.recordCache.delete(this.recordCache.keys().next().value!);
+    return list;
+  }
+  private recordCache = new Map<string, { key: string; list: (GameRecord & { id: number })[] }>();
+  private readRecords(id: string): (GameRecord & { id: number })[] {
     return (this.db.prepare("SELECT id, at, kind, data FROM game_records WHERE game_id = ? ORDER BY id").all(id) as { id: number; at: number; kind: GameRecord["kind"]; data: string }[])
       .map((r) => ({ id: r.id, at: r.at, kind: r.kind, data: JSON.parse(r.data) }));
   }

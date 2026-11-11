@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import type { Ctx } from "./context.js";
-import { GameError, act, deckView, hostView, items, newGame, type Game } from "./game.js";
+import { GameError, act, deckView, hostView, items, newGame, outline, type Game } from "./game.js";
 import { roundsSchema, settingsSchema } from "./modules/index.js";
 
 const id = z.object({ id: z.uuid() });
@@ -97,6 +97,11 @@ export function registerSessionRoutes(
   app.get("/api/sessions/:id", { preHandler: requireHost }, async (req, reply) => {
     const g = manage(req, reply);
     return g ? { ...hostView(g), you: req.host_session!.email } : undefined;
+  });
+
+  app.get("/api/sessions/:id/outline", { preHandler: requireHost }, async (req, reply) => {
+    const g = manage(req, reply);
+    return g ? outline(g) : undefined;
   });
 
   app.get("/api/sessions/:id/deck", { preHandler: requireHost }, async (req, reply) => {

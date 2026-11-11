@@ -2,7 +2,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import type { Ctx } from "./context.js";
 import { PLAYER_COOKIE, PLAYER_MAX_AGE, signPlayer, verifyPlayer } from "./auth.js";
-import { GameError, joinPlayer, playerView, setWager, submit, submitTheme, type Game } from "./game.js";
+import { GameError, joinPlayer, playerHistory, playerView, setWager, submit, submitTheme, type Game } from "./game.js";
 import { openStream } from "./sessions.js";
 
 const join = z.object({ code: z.string().min(3).max(10), nickname: z.string().min(1).max(40), pin: z.string().max(4).optional() });
@@ -91,6 +91,12 @@ export function registerPlayRoutes(app: FastifyInstance, ctx: Ctx) {
   app.get("/api/play/state", async (req, reply) => {
     const s = await me(req, reply);
     return s ? playerView(s.g, s.pid, deviceOf(req)) : undefined;
+  });
+
+  /** This team's own finished questions, for its "My answers" tab. */
+  app.get("/api/play/history", async (req, reply) => {
+    const s = await me(req, reply);
+    return s ? playerHistory(s.g, s.pid, store.records(s.g.id)) : undefined;
   });
 
   app.post("/api/play/answer", { config: { rateLimit: { max: 30, timeWindow: "1 minute" } } }, async (req, reply) => {
