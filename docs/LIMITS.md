@@ -18,7 +18,7 @@ Everything the app limits, so nothing is a surprise. All of these are enforced b
 | What | Limit |
 |---|---|
 | Guesses per question | 0 to 50; 0 means unlimited but is still capped at 20 so nothing can grow without bound |
-| Theme guesses | 5 per player (team) |
+| Theme guesses | 3 every 30 seconds per player (team), 40 in all. A team's phones share both |
 | Time per question | 0 to 3600 seconds; 0 means no timer |
 | Adding time while a question is open | 5 to 600 seconds at a time, and never more than 30 minutes from now |
 | Answers after time is up | refused (a 1.5 second grace covers network delay) |

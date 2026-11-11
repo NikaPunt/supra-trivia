@@ -1,4 +1,4 @@
-import { test } from "node:test";
+import { test, mock } from "node:test";
 import assert from "node:assert/strict";
 import { loadConfig } from "../src/config.js";
 import { signSession } from "../src/auth.js";
@@ -147,27 +147,65 @@ async function themedSetup() {
   return { app, host, id, act, phone, guess, theme };
 }
 
-test("theme guesses: teammates see each other's guesses, who sent them, and one shared allowance", async () => {
-  const { app, phone, guess, theme } = await themedSetup();
-  const A = await phone("device-aaaa-1111"), B = await phone("device-bbbb-2222");
-  assert.equal((await guess(A, "moon")).statusCode, 200);
-  assert.equal((await guess(B, "stars")).statusCode, 200);
-  const dup = await guess(A, "STARS");
-  assert.equal(dup.statusCode, 400);
-  assert.match(dup.json().error, /your team already guessed that/);
+test("theme guesses: teammates see each other's guesses, who sent them, and one shared pace", async () => {
+  mock.timers.enable({ apis: ["Date"], now: 1_000_000 });
+  try {
+    const { app, phone, guess, theme } = await themedSetup();
+    const A = await phone("device-aaaa-1111"), B = await phone("device-bbbb-2222");
+    assert.equal((await guess(A, "moon")).statusCode, 200);
+    assert.equal((await guess(B, "stars")).statusCode, 200);
+    const dup = await guess(A, "STARS");
+    assert.equal(dup.statusCode, 400);
+    assert.match(dup.json().error, /your team already guessed that/);
 
-  const ta = await theme(A), tb = await theme(B);
-  assert.deepEqual(ta.myGuesses, [{ text: "moon", you: true, struck: false }, { text: "stars", you: false, struck: false }]);
-  assert.deepEqual(tb.myGuesses, [{ text: "moon", you: false, struck: false }, { text: "stars", you: true, struck: false }]);
-  assert.equal(ta.guessesLeft, 3);
-  assert.equal(tb.guessesLeft, 3, "five guesses for the whole team, not five each");
+    const ta = await theme(A), tb = await theme(B);
+    assert.deepEqual(ta.myGuesses, [{ text: "moon", you: true, struck: false }, { text: "stars", you: false, struck: false }]);
+    assert.deepEqual(tb.myGuesses, [{ text: "moon", you: false, struck: false }, { text: "stars", you: true, struck: false }]);
+    assert.equal(ta.guessesLeft, tb.guessesLeft, "one count for the whole team, not one each");
+    assert.equal(ta.waitMs, 0, "two guesses so far: free to guess again at once");
 
-  for (const g of ["sun", "comets", "planets"].slice(0, 3)) await guess(g.length % 2 ? A : B, g);
-  assert.equal((await theme(A)).guessesLeft, 0);
-  assert.equal((await guess(B, "one more")).statusCode, 429, "used up for every phone");
-  assert.equal((await theme(B)).myGuesses.length, 5);
-  assert.ok(!JSON.stringify(ta).includes("approved"), "nobody learns whether a guess was right until the theme is public");
-  await app.close();
+    assert.equal((await guess(B, "sun")).statusCode, 200, "the third in the burst");
+    const slow = await guess(A, "comets");
+    assert.equal(slow.statusCode, 429, "a fourth within 30 seconds waits, whichever phone sends it");
+    assert.match(slow.json().error, /3 theme guesses every 30 seconds.*in 30 seconds/);
+    const wa = (await theme(A)).waitMs, wb = (await theme(B)).waitMs;
+    assert.equal(wa, 30_000);
+    assert.equal(wa, wb, "every phone shows the same wait");
+
+    mock.timers.tick(29_000);
+    assert.equal((await theme(A)).waitMs, 1_000);
+    assert.equal((await guess(A, "comets")).statusCode, 429, "still waiting a second before the wait is up");
+    mock.timers.tick(1_000);
+    assert.equal((await theme(A)).waitMs, 0);
+    assert.equal((await guess(A, "comets")).statusCode, 200, "the team can go on guessing");
+    assert.equal((await theme(B)).myGuesses.length, 4);
+    assert.ok(!JSON.stringify(ta).includes("approved"), "nobody learns whether a guess was right until the theme is public");
+    await app.close();
+  } finally {
+    mock.timers.reset();
+  }
+});
+
+test("theme guesses: a team can keep guessing all night, with a ceiling that keeps the saved game small", async () => {
+  mock.timers.enable({ apis: ["Date"], now: 1_000_000 });
+  try {
+    const { app, phone, guess, theme } = await themedSetup();
+    const A = await phone("device-aaaa-1111");
+    let sent = 0;
+    for (let round = 0; round < 20 && sent < 40; round++) {
+      for (let i = 0; i < 3 && sent < 40; i++) assert.equal((await guess(A, `idea ${sent++}`)).statusCode, 200, `guess ${sent}`);
+      mock.timers.tick(30_000);
+    }
+    assert.equal(sent, 40);
+    const t = await theme(A);
+    assert.equal(t.guessesLeft, 0);
+    const over = await guess(A, "one too many");
+    assert.equal(over.statusCode, 429);
+    assert.match(over.json().error, /all 40 theme guesses/);
+    await app.close();
+  } finally {
+    mock.timers.reset();
+  }
 });
 
 test("theme guesses: a burst from several phones cannot beat the limit and everyone sees the same list", async () => {
@@ -175,11 +213,11 @@ test("theme guesses: a burst from several phones cannot beat the limit and every
   const phones = [await phone("device-aaaa-1111"), await phone("device-bbbb-2222"), await phone("device-cccc-3333")];
   const results = await Promise.all(Array.from({ length: 10 }, (_, i) => guess(phones[i % 3]!, `idea ${i}`)));
   const ok = results.filter((r) => r.statusCode === 200).length;
-  assert.equal(ok, 5, "exactly five got through");
-  assert.equal(results.filter((r) => r.statusCode === 429).length, 5);
+  assert.equal(ok, 3, "exactly three got through, however many phones sent them at once");
+  assert.equal(results.filter((r) => r.statusCode === 429).length, 7);
   const views = await Promise.all(phones.map(theme));
   assert.equal(new Set(views.map((v) => v.myGuesses.map((g: any) => g.text).join("|"))).size, 1, "every phone lists the same guesses in the same order");
-  assert.ok(views.every((v) => v.guessesLeft === 0));
+  assert.ok(views.every((v) => v.waitMs > 0), "and they are all told to wait");
   await app.close();
 });
 

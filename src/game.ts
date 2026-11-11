@@ -33,6 +33,8 @@ export interface ThemeGuess {
   text: string;
   /** Question number when the guess was made; earlier guesses are worth more. */
   atNumber: number;
+  /** When it was sent (epoch ms). Absent on guesses saved before the pace limit existed. */
+  at?: number;
   /** Which phone sent it, so teammates can see who guessed what. */
   device?: string;
   status: AnswerStatus;
@@ -185,7 +187,13 @@ export const MAX_JOINS = 400;
 export const GAME_VERSION = 2;
 /** Hard ceiling when a host picks "unlimited", so live state can never grow without bound. */
 export const UNLIMITED_CAP = 20;
-export const MAX_THEME_GUESSES = 5;
+/**
+ * Theme guesses are limited by pace, not by count: a team may send a few at a time and then must wait, so it can keep guessing
+ * all round but cannot spray the host with them. The ceiling only keeps the saved game a sensible size.
+ */
+export const THEME_BURST = 3;
+export const THEME_BURST_MS = 30_000;
+export const MAX_THEME_GUESSES = 40;
 /** This many wrong PINs in a row lock the name for PIN_LOCK_MS, not for good: a stranger must not be able to shut a team out. */
 export const MAX_PIN_FAILS = 10;
 export const PIN_LOCK_MS = 5 * 60 * 1000;
@@ -449,6 +457,13 @@ function finishItem(g: Game): void {
 /** Finding the theme is worth the same to everyone: no extra points for being early. */
 export const suggestedThemePoints = (bonus = 4) => bonus;
 
+/** How long this team must wait before its next theme guess: 0 when it may guess now. The whole team shares the pace, whatever phone a guess came from. */
+export function themeWaitMs(g: Game, playerId: string, now = Date.now()): number {
+  const recent = g.themeGuesses.filter((t) => t.playerId === playerId && typeof t.at === "number" && now - t.at < THEME_BURST_MS).map((t) => t.at!).sort((a, b) => a - b);
+  if (recent.length < THEME_BURST) return 0;
+  return recent[recent.length - THEME_BURST]! + THEME_BURST_MS - now;
+}
+
 export function submitTheme(g: Game, playerId: string, rawText: string, device?: string): void {
   const p = g.players.find((x) => x.id === playerId);
   if (!p || p.kicked) throw new GameError("you are not in this session", 403);
@@ -458,9 +473,11 @@ export function submitTheme(g: Game, playerId: string, rawText: string, device?:
   const text = rawText.trim().slice(0, 200);
   if (!text) throw new GameError("enter a guess");
   const mine = g.themeGuesses.filter((t) => t.playerId === playerId);
-  if (mine.length >= MAX_THEME_GUESSES) throw new GameError(`at most ${MAX_THEME_GUESSES} theme guesses each`, 429);
+  if (mine.length >= MAX_THEME_GUESSES) throw new GameError(`your team has used all ${MAX_THEME_GUESSES} theme guesses`, 429);
   if (mine.some((t) => normalize(t.text) === normalize(text))) throw new GameError("your team already guessed that");
-  g.themeGuesses.push({ id: randomUUID(), playerId, text, atNumber: g.cursor + 1, device, status: "pending", points: 0 });
+  const wait = themeWaitMs(g, playerId);
+  if (wait > 0) throw new GameError(`${THEME_BURST} theme guesses every ${THEME_BURST_MS / 1000} seconds. You can guess again in ${Math.ceil(wait / 1000)} seconds`, 429);
+  g.themeGuesses.push({ id: randomUUID(), playerId, text, atNumber: g.cursor + 1, at: Date.now(), device, status: "pending", points: 0 });
 }
 
 /** Approves waiting guesses that are the theme word for word, so a right guess is never lost because the host had not got to it. */
@@ -809,6 +826,8 @@ export function playerView(g: Game, playerId: string, device?: string) {
       // `struck` is set only when the host marked the guess wrong; a right guess and one not yet looked at read the same, so nothing about the theme leaks.
       myGuesses: mine.map((t) => ({ text: t.text, you: !!device && t.device === device, struck: t.status === "rejected" })),
       guessesLeft: g.themeRevealed ? 0 : MAX_THEME_GUESSES - mine.length,
+      // Milliseconds until this team may send another theme guess (0 = now), so every phone shows the same short wait.
+      waitMs: g.themeRevealed ? 0 : themeWaitMs(g, playerId),
       myBonus: g.themeRevealed ? (g.themeBonus[playerId] ?? 0) : null,
     },
     leaderboard: board?.slice(0, 10).map((r) => ({ nickname: r.nickname, points: r.points, me: r.id === playerId })) ?? null,

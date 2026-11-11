@@ -10,16 +10,26 @@ function board(state) {
     extra: state.myRank && state.myRank > 10 ? h("p", { class: "muted" }, `You are #${state.myRank}`) : null });
 }
 
-/** The team's theme guesses, oldest first: who sent each and how many are left after it. */
+/** The team's theme guesses, oldest first, and who sent each. There is no small allowance to count down: only a pace (see the note under the box). */
 function themeHistory(t) {
-  const total = t.myGuesses.length + t.guessesLeft;
   const showWho = t.myGuesses.some((g) => !g.you); // only mention who when more than one phone is involved
+  const running = t.guessesLeft <= 5 && t.guessesLeft > 0 ? ` · only ${t.guessesLeft} left` : t.guessesLeft === 0 ? " · no guesses left" : "";
   return h("div", { class: "theme-hist" },
-    h("div", { class: "eyebrow" }, `Theme guesses · ${t.guessesLeft} of ${total} left`),
+    h("div", { class: "eyebrow" }, `Theme guesses · ${t.myGuesses.length} so far${running}`),
     t.myGuesses.map((g, i) => h("div", { class: `g${g.struck ? " struck" : ""}` },
       h("span", {}, `${i + 1}. ${g.text}`),
-      h("span", { class: "muted" }, [showWho ? (g.you ? "you" : "a teammate") : "", `${total - (i + 1)} left`].filter(Boolean).join(" · ")))));
+      h("span", { class: "muted" }, showWho ? (g.you ? "you" : "a teammate") : ""))));
 }
+
+// The team's theme guesses come at a pace (a few, then a short wait). This keeps the wait on the screen ticking without redrawing anything.
+let coolUntil = 0;
+setInterval(() => {
+  const note = document.querySelector("#app .cool"), btn = document.querySelector("#app .theme-send");
+  if (!note || !btn) return;
+  const left = coolUntil - Date.now();
+  note.textContent = left > 0 ? `That is the most guesses for now. You can guess again in ${Math.ceil(left / 1000)} seconds.` : "";
+  btn.disabled = left > 0 || btn.dataset.out === "1";
+}, 500);
 
 /** The theme as a note card. While it is secret it also holds the box for guessing it. */
 function themeCard(state) {
@@ -30,14 +40,16 @@ function themeCard(state) {
   const field = h("input", { placeholder: "What connects it all?", maxlength: 200, value: drafts.theme, disabled: t.guessesLeft === 0, "aria-label": "Guess the secret theme" });
   field.addEventListener("input", () => { drafts.theme = field.value; });
   const err = h("p", { class: "err" });
+  const cool = h("p", { class: "muted cool", "aria-live": "polite" });
   const send = async () => {
     if (!field.value.trim()) return;
-    try { await api("/api/play/theme", { method: "POST", body: { guess: field.value } }); drafts.theme = ""; await refresh(); }
+    try { await api("/api/play/theme", { method: "POST", body: { guess: field.value } }); drafts.theme = ""; err.textContent = ""; await refresh(); }
     catch (e) { err.textContent = e.message; }
   };
   field.addEventListener("keydown", (e) => { if (e.key === "Enter") send(); });
   return themeNote(t,
-    h("div", { class: "row" }, h("div", { class: "grow" }, field), h("button", { disabled: t.guessesLeft === 0, onclick: send }, "Guess")),
+    h("div", { class: "row" }, h("div", { class: "grow" }, field), h("button", { class: "theme-send", "data-out": t.guessesLeft === 0 ? "1" : "0", disabled: t.guessesLeft === 0 || t.waitMs > 0, onclick: send }, "Guess")),
+    cool,
     themeHistory(t),
     err);
 }
@@ -210,7 +222,7 @@ const shellOf = (s) => JSON.stringify({
   ...s,
   guessLog: s.guessLog.length > 0,
   guessesLeft: s.guessesLeft === 0,
-  theme: s.theme && { ...s.theme, myGuesses: s.theme.myGuesses.length > 0, guessesLeft: s.theme.guessesLeft === 0 },
+  theme: s.theme && { ...s.theme, myGuesses: s.theme.myGuesses.length > 0, guessesLeft: s.theme.guessesLeft === 0, waitMs: s.theme.waitMs > 0 },
 });
 let lastShell = "";
 function patch(state) {
@@ -236,7 +248,9 @@ async function refresh() {
     }
     if (view === "history") view = "game";
     // Nothing changed since the last draw: leave the page exactly as it is.
-    const raw = stable(state);
+    if (state.theme) coolUntil = Date.now() + (state.theme.waitMs || 0);
+    // The wait counts down by itself, so only whether there is one belongs in the comparison: a ticking number must not redraw the page.
+    const raw = stable({ ...state, theme: state.theme && { ...state.theme, waitMs: state.theme.waitMs > 0 } });
     if (raw === lastRaw) return;
     const typing = document.activeElement?.closest?.("#app") && /INPUT|SELECT/.test(document.activeElement.tagName);
     if (typing && shellOf(state) === lastShell) { patch(state); lastRaw = raw; return; }

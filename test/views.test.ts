@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { DECK_BOARD_ROWS, act, deckView, hostView, joinPlayer, newGame, outline, playerHistory, playerView, submit, submitTheme, type Game } from "../src/game.js";
+import { DECK_BOARD_ROWS, act, deckView, hostView, joinPlayer, newGame, outline, playerHistory, playerView, submit, submitTheme, themeWaitMs, type Game } from "../src/game.js";
 import { roundsSchema } from "../src/modules/index.js";
 import { openDb } from "../src/db.js";
 import { GameStore } from "../src/store.js";
@@ -105,7 +105,7 @@ test("a theme guess the host marked wrong is crossed off for the team, and nothi
   act(g, { action: "theme_review", guessId: guess("summer").id, points: 0 });
   const mine = () => playerView(g, ann.id).theme!.myGuesses.map((x) => [x.text, x.struck]);
   assert.deepEqual(mine(), [["winter", true], ["fall", false], ["pumpkins", false]], "only the wrong one is crossed off; the right one reads like one not yet looked at");
-  assert.equal(playerView(g, ann.id).theme!.guessesLeft, 2, "a crossed-off guess still counts against the five");
+  assert.equal(playerView(g, ann.id).theme!.guessesLeft, 40 - 3, "a crossed-off guess still counts toward the ceiling");
   assert.ok(!JSON.stringify(playerView(g, bob.id)).includes("winter"), "and a team never sees another team's guesses");
   assert.deepEqual(hostView(g).theme!.guesses.map((x) => [x.text, x.status]).filter((x) => x[0] === "winter" || x[0] === "fall"), [["winter", "rejected"], ["fall", "pending"]]);
   void step;
@@ -199,4 +199,25 @@ test("over HTTP: a team gets only its own history; only the owner gets the outli
   assert.deepEqual(o.json().questions.map((q: any) => [q.answer, q.status]), [["one", "done"], ["two", "current"]]);
   assert.equal((await app.inject({ url: `/api/sessions/${id}/outline`, headers: other })).statusCode, 404, "another host cannot");
   assert.equal((await app.inject({ url: `/api/sessions/${id}/outline`, headers: ann })).statusCode, 401, "a player cannot");
+});
+
+test("the theme guess pace: three in any 30 seconds, shared by the team, counted from when each was sent", () => {
+  const { g, ann, bob } = make([{ title: "R", modules: [t("a"), t("b")] }], true);
+  const T0 = 5_000_000;
+  const at = (n: number, who = ann.id, secs = 0) => g.themeGuesses.push({ id: String(Math.random()), playerId: who, text: "g" + n + who, atNumber: 1, at: T0 + secs * 1000, status: "pending", points: 0 });
+  assert.equal(themeWaitMs(g, ann.id, T0), 0, "no guesses yet");
+  at(1, ann.id, 0); at(2, ann.id, 5);
+  assert.equal(themeWaitMs(g, ann.id, T0 + 6_000), 0, "two in the window: free");
+  at(3, ann.id, 10);
+  assert.equal(themeWaitMs(g, ann.id, T0 + 12_000), 18_000, "three in the window: wait until the oldest is 30 seconds old");
+  assert.equal(themeWaitMs(g, ann.id, T0 + 30_000), 0, "exactly 30 seconds after the first, it is open again");
+  assert.equal(themeWaitMs(g, bob.id, T0 + 12_000), 0, "another team is not held up");
+  // A fourth recorded inside the window (an old save, or a race) never makes the wait negative or silly.
+  at(4, ann.id, 11);
+  assert.equal(themeWaitMs(g, ann.id, T0 + 12_000), 23_000, "the wait is until only two remain in the window");
+  // Guesses saved before the pace existed carry no time and never hold anyone up.
+  const old = make([{ title: "R", modules: [t("a")] }], true);
+  for (let i = 0; i < 5; i++) old.g.themeGuesses.push({ id: "o" + i, playerId: old.ann.id, text: "old" + i, atNumber: 1, status: "pending", points: 0 });
+  assert.equal(themeWaitMs(old.g, old.ann.id), 0);
+  assert.equal(playerView(old.g, old.ann.id).theme!.waitMs, 0);
 });

@@ -140,11 +140,11 @@ test("full live session over HTTP: join, rejoin by PIN, round-end boards, theme,
   assert.equal((await say("x4")).statusCode, 429);
   assert.equal((await state()).myAnswers.length, 1);
 
-  // Secret theme: guesses are capped, hidden, and only count once revealed.
-  for (let i = 0; i < 5; i++) assert.equal((await app.inject({ method: "POST", url: "/api/play/theme", headers: player, payload: { guess: `moon${i}` } })).statusCode, 200);
+  // Secret theme: guesses come at a pace (three, then a wait), are hidden, and only count once revealed.
+  for (let i = 0; i < 3; i++) assert.equal((await app.inject({ method: "POST", url: "/api/play/theme", headers: player, payload: { guess: `moon${i}` } })).statusCode, 200);
   assert.equal((await app.inject({ method: "POST", url: "/api/play/theme", headers: player, payload: { guess: "sun" } })).statusCode, 429);
   const hv = (await app.inject({ url: `/api/sessions/${id}`, headers: alice })).json();
-  assert.equal(hv.theme.guesses.length, 5);
+  assert.equal(hv.theme.guesses.length, 3);
   assert.equal(hv.theme.guesses[0].suggested, 4, "the bonus is the same whenever the guess was made");
   assert.equal((await act(alice, { action: "theme_review", guessId: hv.theme.guesses[0].id, points: 3 })).statusCode, 200);
   assert.equal(JSON.stringify(await state()).includes("approved"), false, "players are never shown an approval status");
