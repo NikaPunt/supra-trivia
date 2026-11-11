@@ -1,3 +1,4 @@
+import { foldGuesses } from "./layout.js";
 import { $, api, describeAnswer, enterIfChanged, h, keepAwake, live, mount, questionBlock, revealBlock, art, scoreSign, stable, syncClock, themeNote, timerOf } from "./common.js";
 
 // Typed text survives re-renders caused by live updates.
@@ -10,14 +11,22 @@ function board(state) {
     extra: state.myRank && state.myRank > 10 ? h("p", { class: "muted" }, `You are #${state.myRank}`) : null });
 }
 
-/** The team's theme guesses, oldest first, and who sent each. There is no small allowance to count down: only a pace (see the note under the box). */
+let showAllTheme = false; // whether the older theme guesses are unfolded; kept across redraws
+
+/** The team's theme guesses, oldest first, and who sent each. Only the latest few show; the rest fold into one line so the box and the question stay on screen. */
 function themeHistory(t) {
   const showWho = t.myGuesses.some((g) => !g.you); // only mention who when more than one phone is involved
   const running = t.guessesLeft <= 5 && t.guessesLeft > 0 ? ` · only ${t.guessesLeft} left` : t.guessesLeft === 0 ? " · no guesses left" : "";
+  const f = foldGuesses(t.myGuesses, showAllTheme);
+  const toggle = f.canFold
+    ? h("button", { class: "linklike fold", onclick: () => { showAllTheme = !showAllTheme; $("#app .theme-hist")?.replaceWith(themeHistory(lastState.theme)); } },
+        f.folded ? `Show ${f.hiddenCount} earlier guess${f.hiddenCount === 1 ? "" : "es"}${f.hiddenStruck ? ` (${f.hiddenStruck} crossed off)` : ""}` : "Show fewer")
+    : null;
   return h("div", { class: "theme-hist" },
     h("div", { class: "eyebrow" }, `Theme guesses · ${t.myGuesses.length} so far${running}`),
-    t.myGuesses.map((g, i) => h("div", { class: `g${g.struck ? " struck" : ""}` },
-      h("span", {}, `${i + 1}. ${g.text}`),
+    toggle,
+    f.shown.map((g, i) => h("div", { class: `g${g.struck ? " struck" : ""}` },
+      h("span", {}, `${f.offset + i + 1}. ${g.text}`),
       h("span", { class: "muted" }, showWho ? (g.you ? "you" : "a teammate") : ""))));
 }
 

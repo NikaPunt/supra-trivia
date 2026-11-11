@@ -363,7 +363,7 @@ html.deck { font-size: calc(clamp(16px, 0.9vw, 64px) * var(--deck-scale, 1)); }
 
 /* the team's theme guesses */
 .theme-hist { margin-top: 0.7rem; }
-.theme-hist .g { display: flex; justify-content: space-between; gap: 1rem; padding: 0.25rem 0; }
+.theme-hist .g { display: flex; justify-content: space-between; gap: 1rem; padding: 0.1rem 0; font-size: 0.97rem; }
 .theme-hist .g .muted { font-size: 0.9rem; text-align: right; }
 
 /* the countdown, right-aligned on the header line */
@@ -611,3 +611,6 @@ body.deck .sign.big .rank > span:last-child, body.deck .sign.big .rank .pts { fo
 .outline .ohead { display: flex; justify-content: space-between; align-items: baseline; gap: 0.75rem; }
 .outline .oqt { margin: 0.35rem 0 0.5rem; white-space: pre-line; overflow-wrap: anywhere; color: var(--text-2); }
 .outline summary { cursor: pointer; color: var(--accent-text); font-weight: 600; }
+
+/* the line that folds older theme guesses */
+.theme-hist .fold { display: block; margin: 0.2rem 0 0.35rem; font-size: 0.95rem; }

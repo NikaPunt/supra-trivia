@@ -9,3 +9,17 @@ export function deckGrid(n) {
   const cols = Math.min(4, Math.max(1, Math.ceil(n / 12)));
   return { cols, rows: Math.max(1, Math.ceil(n / cols)) };
 }
+
+/** How many of a team's theme guesses are shown before the older ones fold away. */
+export const THEME_FOLD_KEEP = 5;
+
+/**
+ * Splits a team's theme guesses (oldest first) into the ones to show and the ones folded away, so a long run of guesses
+ * never pushes the box and the question off the phone's screen. Numbering stays that of the whole list via `offset`.
+ */
+export function foldGuesses(list, showAll = false, keep = THEME_FOLD_KEEP) {
+  const folded = !showAll && list.length > keep;
+  const shown = folded ? list.slice(list.length - keep) : list;
+  const hidden = list.slice(0, list.length - shown.length);
+  return { shown, offset: list.length - shown.length, hiddenCount: hidden.length, hiddenStruck: hidden.filter((g) => g.struck).length, canFold: list.length > keep, folded };
+}

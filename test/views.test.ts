@@ -9,7 +9,7 @@ import { signSession } from "../src/auth.js";
 import { HostDirectory } from "../src/hosts.js";
 import { buildApp } from "../src/app.js";
 // @ts-expect-error plain browser module with no types
-import { answerOrder, deckGrid } from "../public/js/layout.js";
+import { answerOrder, deckGrid, foldGuesses } from "../public/js/layout.js";
 
 // What a team sees of its own finished questions, what the host sees of the whole night, and the host and projector layouts.
 
@@ -220,4 +220,21 @@ test("the theme guess pace: three in any 30 seconds, shared by the team, counted
   for (let i = 0; i < 5; i++) old.g.themeGuesses.push({ id: "o" + i, playerId: old.ann.id, text: "old" + i, atNumber: 1, status: "pending", points: 0 });
   assert.equal(themeWaitMs(old.g, old.ann.id), 0);
   assert.equal(playerView(old.g, old.ann.id).theme!.waitMs, 0);
+});
+
+test("theme guesses fold: the latest five show, the rest sit behind one line, and numbering stays whole", () => {
+  const list = Array.from({ length: 10 }, (_, i) => ({ text: "g" + (i + 1), struck: i === 1 || i === 3 || i === 8 }));
+  const f = foldGuesses(list);
+  assert.deepEqual(f.shown.map((g: any) => g.text), ["g6", "g7", "g8", "g9", "g10"]);
+  assert.equal(f.offset, 5, "the first shown is number 6");
+  assert.equal(f.hiddenCount, 5);
+  assert.equal(f.hiddenStruck, 2, "the fold line can say how many hidden ones were crossed off");
+  assert.equal(f.folded, true);
+  const all = foldGuesses(list, true);
+  assert.equal(all.shown.length, 10);
+  assert.deepEqual([all.offset, all.hiddenCount, all.folded, all.canFold], [0, 0, false, true], "unfolded still offers to fold again");
+  const few = foldGuesses(list.slice(0, 5));
+  assert.deepEqual([few.shown.length, few.hiddenCount, few.canFold, few.folded], [5, 0, false, false], "five or fewer never fold, and offer no toggle");
+  assert.deepEqual(foldGuesses([]).shown, []);
+  assert.equal(foldGuesses(list.slice(0, 6)).hiddenCount, 1);
 });

@@ -84,6 +84,7 @@ test("the new screens are wired in: My answers on phones, All questions on the h
   assert.match(play, /\/api\/play\/history/);
   assert.match(play, /"My answers"/);
   assert.match(play, /g\.struck/);
+  assert.match(play, /foldGuesses\(t\.myGuesses, showAllTheme\)/, "older theme guesses fold away");
   assert.match(session, /\/api\/sessions\/\$\{id\}\/outline/);
   assert.match(session, /"All questions"/);
   assert.match(session, /answerOrder\(s\.answers\)/);
