@@ -23,3 +23,24 @@ export function foldGuesses(list, showAll = false, keep = THEME_FOLD_KEEP) {
   const hidden = list.slice(0, list.length - shown.length);
   return { shown, offset: list.length - shown.length, hiddenCount: hidden.length, hiddenStruck: hidden.filter((g) => g.struck).length, canFold: list.length > keep, folded };
 }
+
+/**
+ * Tracks a connection that keeps failing, without any page code: `failed()` on every failed refresh, `ok()` on every good one.
+ * `show()` is called once, only when failures have lasted `delay` ms (so a blip of a second or two shows nothing at all),
+ * and `hide()` once the next good refresh arrives.
+ */
+export function connectionWatch(delay, show, hide) {
+  let since = 0, shown = false, timer;
+  const reveal = () => { timer = undefined; if (since && !shown) { shown = true; show(); } };
+  return {
+    failed() {
+      if (!since) since = Date.now();
+      if (!shown && timer === undefined) timer = setTimeout(reveal, Math.max(0, delay - (Date.now() - since)));
+    },
+    ok() {
+      since = 0;
+      clearTimeout(timer); timer = undefined;
+      if (shown) { shown = false; hide(); }
+    },
+  };
+}

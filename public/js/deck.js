@@ -1,4 +1,4 @@
-import { $, api, enterIfChanged, h, keepAwake, live, mount, questionBlock, revealBlock, scene, art, scoreSign, stable, syncClock, themeNote, timerOf } from "./common.js";
+import { $, api, connectionNote, enterIfChanged, h, keepAwake, live, mount, questionBlock, revealBlock, scene, art, scoreSign, stable, syncClock, themeNote, timerOf } from "./common.js";
 const id = new URLSearchParams(location.search).get("id");
 // The projector scales with the screen, so a 4K display is not a small column on a big black field.
 document.documentElement.classList.add("deck");
@@ -31,16 +31,25 @@ function render(s) {
 
 const anim = {};
 let lastRaw = "";
+const conn = connectionNote(8000); // the TV is in front of the room: say nothing at all for a blip
+let drawn = false;
 async function refresh() {
   try {
     const s = await api(`/api/sessions/${id}/deck`);
+    conn.ok();
     syncClock(s.timer);
     const raw = stable(s);
     if (raw === lastRaw) return; // nothing changed: leave the screen alone
     lastRaw = raw;
     render(s);
+    drawn = true;
     enterIfChanged(`${s.number}:${s.phase}`, anim);
-  } catch (e) { if (e.status === 401) { location.href = "/auth/login"; return; } lastRaw = ""; setTimeout(refresh, 3000); mount($("#app"), h("p", { class: "err" }, e.message)); } // forget what was drawn so the next good fetch redraws
+  } catch (e) {
+    if (e.status === 401) { location.href = "/auth/login"; return; }
+    lastRaw = ""; setTimeout(refresh, 3000); // forget what was drawn so the next good fetch redraws, and try again soon
+    // The screen stays as it was; the room sees a small note only if the trouble goes on.
+    if (drawn) conn.failed(); else mount($("#app"), h("p", { class: "err" }, e.message));
+  }
 }
 refresh();
 live(`/api/sessions/${id}/events`, refresh);

@@ -1,5 +1,5 @@
 import { answerOrder } from "./layout.js";
-import { $, api, clock, describeAnswer, enterIfChanged, h, hostHeader, keepAwake, live, mount, questionBlock, revealBlock, stable, syncClock, timerOf } from "./common.js";
+import { $, api, clock, connectionNote, describeAnswer, enterIfChanged, h, hostHeader, keepAwake, live, mount, questionBlock, revealBlock, stable, syncClock, timerOf } from "./common.js";
 await hostHeader($("#bar"));
 const id = new URLSearchParams(location.search).get("id");
 
@@ -230,15 +230,22 @@ let waiting = null; // a newer state, held back while the host is typing an amou
 const typing = () => { const a = document.activeElement; return a && a.tagName === "INPUT" && $("#app").contains(a) && a.value !== ""; };
 function draw(s) { lastRaw = stable(s); waiting = null; lastState = s; render(s); enterIfChanged(`${s.number}:${s.phase}:${tab}`, anim); }
 document.addEventListener("focusout", () => setTimeout(() => { if (waiting && !typing()) draw(waiting); }, 0));
+const conn = connectionNote(4000);
 async function refresh() {
   try {
     const s = await api(`/api/sessions/${id}`);
+    conn.ok();
     syncClock(s.timer);
     const listChanged = tab === "outline" ? await loadOutline() : false; // the list moves with the game
     if (stable(s) === lastRaw && !listChanged) return; // nothing changed: leave the page alone
     if (typing()) { waiting = s; return; }
     draw(s);
-  } catch (e) { if (e.status === 401) { location.href = "/auth/login"; return; } lastRaw = ""; waiting = null; setTimeout(refresh, 3000); mount($("#app"), h("p", { class: "err" }, e.message)); } // forget what was drawn so the next good fetch redraws
+  } catch (e) {
+    if (e.status === 401) { location.href = "/auth/login"; return; }
+    lastRaw = ""; waiting = null; setTimeout(refresh, 3000); // forget what was drawn so the next good fetch redraws, and try again soon
+    // Once the console has been drawn, a failed refresh must not take it away: the buttons stay, and a small note says we are reconnecting.
+    if (lastState) conn.failed(); else mount($("#app"), h("p", { class: "err" }, e.message));
+  }
 }
 refresh();
 live(`/api/sessions/${id}/events`, refresh);

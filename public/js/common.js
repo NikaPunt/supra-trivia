@@ -1,4 +1,4 @@
-import { deckGrid } from "./layout.js";
+import { connectionWatch, deckGrid } from "./layout.js";
 import { HORN_MARK, art } from "./art.js";
 export { art };
 
@@ -260,4 +260,14 @@ function hornMark() {
 /** An empty list, with a giraffe to keep it company. */
 export function emptyState(text) {
   return h("div", { class: "empty" }, art("giraffe", { size: "thumb" }), h("p", { class: "muted" }, text));
+}
+
+/**
+ * A small "reconnecting" note for a page that keeps its screen up while the connection is down. It appears only after the
+ * trouble has lasted `delay` ms, so a blip of a second or two is invisible, and it goes as soon as a refresh succeeds.
+ */
+export function connectionNote(delay = 4000) {
+  return connectionWatch(delay,
+    () => document.body.append(h("div", { id: "conn", class: "conn", role: "status" }, "Connection lost. Retrying…")),
+    () => document.getElementById("conn")?.remove());
 }

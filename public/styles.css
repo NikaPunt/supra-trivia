@@ -614,3 +614,7 @@ body.deck .sign.big .rank > span:last-child, body.deck .sign.big .rank .pts { fo
 
 /* the line that folds older theme guesses */
 .theme-hist .fold { display: block; margin: 0.2rem 0 0.35rem; font-size: 0.95rem; }
+
+/* "Connection lost" note: the page keeps its last screen and says so, small and out of the way */
+.conn { position: fixed; left: 50%; bottom: 1rem; transform: translateX(-50%); z-index: 60; max-width: calc(100vw - 2rem); padding: 0.5rem 0.95rem; border-radius: 999px; background: var(--panel-2); color: var(--text); border: 1.5px solid var(--danger); font-size: 0.95rem; font-weight: 600; box-shadow: 0 4px 18px rgb(0 0 0 / 0.35); }
+body.deck .conn { bottom: 0.6rem; font-size: max(13px, 1.1vw); opacity: 0.9; }

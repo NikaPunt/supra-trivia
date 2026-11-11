@@ -24,6 +24,9 @@ Each question moves through four steps, always in this order, and the console on
 - **My answers** (on every player's phone, beside The game) lists that team's finished questions, newest first: what it said, whether it was right, the real answer when it was not, the points, and its total. It is a separate screen so it can never be mistaken for the live question, it shows only that team's own answers, and a question appears there once its answer is revealed.
 - Answers on the console are listed with the ones waiting first and the newest on top; once you mark one it settles below. A theme guess you mark wrong is crossed off on the Theme guesses tab and on the team's phone (a guess marked right looks the same as one you have not marked, so nothing is given away).
 
+## If the connection drops
+The console and the projector keep their last screen when a refresh fails, buttons included, and retry every few seconds. After about four seconds (eight on the projector, so the room never sees a short blip) a small "Connection lost. Retrying…" note appears at the bottom, and it goes by itself when the connection is back. Nothing needs reloading.
+
 ## Fixing a slip
 - **A wrong mark.** After the reveal the answers are still open to marking: change any of them with the buttons beside each answer. Nothing is banked until you press **Next question**.
 - **Next question pressed by mistake.** Until a team answers the new question (or wagers on it, or you show a Final Jeopardy question), the console offers **Go back to the previous question**. It puts the last question back exactly as it was at its reveal: its answers and marks, the confidence values it used, and, if it was the step into round two, the theme going back to secret with its guesses. The session record is corrected too, and the step is logged. It works once, and never on a finished game.
