@@ -34,7 +34,7 @@ async function refresh() {
     lastRaw = raw;
     render(s);
     enterIfChanged(`${s.number}:${s.phase}`, anim);
-  } catch (e) { lastRaw = ""; setTimeout(refresh, 3000); mount($("#app"), h("p", { class: "err" }, e.message)); } // forget what was drawn so the next good fetch redraws
+  } catch (e) { if (e.status === 401) { location.href = "/auth/login"; return; } lastRaw = ""; setTimeout(refresh, 3000); mount($("#app"), h("p", { class: "err" }, e.message)); } // forget what was drawn so the next good fetch redraws
 }
 refresh();
 live(`/api/sessions/${id}/events`, refresh);

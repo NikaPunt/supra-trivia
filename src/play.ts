@@ -76,6 +76,18 @@ export function registerPlayRoutes(app: FastifyInstance, ctx: Ctx) {
     }
   });
 
+  /**
+   * Is this phone already at a table? The home page asks this of every visitor, so a stranger gets a plain "no" (200), never a 401:
+   * a proxy-level ban list such as fail2ban counts repeated 401s, and every new player loading the home page would add one.
+   */
+  app.get("/api/play/where", async (req) => {
+    const t = await verifyPlayer(cfg, req.cookies[PLAYER_COOKIE]);
+    const g = t && store.get(t.sid);
+    const p = g && g.players.find((x) => x.id === t.pid);
+    if (!t || !g || !p || p.kicked) return { table: null };
+    return { table: { me: p.nickname, code: g.code, phase: g.phase } };
+  });
+
   app.get("/api/play/state", async (req, reply) => {
     const s = await me(req, reply);
     return s ? playerView(s.g, s.pid, deviceOf(req)) : undefined;

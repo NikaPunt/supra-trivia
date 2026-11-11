@@ -196,7 +196,7 @@ async function refresh() {
     if (stable(s) === lastRaw) return; // nothing changed: leave the page alone
     if (typing()) { waiting = s; return; }
     draw(s);
-  } catch (e) { lastRaw = ""; waiting = null; setTimeout(refresh, 3000); mount($("#app"), h("p", { class: "err" }, e.message)); } // forget what was drawn so the next good fetch redraws
+  } catch (e) { if (e.status === 401) { location.href = "/auth/login"; return; } lastRaw = ""; waiting = null; setTimeout(refresh, 3000); mount($("#app"), h("p", { class: "err" }, e.message)); } // forget what was drawn so the next good fetch redraws
 }
 refresh();
 live(`/api/sessions/${id}/events`, refresh);
