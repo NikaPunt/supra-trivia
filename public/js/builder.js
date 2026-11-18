@@ -421,6 +421,12 @@ const undoToast = () => removed ? h("div", { class: "undo", id: "undo", role: "s
   h("span", {}, removed.kind === "round" ? `Removed "${removed.item.title}".` : "Question removed."),
   h("button", { class: "primary", onclick: undoRemove }, "Undo")) : null;
 
+/** After collapsing a long question from its bottom, bring its folded card back into view. */
+function scrollToCard(r, i) {
+  const c = [...document.querySelectorAll(".round")][r]?.querySelectorAll(".mod")[i];
+  if (c && c.getBoundingClientRect().top < 0) c.scrollIntoView({ block: "center" });
+}
+
 function card(r, i, m) {
   const def = byType[m.type];
   const el = h("div", { class: "mod", draggable: "true" });
@@ -453,8 +459,11 @@ function card(r, i, m) {
   };
   mount(el, bar,
     bad.length ? h("div", { class: "badnote", role: "alert" }, bad.map((p) => h("p", {}, p.detail))) : null,
-    h("div", { class: "head" }, h("strong", { class: "grow" }, `⠿ ${i + 1}. ${def.label}`), h("div", { class: "tools" }, h("span", { class: "group" },
-      h("button", { onclick: toggle, "aria-expanded": m.open ? "true" : "false" }, m.open ? "Done" : "Edit"),
+    h("div", { class: "head" }, h("strong", { class: "grow title", role: "button", tabindex: "0", "aria-expanded": m.open ? "true" : "false",
+      title: m.open ? "Click to collapse this question" : "Click to open this question",
+      onclick: toggle, onkeydown: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } } },
+      h("span", { class: "chev", "aria-hidden": "true" }, m.open ? "▾" : "▸"), ` ${i + 1}. ${def.label}`), h("div", { class: "tools" }, h("span", { class: "group" },
+      h("button", { class: m.open ? "collapse-btn" : "", onclick: toggle, "aria-expanded": m.open ? "true" : "false" }, m.open ? "▴ Collapse" : "Edit"),
       h("button", { onclick: () => { m._preview = !m._preview; render(); }, "aria-expanded": m._preview ? "true" : "false", title: "See it as a phone and the TV will show it" }, m._preview ? "Hide preview" : "Preview"),
       h("button", { onclick: duplicate, title: "Make a copy just below" }, "Duplicate")), h("span", { class: "group" },
       h("button", { onclick: move(-1), "aria-label": "Move up", title: "Move up" }, "↑"), h("button", { onclick: move(1), "aria-label": "Move down", title: "Move down" }, "↓"),
@@ -468,6 +477,7 @@ function card(r, i, m) {
         more.map((f) => fieldRow(m, f, extras)),
         defaulted(m, "maxGuesses", Number(state.settings.maxGuesses), { label: "Guesses for this question", help: "0 means unlimited (up to 20). Changing an answer uses a guess.", min: 0, max: 50, describe: describeGuesses }),
         defaulted(m, "timeLimit", Number(state.settings.timeLimit), { label: "Time limit in seconds", help: "0 means no timer: the question stays open until you close it.", min: 0, max: 3600, describe: describeTime })),
+      h("button", { class: "collapsebar", onclick: () => { m.open = false; render(); scrollToCard(r, i); } }, "▴ Collapse this question"),
     ] : h("div", { class: "sum", onclick: toggle }, h("span", {}, q || "(no question yet)"), badges(m)),
     m._preview ? previewBlock(r, i, m) : null);
   return el;
