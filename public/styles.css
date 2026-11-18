@@ -638,7 +638,6 @@ body.deck .conn { bottom: 0.6rem; font-size: max(13px, 1.1vw); opacity: 0.9; }
 .info { min-height: 0; width: 1.35rem; height: 1.35rem; padding: 0; border-radius: 50%; font: italic 700 0.8rem/1 var(--display, serif); display: inline-flex; align-items: center; justify-content: center; }
 .info[aria-expanded="true"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
 .hint { margin: 0.25rem 0 0.35rem; padding: 0.45rem 0.65rem; border-left: 3px solid var(--accent); background: var(--panel-2); color: var(--text-2); font-size: 0.92rem; }
-.seen { font-size: 0.75rem; color: var(--text-3); border: 1px solid var(--line); border-radius: 999px; padding: 0 0.5rem; white-space: nowrap; }
 .chips { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; margin-top: 0.35rem; }
 .chips:empty { display: none; }
 .chipbtn { min-height: 0; padding: 0.2rem 0.6rem; font-size: 0.88rem; border-style: dashed; }

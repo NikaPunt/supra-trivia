@@ -60,7 +60,8 @@ export function roundSummary(round, settings) {
   return { count: round.modules.length, points, open, minutes: Math.round(seconds / 60), untimed };
 }
 
-export const formatMinutes = (min) => (min < 60 ? `${min} min` : `${Math.floor(min / 60)} h${min % 60 ? ` ${min % 60} min` : ""}`);
+const unit = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
+export const formatMinutes = (min) => (min < 60 ? unit(min, "minute") : `${unit(Math.floor(min / 60), "hour")}${min % 60 ? ` and ${unit(min % 60, "minute")}` : ""}`);
 
 const SWAPS = [
   [/^(the|a|an)\s+(.+)$/i, (_m, _a, rest) => rest],
@@ -116,11 +117,11 @@ export function readiness(state) {
   const time = num(settings.timeLimit, 180);
 
   const facts = [
-    `${total} question${total === 1 ? "" : "s"} in ${rounds.length} round${rounds.length === 1 ? "" : "s"}.`,
-    total ? `About ${formatMinutes(minutes)} from the first question to the final scores: the answer time, plus about a minute a question to close, mark and reveal, plus the scoreboard after each round.` : null,
+    `This trivia has ${total} question${total === 1 ? "" : "s"} in ${rounds.length} round${rounds.length === 1 ? "" : "s"}.`,
+    total ? `It should take about ${formatMinutes(minutes)} from the first question to the final scores. That counts the time to answer, about a minute per question for you to close, mark and reveal it, and the scoreboard after each round.` : null,
     total ? `A team can score at most ${points + bonus} points${bonus ? ` (${bonus} of them for the secret theme)` : ""}${open ? ", plus whatever it wins on wagers" : ""}.` : null,
-    time === 0 ? "No timer: each question stays open until you close it." : `Each question is open for ${time >= 60 ? formatMinutes(Math.round(time / 60)) : `${time} seconds`} unless you close it sooner or a question has its own time.`,
-    guesses === 0 ? "Unlimited guesses per question (up to 20)." : `${guesses} guess${guesses === 1 ? "" : "es"} per question: ${guesses === 1 ? "no changing an answer" : `the first answer plus ${guesses - 1} change${guesses === 2 ? "" : "s"}`}. Changing an answer uses a guess, and every phone of a team shares them.`,
+    time === 0 ? "There is no timer, so each question stays open until you close it." : `Each question is open for ${time >= 60 ? formatMinutes(Math.round(time / 60)) : `${time} seconds`} unless you close it sooner or a question has its own time.`,
+    guesses === 0 ? "Teams can change their answers as often as they like, up to 20 times per question." : `Each team gets ${guesses} guess${guesses === 1 ? "" : "es"} per question, ${guesses === 1 ? "so an answer can't be changed once it is sent" : `which means its first answer plus ${guesses - 1} change${guesses === 2 ? "" : "s"}`}. All the phones of a team share the same guesses.`,
   ].filter(Boolean);
 
   const rules = [
@@ -133,14 +134,14 @@ export function readiness(state) {
       ? `The secret theme goes public when round 2 ("${text(rounds[1].title)}") starts, or earlier if every team has found it. Players can guess it until then.`
       : "The secret theme goes public at the end of the game, since there is only one round.") : null,
     themeOn ? "Theme bonuses are hidden and left out of every scoreboard until the theme goes public." : null,
-    types.has("confidence") ? "Confidence sets: each value is spent once a question finishes, even on a wrong answer. A question a team skips spends nothing." : null,
-    types.has("wager") ? "Final wager: a wrong answer loses the wager, so scores can go down." : null,
-    types.has("jeopardy") ? "Final Jeopardy: you press Show the question after teams wager on the category. Scores can go down." : null,
-    all.some((x) => x.m.type === "jeopardy" && x.m.config?.silentLoses !== false) ? "Final Jeopardy: a team that wagers and then sends no answer loses its wager." : null,
+    types.has("confidence") ? "In a confidence set, a team uses up a value once the question finishes, even if its answer was wrong. If a team skips a question, it keeps the value." : null,
+    types.has("wager") ? "In the final wager, a wrong answer loses the amount wagered, so scores can go down." : null,
+    types.has("jeopardy") ? "In Final Jeopardy, teams wager after seeing only the category, and you press Show the question when you are ready. Scores can go down." : null,
+    all.some((x) => x.m.type === "jeopardy" && x.m.config?.silentLoses !== false) ? "In Final Jeopardy, a team that wagers and then sends no answer loses its wager." : null,
     all.some((x) => (x.m.type === "jeopardy" || x.m.type === "wager") && x.m.config?.capByScore) ? "A wager capped by score shows each team its own score just before the round-end scoreboard." : null,
-    types.has("numeric_closest") ? "Closest number: the closest guess wins the points and ties share them, so nobody knows they won until you reveal." : null,
-    types.has("nsome") ? "N-some: each right item scores, plus the bonus for getting them all. Order and repeats don't matter." : null,
-    all.some((x) => x.m.type === "nsome" && x.m.config?.catchall) ? "N-some catch-all box: it never scores by itself. Read it and award points by hand if you feel generous." : null,
+    types.has("numeric_closest") ? "In a closest-number question, the closest guess wins the points and tied teams share them. Nobody knows who won until you reveal the answer." : null,
+    types.has("nsome") ? "In an N-some, each right item scores, and a team that gets them all earns the bonus too. The order doesn't matter, and an item typed twice counts once." : null,
+    all.some((x) => x.m.type === "nsome" && x.m.config?.catchall) ? "The extra box on an N-some never scores by itself. Read it, and award points by hand if you feel generous." : null,
   ].filter(Boolean);
 
   const warnings = [];

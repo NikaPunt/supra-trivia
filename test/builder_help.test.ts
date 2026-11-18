@@ -53,7 +53,7 @@ test("readiness: says how the night will go and points at what to fix", () => {
   const all = one.warnings.map((w: { text: string }) => w.text).join("\n");
   assert.match(one.rules.join("\n"), /only one round, so teams see no scoreboard until the very end/);
   assert.match(one.rules.join("\n"), /goes public at the end of the game/);
-  assert.match(one.rules.join("\n"), /catch-all box: it never scores by itself/);
+  assert.match(one.rules.join("\n"), /extra box on an N-some never scores by itself/);
   assert.match(one.rules.join("\n"), /wagers and then sends no answer loses/);
   assert.match(all, /no match/, "The Beatles without Beatles");
   assert.match(all, /accepts only 2/);
@@ -61,13 +61,13 @@ test("readiness: says how the night will go and points at what to fix", () => {
   assert.match(all, /no category/);
   assert.match(all, /no hint/);
   assert.deepEqual(one.warnings.find((w: { text: string }) => /empty/.test(w.text)).at, { r: 0, i: 2 }, "a warning knows which question it is about");
-  assert.match(one.facts.join("\n"), /3 guesses per question: the first answer plus 2 changes/);
+  assert.match(one.facts.join("\n"), /3 guesses per question, which means its first answer plus 2 changes/);
 
   const two = readiness({ settings: { maxGuesses: 0, timeLimit: 0, theme: { secret: "Cats", hint: "h", formal: "f", bonus: 4 } },
     rounds: [{ title: "A", modules: [{ type: "text_qa", config: { question: "q", answers: ["x"] } }] }, { title: "Second", modules: [] }] });
   assert.match(two.rules.join("\n"), /round 2 \("Second"\) starts/);
-  assert.match(two.facts.join("\n"), /No timer/);
-  assert.match(two.facts.join("\n"), /Unlimited guesses/);
+  assert.match(two.facts.join("\n"), /no timer/);
+  assert.match(two.facts.join("\n"), /as often as they like/);
   assert.match(two.facts.join("\n"), /at most 5 points \(4 of them for the secret theme\)/);
   assert.match(two.warnings.map((w: { text: string }) => w.text).join("\n"), /Round 2 \("Second"\) has no questions/);
 });
