@@ -1,4 +1,5 @@
-import { $, api, deviceId, h, hostHeader, mount } from "./common.js";
+import { $, api, clock as countdown, deviceId, h, hostHeader, mount, questionBlock } from "./common.js";
+import { alsoAccept, formatMinutes, isBlank, maxPoints, readiness, roundSummary } from "./ready.js";
 const me = await hostHeader($("#bar"));
 
 const id = new URLSearchParams(location.search).get("id");
@@ -17,7 +18,16 @@ state.settings.timeLimit ??= 180;
 // A brand-new trivia has no id on the server yet, so its draft stays in this browser only.
 // Drafts are never dropped for being big. If one cannot be stored somewhere, the page says so, so the host can Save or Export JSON.
 const DRAFT_KEY = `trivia-draft:${me?.email ?? "?"}:${id ?? "new"}`; // per person, so a shared browser never offers one host's work to another
-const snap = () => JSON.stringify({ title: state.title, settings: state.settings, rounds: state.rounds }); // editable parts only
+const UI_ONLY = new Set(["open", "_newSection", "_preview"]); // how the page is showing a question, not part of the trivia
+const snap = () => JSON.stringify({ title: state.title, settings: state.settings, rounds: state.rounds }, (k, v) => (UI_ONLY.has(k) ? undefined : v)); // editable parts only
+const dirty = () => snap() !== baseline;
+/** The "unsaved changes" mark in the save bar, kept current while typing without redrawing the page. */
+function dirtyMark() {
+  const el = $("#dirty"); if (!el) return;
+  const d = dirty();
+  el.className = d ? "dirty on" : "dirty";
+  el.textContent = d ? "● Unsaved changes" : id ? "All changes saved" : "Not saved yet";
+}
 let baseline = snap();   // what the server (or a fresh page) has
 let saveProblems = []; // what the server said was wrong with the last save, shown on the page and on the questions it is about
 let pendingDraft = null; // an unsaved draft found on load, waiting for restore/discard
@@ -54,6 +64,7 @@ async function clearDraft() { // used by Discard: drops the draft everywhere
   if (id) { try { await api(`/api/trivias/${id}/draft`, { method: "DELETE" }); } catch {} serverDraft = false; }
 }
 function cacheDraft() {
+  dirtyMark();
   clearTimeout(draftTimer); clearTimeout(serverTimer);
   if (pendingDraft) return; // do not overwrite the found draft until the host decides
   draftTimer = setTimeout(() => { if (snap() === baseline) { clearLocal(); localFailed = false; note(); } else saveLocal(); }, 800);
@@ -76,7 +87,8 @@ const defaultFor = (f) => (f.kind === "list" || f.kind === "numlist" ? (Array.is
 const blank = (type, previous) => {
   const config = Object.fromEntries(byType[type].fields.map((f) => [f.key, defaultFor(f)]));
   // A confidence question continues the confidence set before it, or starts one called "Confidence Set".
-  const section = type === "confidence" ? (previous?.type === "confidence" && previous.section ? previous.section : "Confidence Set") : previous?.section;
+  const section = type === "confidence" ? (previous?.type === "confidence" && previous.section ? previous.section : "Confidence Set")
+    : previous?.type === "confidence" ? undefined : previous?.section; // a new question of another type never lands in a confidence set's section
   return { type, open: true, section, maxGuesses: undefined, timeLimit: undefined, config };
 };
 
@@ -130,7 +142,7 @@ function runWarnings(head, n) {
   return out;
 }
 
-function sectionPicker(m, label) {
+function sectionPicker(m, label, help) {
   const names = sectionNames(), key = secKey(m.section), naming = !!m._newSection;
   const pick = (name) => { m._newSection = false; m.section = name || undefined; render(); };
   const select = h("select", { "aria-label": "Section", onchange: (e) => { if (e.target.value === "__new") { m._newSection = true; render(); } else pick(e.target.value); } },
@@ -139,7 +151,7 @@ function sectionPicker(m, label) {
     h("option", { value: "__new", selected: naming }, "New section…"));
   const text = naming ? h("input", { type: "text", maxlength: 60, placeholder: "Hodgepodge", "aria-label": "New section name",
     onchange: (e) => { const v = canon(e.target.value); if (!v) return; pick(names.find((n) => secKey(n) === secKey(v)) ?? v); } }) : null;
-  return h("div", {}, h("label", {}, label), select, text);
+  return h("div", {}, labelled(label, help), select, text);
 }
 
 function poolValuesRow(m, f) {
@@ -197,13 +209,26 @@ function drop(toRound, toIndex) {
   if (drag.from === "palette") mod = blank(drag.type, list[(toIndex ?? list.length) - 1]);
   else { mod = state.rounds[drag.r].modules.splice(drag.i, 1)[0]; if (drag.r === toRound && toIndex !== undefined && drag.i < toIndex) toIndex--; }
   list.splice(toIndex ?? list.length, 0, mod);
-  drag = null; // Typing mutates state without re-rendering, so listen for edits on the page itself.
-$("#app").addEventListener("input", cacheDraft);
-$("#app").addEventListener("change", cacheDraft);
-window.addEventListener("pagehide", () => { clearTimeout(draftTimer); if (!pendingDraft) try { if (snap() !== baseline) localStorage.setItem(DRAFT_KEY, JSON.stringify({ at: Date.now(), state: snap() })); } catch {} });
-window.addEventListener("beforeunload", (e) => { if (snap() !== baseline) { e.preventDefault(); e.returnValue = ""; } });
+  drag = null;
+  render();
+}
 
-render();
+// ---- labels: a short label, who sees the box, and an ⓘ that opens the longer help (a tap works on phones, where hover does not) ----
+
+/** Who sees each box, so nobody is surprised by what shows on the phones and the TV. */
+const SEEN = {
+  question: "Players see this", category: "Players see this first", options: "Players see these",
+  count: "Players see this", catchall: "Players see this box",
+  answers: "Only you, until the reveal", correct: "Only you, until the reveal", value: "Only you, until the reveal",
+  funFact: "Players see this at the reveal", maxWager: "Players see this",
+};
+
+/** A label with an optional "who sees it" tag and an ⓘ that shows `help` underneath. Returns [labelRow, helpLine]. */
+function labelled(label, help, seen, forId) {
+  const hint = help ? h("p", { class: "hint", hidden: true }, help) : null;
+  const info = help ? h("button", { type: "button", class: "info", title: help, "aria-label": `About: ${label}`, "aria-expanded": "false",
+    onclick: (e) => { hint.hidden = !hint.hidden; e.currentTarget.setAttribute("aria-expanded", String(!hint.hidden)); } }, "i") : null;
+  return [h("div", { class: "lbl" }, h("label", forId ? { for: forId } : {}, label), info, seen ? h("span", { class: "seen" }, seen) : null), hint];
 }
 
 function fieldInput(m, f) {
@@ -218,19 +243,132 @@ function fieldInput(m, f) {
   return h("input", { type: "text", value: v ?? "", placeholder: ph, oninput: on((x) => x) });
 }
 
+/** Typed answers are matched against this list; these types get "Also accept" suggestions and the Try box. */
+const TYPED = new Set(["text_qa", "confidence", "wager", "jeopardy"]);
+const optionLines = (m) => (m.config.options ?? []).map((x) => String(x).trim()).filter(Boolean);
+
+/** Multiple choice: pick the right option by clicking it, instead of typing its number. Redrawn in place as the options are typed. */
+function correctPicker(m) {
+  const box = h("div", { class: "radios", role: "radiogroup", "aria-label": "Correct option" });
+  const draw = () => {
+    const opts = optionLines(m);
+    if (!(Number(m.config.correct) < opts.length)) m.config.correct = 0;
+    mount(box, opts.length ? opts.map((o, i) => h("label", { class: "check" },
+      h("input", { type: "radio", name: `correct-${uid(m)}`, checked: Number(m.config.correct) === i, onchange: () => { m.config.correct = i; cacheDraft(); } }), ` ${o}`))
+      : h("p", { class: "muted" }, "Type the options above first."));
+  };
+  draw();
+  box.redraw = draw;
+  return box;
+}
+
+/** Other spellings worth accepting, as one-click buttons. Redrawn in place as answers are typed. */
+function acceptChips(m) {
+  const box = h("div", { class: "chips" });
+  const draw = () => {
+    const more = alsoAccept(m.config.answers);
+    mount(box, more.length ? [h("span", { class: "muted" }, "Also accept? "), more.map((a) => h("button", { type: "button", class: "chipbtn",
+      title: "A team could type it this way, and it would show as \"no match\"", onclick: () => {
+        m.config.answers = [...(m.config.answers ?? []).filter((x) => String(x).trim()), a]; render();
+      } }, `+ ${a}`))] : null);
+  };
+  draw();
+  box.redraw = draw;
+  return box;
+}
+
+const uids = new WeakMap();
+let uidNext = 0;
+const uid = (m) => (uids.has(m) ? uids.get(m) : (uids.set(m, ++uidNext), uidNext));
+
 /** With "wager capped by team score" on, a question's own maximum wager is not used, so its box is greyed out. */
-const fieldRow = (m, f) => {
+const fieldRow = (m, f, extras) => {
   if (m.type === "confidence" && f.key === "poolValues") return poolValuesRow(m, f);
+  if (m.type === "multiple_choice" && f.key === "correct") return h("div", {}, labelled("Correct option", "Click the right answer. Players see the options in this order.", SEEN.correct), extras.picker);
   if (f.kind === "checkbox") {
-    return h("label", { class: "check" }, h("input", { type: "checkbox", checked: !!(m.config[f.key] ?? f.default), onchange: (e) => { m.config[f.key] = e.target.checked; render(); } }),
-      ` ${f.label}`, f.help ? h("small", { class: "muted" }, ` (${f.help})`) : null);
+    const [, hint] = labelled(f.label, f.help);
+    return h("div", {}, h("div", { class: "lbl" }, h("label", { class: "check" }, h("input", { type: "checkbox", checked: !!(m.config[f.key] ?? f.default), onchange: (e) => { m.config[f.key] = e.target.checked; render(); } }),
+      ` ${f.label}`), f.help ? h("button", { type: "button", class: "info", title: f.help, "aria-label": `About: ${f.label}`, onclick: () => { hint.hidden = !hint.hidden; } }, "i") : null,
+      SEEN[f.key] ? h("span", { class: "seen" }, SEEN[f.key]) : null), hint);
   }
   const off = f.key === "maxWager" && !!m.config.capByScore;
   const input = fieldInput(m, f);
   if (off) input.disabled = true;
-  return h("div", { class: off ? "off" : "" }, h("label", {}, f.label + (f.help ? ` (${f.help})` : "")), input,
+  // Keep the bits that depend on this box current while typing, without redrawing (a redraw would take the cursor away).
+  if (m.type === "multiple_choice" && f.key === "options") input.addEventListener("input", () => extras.picker.redraw());
+  if (f.key === "answers" && extras.chips) input.addEventListener("input", () => extras.chips.redraw());
+  return h("div", { class: off ? "off" : "" }, labelled(f.label + (f.kind === "list" ? " (one per line)" : ""), f.help ? f.help[0].toUpperCase() + f.help.slice(1) + "." : null, SEEN[f.key]), input,
+    f.key === "answers" ? extras.chips : null,
     off ? h("p", { class: "muted" }, "Not used: this wager is capped by each team's score.") : null);
 };
+
+// ---- try an answer: how the console would see a guess, using the server's own matching ----
+function tryBox(m) {
+  const nsome = m.type === "nsome";
+  const out = h("p", { class: "muted", role: "status" });
+  const field = h("input", { type: "text", maxlength: 600, placeholder: nsome ? "e.g. Paul, John, Ringo" : "Type a guess the way a team might",
+    "aria-label": "Try an answer", onkeydown: (e) => { if (e.key === "Enter") { e.preventDefault(); go(); } } });
+  async function go() {
+    const raw = field.value.trim();
+    if (!raw) return;
+    const value = nsome ? { items: raw.split(",").map((x) => x.trim()).filter(Boolean) } : { text: raw, bet: 1, wager: 1 };
+    try {
+      const r = await api("/api/modules/try", { method: "POST", body: { type: m.type, config: cleanConfig(byType[m.type], m.config), value } });
+      if (r.error) { out.className = "warnline"; out.textContent = r.error; return; }
+      const right = r.points > 0;
+      out.className = right ? "okline" : "warnline";
+      out.textContent = right
+        ? (r.stake ? "Looks right: the console would suggest Right." : `Looks right: worth ${r.points} of ${r.max} point${r.max === 1 ? "" : "s"}.`)
+        : "No match: you would have to mark it by hand. Add it to the accepted answers if it should count.";
+    } catch (e) { out.className = "warnline"; out.textContent = e.message; }
+  }
+  return h("details", { class: "try" }, h("summary", {}, "Try an answer"),
+    h("p", { class: "muted" }, nsome ? "Type a team's list, separated by commas, to see what it would score." : "See whether the console would flag a guess as \"looks right\". Capitals, accents and punctuation never matter."),
+    h("div", { class: "row" }, h("span", { class: "grow" }, field), h("button", { type: "button", onclick: go }, "Try")), out);
+}
+
+// ---- preview: the question as a phone and the TV will show it ----
+function publicOf(m) {
+  const c = m.config;
+  return { question: String(c.question ?? "").trim() || "(no question yet)", options: m.type === "multiple_choice" ? optionLines(m) : undefined,
+    count: m.type === "nsome" ? Number(c.count || 3) : undefined, catchall: m.type === "nsome" ? !!c.catchall : undefined };
+}
+function previewBlock(r, i, m) {
+  const round = state.rounds[r];
+  const list = round.modules;
+  let start = i, end = i;
+  const key = secKey(m.section);
+  if (key) { while (start > 0 && secKey(list[start - 1].section) === key) start--; while (end < list.length - 1 && secKey(list[end + 1].section) === key) end++; }
+  const it = { round: round.title, section: canon(m.section) || undefined, pos: { n: i - start + 1, of: end - start + 1 }, public: publicOf(m) };
+  const pub = it.public;
+  const c = m.config;
+  const time = Number(m.timeLimit ?? state.settings.timeLimit);
+  /** The question block with the full time beside the round name, as it looks the moment the question opens. */
+  const block = () => {
+    const b = questionBlock(it, null);
+    if (time > 0) b.querySelector(".where")?.append(h("span", { class: "clock" }, countdown(time * 1000)));
+    return b;
+  };
+  const box = (label) => h("input", { type: "text", disabled: true, placeholder: label });
+  let input;
+  if (m.type === "multiple_choice") input = h("div", { class: "choices" }, pub.options.map((o) => h("button", { disabled: true }, o)));
+  else if (m.type === "numeric_closest") input = box("A number");
+  else if (m.type === "nsome") input = [h("p", { class: "muted" }, `List ${pub.count} things. You can leave one blank if you are not sure.`),
+    Array.from({ length: Math.min(pub.count, 10) }, (_, k) => box(`Answer ${k + 1}`)), pub.catchall ? box("Anything else you are thinking of?") : null];
+  else input = box("Your answer");
+  const stake = m.type === "confidence" ? h("p", { class: "muted" }, `Plus a confidence value to spend: ${(c.poolValues ?? []).join(", ")}`)
+    : m.type === "wager" ? h("p", { class: "muted" }, `Plus a wager from 0 to ${c.capByScore ? "their score" : c.maxWager || 20}`) : null;
+  const jeopardy = m.type === "jeopardy" ? h("div", { class: "note" }, h("strong", {}, "First, before the question: "), `teams see only the category "${String(c.category ?? "").trim() || "(none yet)"}" and wager up to ${c.capByScore ? "their score" : c.maxWager || 20}. Then you press Show the question.`) : null;
+  return h("div", { class: "preview" },
+    jeopardy,
+    h("div", { class: "frames" },
+      h("figure", {}, h("figcaption", {}, "On a phone"), h("div", { class: "phone" }, block(), stake, input, h("button", { class: "primary", disabled: true }, "Lock in"))),
+      h("figure", {}, h("figcaption", {}, "On the TV"), h("div", { class: "tv" }, block(),
+        pub.options ? h("ol", {}, pub.options.map((o) => h("li", {}, o))) : null,
+        pub.count ? h("p", { class: "muted" }, `List ${pub.count} things${pub.catchall ? ", plus anything else you like" : ""}.`) : null,
+        h("p", { class: "muted" }, "0/8 locked in")))),
+    h("p", { class: "muted" }, "The real TV page shrinks a long question until it fits the screen. Answers and the fun fact appear only at the reveal."));
+}
 
 const describeGuesses = (n) => (n === 0 ? "unlimited guesses" : `${n} guess${n === 1 ? "" : "es"}`);
 const describeTime = (n) => (n === 0 ? "no timer" : n >= 60 ? `${n} seconds (${+(n / 60).toFixed(1)} minutes)` : `${n} seconds`);
@@ -239,24 +377,56 @@ const describeTime = (n) => (n === 0 ? "no timer" : n >= 60 ? `${n} seconds (${+
  * A per-question setting that starts filled in with the trivia's own default and says so. Typing the default back in
  * simply means "use the default", so the question keeps following it if the default changes later.
  */
-function defaulted(m, key, def, { label, min, max, describe }) {
+function defaulted(m, key, def, { label, help, min, max, describe }) {
   const note = h("p", { class: "muted" });
   const show = () => { note.textContent = m[key] === undefined ? `Defaulted to ${describe(def)}. Change it to give just this question its own.` : `Changed for this question. The trivia default is ${describe(def)}.`; };
   const input = h("input", { type: "number", min, max, value: m[key] ?? def, oninput: (e) => { const v = e.target.value; m[key] = v === "" || Number(v) === def ? undefined : Number(v); show(); } });
   input.addEventListener("change", () => { if (input.value === "") input.value = def; });
   show();
-  return h("div", {}, h("label", {}, label), input, note);
+  return h("div", {}, labelled(label, help), input, note);
 }
+
+/** The little tags on a folded question: what it is worth, and any time or guess limit of its own. */
+function badges(m) {
+  const p = maxPoints(m);
+  const pts = m.type === "confidence" ? "confidence value" : p === null ? "wager" : `${p} pt${p === 1 ? "" : "s"}`;
+  const t = m.timeLimit === undefined || m.timeLimit === "" ? null : Number(m.timeLimit) === 0 ? "no timer" : `${m.timeLimit} s`;
+  const g = m.maxGuesses === undefined || m.maxGuesses === "" ? null : Number(m.maxGuesses) === 0 ? "unlimited guesses" : `${m.maxGuesses} guess${Number(m.maxGuesses) === 1 ? "" : "es"}`;
+  return [m.section ? h("span", { class: "badge" }, m.section) : null, h("span", { class: "badge quiet" }, pts),
+    t ? h("span", { class: "badge quiet", title: "This question's own time limit" }, `⏱ ${t}`) : null,
+    g ? h("span", { class: "badge quiet", title: "This question's own guess limit" }, g) : null];
+}
+
+// ---- removing, with a way back ----
+let removed = null; // { kind: "question" | "round", r, i?, item }
+let undoTimer;
+function remember(entry) {
+  removed = entry;
+  clearTimeout(undoTimer);
+  undoTimer = setTimeout(() => { removed = null; $("#undo")?.remove(); }, 10000); // goes quietly: a redraw would take the cursor from whatever is being typed
+}
+function undoRemove() {
+  if (!removed) return;
+  if (removed.kind === "round") state.rounds.splice(removed.r, 0, removed.item);
+  else state.rounds[Math.min(removed.r, state.rounds.length - 1)].modules.splice(removed.i, 0, removed.item);
+  removed = null; clearTimeout(undoTimer); render();
+}
+const undoToast = () => removed ? h("div", { class: "undo", id: "undo", role: "status" },
+  h("span", {}, removed.kind === "round" ? `Removed "${removed.item.title}".` : "Question removed."),
+  h("button", { class: "primary", onclick: undoRemove }, "Undo")) : null;
 
 function card(r, i, m) {
   const def = byType[m.type];
   const el = h("div", { class: "mod", draggable: "true" });
-  el.addEventListener("dragstart", (e) => { drag = { from: "card", r, i }; e.dataTransfer.setData("text/plain", "m"); e.stopPropagation(); });
+  el.addEventListener("dragstart", (e) => { if (e.target !== el) return; drag = { from: "card", r, i }; e.dataTransfer.setData("text/plain", "m"); e.stopPropagation(); });
   el.addEventListener("dragover", (e) => { e.preventDefault(); e.stopPropagation(); el.classList.add("over"); });
   el.addEventListener("dragleave", () => el.classList.remove("over"));
   el.addEventListener("drop", (e) => { e.preventDefault(); e.stopPropagation(); drop(r, i); });
-  const move = (d) => () => { const a = state.rounds[r].modules; const j = i + d; if (j < 0 || j >= a.length) return; [a[i], a[j]] = [a[j], a[i]]; render(); };
+  const list = state.rounds[r].modules;
+  const move = (d) => () => { const j = i + d; if (j < 0 || j >= list.length) return; [list[i], list[j]] = [list[j], list[i]]; render(); };
   const toggle = () => { m.open = !m.open; render(); };
+  const duplicate = () => { const copy = JSON.parse(JSON.stringify(m)); copy.open = true; copy._preview = false; list.splice(i + 1, 0, copy); render(); };
+  const remove = () => { list.splice(i, 1); remember({ kind: "question", r, i, item: m }); render(); };
   const q = String(m.config.question ?? "").trim().split("\n")[0];
   const main = def.fields.filter((f) => !f.advanced);
   const more = def.fields.filter((f) => f.advanced);
@@ -271,21 +441,29 @@ function card(r, i, m) {
         h("span", { class: "muted" }, `${n} question${n === 1 ? "" : "s"}${isConf ? ` · values ${(m.config.poolValues ?? []).join(", ")}` : ""}`),
         isConf ? runWarnings(head, n).map((w) => h("p", { class: "warnline" }, w)) : null)
     : null;
+  const extras = {
+    picker: m.type === "multiple_choice" && m.open ? correctPicker(m) : null,
+    chips: TYPED.has(m.type) && m.open ? acceptChips(m) : null,
+  };
   mount(el, bar,
     bad.length ? h("div", { class: "badnote", role: "alert" }, bad.map((p) => h("p", {}, p.detail))) : null,
     h("div", { class: "head" }, h("strong", { class: "grow" }, `⠿ ${i + 1}. ${def.label}`),
       h("button", { onclick: toggle, "aria-expanded": m.open ? "true" : "false" }, m.open ? "Done" : "Edit"),
-      h("button", { onclick: move(-1), "aria-label": "Move up" }, "↑"), h("button", { onclick: move(1), "aria-label": "Move down" }, "↓"),
-      h("button", { class: "danger", onclick: () => { state.rounds[r].modules.splice(i, 1); render(); }, "aria-label": "Remove" }, "✕")),
+      h("button", { onclick: () => { m._preview = !m._preview; render(); }, "aria-expanded": m._preview ? "true" : "false", title: "See it as a phone and the TV will show it" }, m._preview ? "Hide preview" : "Preview"),
+      h("button", { onclick: duplicate, title: "Make a copy just below" }, "Duplicate"),
+      h("button", { onclick: move(-1), "aria-label": "Move up", title: "Move up" }, "↑"), h("button", { onclick: move(1), "aria-label": "Move down", title: "Move down" }, "↓"),
+      h("button", { class: "danger", onclick: remove, "aria-label": "Remove", title: "Remove (you can undo)" }, "✕")),
     m.open ? [
-      m.type === "confidence" ? sectionPicker(m, "Confidence set: the section name (questions in a row with the same section share one list of values, each spent once)") : null,
-      main.map((f) => fieldRow(m, f)),
+      isConf ? sectionPicker(m, "Confidence set", "Confidence questions in a row with the same section share one list of values, and each team spends each value once.") : null,
+      main.map((f) => fieldRow(m, f, extras)),
+      TYPED.has(m.type) || m.type === "nsome" ? tryBox(m) : null,
       h("details", { class: "more" }, h("summary", {}, "More options"),
-        m.type === "confidence" ? null : sectionPicker(m, "Section name (e.g., Hodgepodge, Vanna, Three Actors and a Year, etc.)"),
-        more.map((f) => fieldRow(m, f)),
-        defaulted(m, "maxGuesses", Number(state.settings.maxGuesses), { label: "Number of guesses allowed (0 = unlimited)", min: 0, max: 50, describe: describeGuesses }),
-        defaulted(m, "timeLimit", Number(state.settings.timeLimit), { label: "Time limit in seconds (0 = no timer)", min: 0, max: 3600, describe: describeTime })),
-    ] : h("div", { class: "sum", onclick: toggle }, h("span", {}, q || "(no question yet)"), m.section ? h("span", { class: "badge" }, m.section) : null));
+        isConf ? null : sectionPicker(m, "Section", "Groups questions under a heading, like Hodgepodge or Three Actors and a Year. Questions in a row with the same section are numbered 1/6, 2/6 and so on."),
+        more.map((f) => fieldRow(m, f, extras)),
+        defaulted(m, "maxGuesses", Number(state.settings.maxGuesses), { label: "Guesses for this question", help: "0 means unlimited (up to 20). Changing an answer uses a guess.", min: 0, max: 50, describe: describeGuesses }),
+        defaulted(m, "timeLimit", Number(state.settings.timeLimit), { label: "Time limit in seconds", help: "0 means no timer: the question stays open until you close it.", min: 0, max: 3600, describe: describeTime })),
+    ] : h("div", { class: "sum", onclick: toggle }, h("span", {}, q || "(no question yet)"), badges(m)),
+    m._preview ? previewBlock(r, i, m) : null);
   return el;
 }
 
@@ -330,6 +508,12 @@ const EXAMPLES = [
     why: "Each player spends each value once, on the question they feel surest about.",
   },
   {
+    type: "N-some (list several)",
+    q: "Name three of the four Beatles.",
+    a: "John Lennon\nPaul McCartney\nGeorge Harrison\nRingo Starr\n3 things, 1 point each, +2 for all three: up to 5",
+    why: "Each right item scores and getting them all earns a bonus. Accept more answers than you ask for when there are several right ones. The optional catch-all box lets a team add one more idea for you to judge by hand.",
+  },
+  {
     type: "Final Jeopardy",
     q: "Category: Inventors\n\nBorn in Edinburgh in 1847, he was awarded the first US patent for the telephone in 1876.\n\nWho is he?",
     a: "Alexander Graham Bell\nBell",
@@ -343,13 +527,13 @@ const EXAMPLES = [
   },
 ];
 
-function helpCards(total) {
+function helpCards() {
   return [
-    h("details", { class: "card help", open: total === 0 ? true : undefined },
+    h("details", { class: "card help", open: true },
       h("summary", {}, h("strong", {}, "What makes a good question")),
       h("ul", {}, TIPS.map((t) => h("li", {}, t))),
-      h("p", { class: "muted" }, "The full guidelines are in docs/GUIDELINES.md in the project.")),
-    h("details", { class: "card help", open: total === 0 ? true : undefined },
+      h("p", {}, h("a", { href: "https://github.com/NikaPunt/supra-trivia/blob/main/docs/GUIDELINES.md", target: "_blank", rel: "noopener" }, "Read the full question-writing guidelines"))),
+    h("details", { class: "card help", open: true },
       h("summary", {}, h("strong", {}, "Examples of each type")),
       EXAMPLES.map((e) => h("div", { class: "example" },
         h("div", { class: "eyebrow" }, e.type),
@@ -365,12 +549,17 @@ function themeCard() {
   return h("div", { class: "card theme-card" }, h("h2", {}, "Overall theme"),
     h("label", {}, h("input", { type: "checkbox", style: "width:auto", checked: on, onchange: (e) => { s.theme = e.target.checked ? { secret: "", hint: "", formal: "", bonus: 4 } : undefined; render(); } }), " This trivia has a secret theme that links the questions"),
     on ? h("div", {},
-      h("label", {}, "The theme (short, for you to grade guesses)"), h("input", { value: s.theme.secret, maxlength: 200, oninput: (e) => { s.theme.secret = e.target.value; } }),
-      h("label", {}, "Hint players see"), h("input", { value: s.theme.hint ?? "", maxlength: 300, oninput: (e) => { s.theme.hint = e.target.value; } }),
-      h("label", {}, "Explanation shown when the theme is revealed"), h("textarea", { rows: 3, maxlength: 600, oninput: (e) => { s.theme.formal = e.target.value; } }, s.theme.formal ?? ""),
-      h("label", {}, "Points for finding it (the same for every team, however early)"),
+      labelled("The theme", "Short, for you to grade guesses against. A guess that is the theme word for word is approved by itself when the theme goes public.", "Only you, until it goes public"),
+      h("input", { value: s.theme.secret, maxlength: 200, oninput: (e) => { s.theme.secret = e.target.value; } }),
+      labelled("Hint", "Shown on every phone with \"Don't forget the secret theme!\" until the theme goes public.", "Players see this"),
+      h("input", { value: s.theme.hint ?? "", maxlength: 300, oninput: (e) => { s.theme.hint = e.target.value; } }),
+      labelled("Explanation", "Shown on the phones and the TV once the theme goes public.", "Players see this at the reveal"),
+      h("textarea", { rows: 3, maxlength: 600, oninput: (e) => { s.theme.formal = e.target.value; } }, s.theme.formal ?? ""),
+      labelled("Points for finding it", "The same for every team, however early it guessed. Bonuses stay hidden from every scoreboard until the theme goes public."),
       h("input", { type: "number", min: 0.5, max: 100, step: 0.5, value: s.theme.bonus ?? 4, oninput: (e) => { s.theme.bonus = e.target.value; } }),
-      h("p", { class: "muted" }, "Players can guess it once the game starts and you approve guesses. It goes public when round two begins, when every player has found it, or when you reveal it.")) : null);
+      h("p", { class: "muted" }, state.rounds.length > 1
+        ? `Teams guess whenever they like and you approve the guesses. It goes public when round 2 ("${state.rounds[1].title}") starts, when every team has found it, or when you reveal it.`
+        : "Teams guess whenever they like and you approve the guesses. With only one round it goes public at the end of the game, unless every team finds it or you reveal it sooner.")) : null);
 }
 
 /** Section names that look like typos of each other, with a button to make them all one spelling. */
@@ -393,33 +582,63 @@ function draftBanner() {
       h("button", { onclick: () => { pendingDraft = null; clearDraft(); render(); } }, "Discard")));
 }
 
-function render() {
-  syncRuns();
-  cacheDraft();
-  const total = state.rounds.reduce((a, r) => a + r.modules.length, 0);
-  mount($("#app"),
-    draftBanner(),
-    h("div", { class: "row" }, h("input", { class: "grow", value: state.title, maxlength: 120, "aria-label": "Trivia title", oninput: (e) => { state.title = e.target.value; } }),
-      h("button", { class: "primary", onclick: save }, "Save"), h("a", { class: "btn", href: "/host.html" }, "Back")),
-    h("div", { class: "err", id: "err", role: "alert" }, problemList()),
-    id ? h("p", { class: "muted", id: "draftnote" }) : null,
+// ---- the page: a save bar that stays in view, then tabs ----
+let tab = (() => { try { return sessionStorage.getItem("builder-tab") || "questions"; } catch { return "questions"; } })();
+let addingTo = null; // the round whose "+ Add question" list is open
+const go = (key) => { tab = key; try { sessionStorage.setItem("builder-tab", key); } catch { /* fine */ } render(); window.scrollTo({ top: 0 }); };
+
+async function practice(e) {
+  if (dirty()) {
+    if (!confirm("A practice run uses the saved trivia. Save your changes first?")) return;
+    await save();
+    if (dirty() || saveProblems.length) return; // the save was refused; the page says why
+  }
+  e.target.disabled = true;
+  try { const s = await api(`/api/trivias/${id}/sessions`, { method: "POST", body: { practice: true } }); location.href = `/session.html?id=${s.id}`; }
+  catch (err) { e.target.disabled = false; $("#err").textContent = `Could not start a practice run: ${err.message}`; }
+}
+
+function saveBar() {
+  return h("div", { class: "savebar" },
     h("div", { class: "row" },
-      h("span", { class: total > 50 ? "warnline" : "muted" }, `${total} question${total === 1 ? "" : "s"}${total > 50 ? ": over 50 tires players out" : ""}`),
+      h("input", { class: "grow", value: state.title, maxlength: 120, "aria-label": "Trivia title", oninput: (e) => { state.title = e.target.value; } }),
+      h("span", { id: "dirty", class: "dirty" }),
+      h("button", { class: "primary", onclick: save }, "Save"),
+      id ? h("button", { onclick: practice, title: "Rehearse with two bot teams before the real night" }, "Practice run") : null,
+      h("a", { class: "btn", href: "/host.html" }, "Back")),
+    h("div", { class: "err", id: "err", role: "alert" }, problemList()),
+    id ? h("p", { class: "muted", id: "draftnote" }) : null);
+}
+
+function tabs(report) {
+  const n = report.warnings.length;
+  const defs = [["questions", "Questions"], ["settings", "Settings & theme"], ["tips", "Tips & examples"], ["ready", n ? `Ready to host? (${n})` : "Ready to host? ✓"]];
+  return h("div", { class: "tabs", role: "tablist", "aria-label": "Builder" }, defs.map(([key, label]) =>
+    h("button", { role: "tab", "aria-selected": String(tab === key), class: tab === key ? "on" : "", onclick: () => go(key) }, label)));
+}
+
+function addRow(ri) {
+  const list = state.rounds[ri].modules;
+  if (addingTo !== ri) return h("button", { class: "addq", onclick: () => { addingTo = ri; render(); } }, "+ Add question");
+  return h("div", { class: "addrow" }, h("span", { class: "muted" }, "Which type?"),
+    mods.map((t) => h("button", { title: t.description, onclick: () => { list.push(blank(t.type, list.at(-1))); addingTo = null; render(); } }, t.label)),
+    h("button", { class: "linklike plain", onclick: () => { addingTo = null; render(); } }, "Cancel"));
+}
+
+function questionsTab(total) {
+  const all = allMods();
+  return [
+    h("div", { class: "row" },
+      h("span", { class: "muted" }, `${total} question${total === 1 ? "" : "s"}`),
       blankCount() ? h("span", { class: "warnline" }, `${blankCount()} empty question${blankCount() === 1 ? "" : "s"}: fill ${blankCount() === 1 ? "it" : "them"} in or remove ${blankCount() === 1 ? "it" : "them"} before saving`) : null,
       h("span", { class: "grow" }),
+      total ? h("button", { onclick: () => { const open = !all.every((m) => m.open); for (const m of all) m.open = open; render(); } }, all.every((m) => m.open) ? "Collapse all" : "Expand all") : null,
       h("button", { onclick: exportJson }, "Export JSON"), h("button", { onclick: () => $("#file").click() }, "Import JSON"),
       !id && !total ? h("button", { onclick: loadSample }, "Load sample trivia") : null,
       h("input", { id: "file", type: "file", accept: "application/json,.json", style: "display:none", onchange: importFile })),
-    helpCards(total),
+    total === 0 ? h("div", { class: "card note" }, h("strong", {}, "New here? "), "Add a question from the list on the left, or load the sample trivia to see a whole night put together. ",
+      h("button", { class: "linklike plain", onclick: () => go("tips") }, "Tips and an example of every question type"), " are in their own tab.") : null,
     typoCard(),
-    h("div", { class: "card" }, h("label", { for: "mg" }, "Guesses each player gets per question (0 = unlimited)"),
-      h("input", { id: "mg", type: "number", min: 0, max: 50, value: state.settings.maxGuesses, oninput: (e) => { state.settings.maxGuesses = e.target.value; }, onchange: (e) => { if (e.target.value === "") state.settings.maxGuesses = 3; render(); } }),
-      h("p", { class: "muted" }, "Players never see whether a guess was right until you reveal. You can always award points by hand, including half marks."),
-      h("label", { for: "tl" }, "Time per question in seconds (0 = no timer)"),
-      h("input", { id: "tl", type: "number", min: 0, max: 3600, step: 5, value: state.settings.timeLimit, oninput: (e) => { state.settings.timeLimit = e.target.value; }, onchange: (e) => { if (e.target.value === "") state.settings.timeLimit = 180; render(); } }),
-      h("p", { class: "muted" }, "Answers close by themselves when time runs out: 180 is 3 minutes. You can close sooner, add time while a question is open, or give one question its own time under More options."),
-      ),
-    themeCard(),
     h("div", { class: "builder" },
       h("aside", { class: "palette card" }, h("h2", {}, "Question types"), h("p", { class: "muted" }, "Drag onto a round, or click to add to the last round."),
         mods.map((m) => { const c = h("div", { class: "chip", draggable: "true", title: m.description, onclick: () => { const l = state.rounds.at(-1).modules; l.push(blank(m.type, l.at(-1))); render(); } }, m.label, h("small", {}, m.description));
@@ -429,12 +648,74 @@ function render() {
         zone.addEventListener("dragover", (e) => { e.preventDefault(); zone.classList.add("over"); });
         zone.addEventListener("dragleave", () => zone.classList.remove("over"));
         zone.addEventListener("drop", (e) => { e.preventDefault(); zone.classList.remove("over"); drop(ri); });
-        mount(zone, r.modules.map((m, i) => card(ri, i, m)), r.modules.length ? null : h("p", { class: "muted" }, "Drop question types here"));
+        mount(zone, r.modules.map((m, i) => card(ri, i, m)), r.modules.length ? null : h("p", { class: "muted" }, "Drop question types here, or use + Add question"));
+        const sum = roundSummary(r, state.settings);
         return h("div", { class: "round" },
           h("div", { class: "row" }, h("input", { class: "grow", value: r.title, maxlength: 100, "aria-label": "Round title", oninput: (e) => { r.title = e.target.value; } }),
-            state.rounds.length > 1 ? h("button", { class: "danger", onclick: () => { state.rounds.splice(ri, 1); render(); } }, "Remove round") : null), zone);
-      }), h("button", { onclick: () => { state.rounds.push({ title: `Round ${state.rounds.length + 1}`, modules: [] }); render(); } }, "+ Add round"))));
+            state.rounds.length > 1 ? h("button", { class: "danger", onclick: () => { state.rounds.splice(ri, 1); remember({ kind: "round", r: ri, item: r }); render(); } }, "Remove round") : null),
+          sum.count ? h("p", { class: "muted roundsum" }, `${sum.count} question${sum.count === 1 ? "" : "s"} · up to ${sum.points} point${sum.points === 1 ? "" : "s"}${sum.open ? " plus wagers" : ""} · about ${formatMinutes(sum.minutes)}`) : null,
+          zone, addRow(ri));
+      }), h("button", { onclick: () => { state.rounds.push({ title: `Round ${state.rounds.length + 1}`, modules: [] }); render(); } }, "+ Add round"))),
+  ];
 }
+
+function settingsTab() {
+  return [
+    h("div", { class: "card" },
+      labelled("Guesses each team gets per question", "3 means the first answer plus two changes: changing an answer uses a guess, and all the phones of a team share them. 0 means unlimited (up to 20). A question can have its own under More options.", null, "mg"),
+      h("input", { id: "mg", type: "number", min: 0, max: 50, value: state.settings.maxGuesses, oninput: (e) => { state.settings.maxGuesses = e.target.value; }, onchange: (e) => { if (e.target.value === "") state.settings.maxGuesses = 3; render(); } }),
+      h("p", { class: "muted" }, "Players never see whether a guess was right until you reveal. You can always award points by hand, including half marks."),
+      labelled("Time per question in seconds", "Answers close by themselves when time runs out: 180 is 3 minutes. 0 means no timer. You can close sooner, add 30 seconds or pause while a question is open, and give one question its own time under More options.", null, "tl"),
+      h("input", { id: "tl", type: "number", min: 0, max: 3600, step: 5, value: state.settings.timeLimit, oninput: (e) => { state.settings.timeLimit = e.target.value; }, onchange: (e) => { if (e.target.value === "") state.settings.timeLimit = 180; render(); } }),
+      h("p", { class: "muted" }, `${describeTime(Number(state.settings.timeLimit))} per question.`)),
+    themeCard(),
+  ];
+}
+
+function readyTab(report) {
+  const toQuestion = (at) => () => { tab = "questions"; try { sessionStorage.setItem("builder-tab", tab); } catch {} showQuestion(at.r, at.i); };
+  return [
+    dirty() ? h("div", { class: "card warn" }, h("strong", {}, "You have unsaved changes. "), "Hosting and practice runs use the saved trivia, so save first.") : null,
+    h("div", { class: "card" }, h("h2", {}, "The night at a glance"), h("ul", {}, report.facts.map((t) => h("li", {}, t)))),
+    h("div", { class: "card" }, h("h2", {}, report.warnings.length ? `Check these (${report.warnings.length})` : "Nothing to check"),
+      report.warnings.length ? h("ul", { class: "checks" }, report.warnings.map((w) => h("li", {}, w.at ? h("button", { class: "linklike", onclick: toQuestion(w.at) }, w.text) : w.text)))
+        : h("p", { class: "muted" }, "No empty questions, missing answers or likely \"no match\" spellings found.")),
+    h("div", { class: "card" }, h("h2", {}, "How scoring will behave"), h("ul", {}, report.rules.map((t) => h("li", {}, t)))),
+    h("div", { class: "card" }, h("h2", {}, "Rehearse it"),
+      h("p", {}, "A practice run opens the host console with two bot teams, one always right and one always wrong. They answer when you press Close answers, so you can try marking, revealing, Go back and the round-end scoreboard. Open the projector view on a second screen, and join from your phone with the room code to see what players see. End the session when you are done."),
+      id ? h("button", { class: "primary", onclick: practice }, "Start a practice run") : h("p", { class: "muted" }, "Save the trivia first to start a practice run.")),
+  ];
+}
+
+function render() {
+  syncRuns();
+  cacheDraft();
+  const total = state.rounds.reduce((a, r) => a + r.modules.length, 0);
+  const report = readiness(toEditorState());
+  mount($("#app"),
+    draftBanner(),
+    saveBar(),
+    tabs(report),
+    tab === "settings" ? settingsTab() : tab === "tips" ? helpCards() : tab === "ready" ? readyTab(report) : questionsTab(total),
+    undoToast());
+  dirtyMark();
+  note();
+  requestAnimationFrame(fitPreviews);
+}
+
+/** Shrinks each TV preview's text until it fits, as the real projector page does, and says so. */
+function fitPreviews() {
+  for (const tv of document.querySelectorAll(".preview .tv")) {
+    let size = 1;
+    tv.style.setProperty("--s", "1");
+    while (tv.scrollHeight > tv.clientHeight + 1 && size > 0.35) { size -= 0.05; tv.style.setProperty("--s", String(size)); }
+    const cap = tv.parentElement.querySelector("figcaption");
+    if (cap) cap.textContent = size < 0.999 ? `On the TV (text shrunk to ${Math.round(size * 100)}% to fit${size < 0.6 ? ": hard to read from the back of the room" : ""})` : "On the TV";
+  }
+}
+
+/** The trivia as the checks read it: the editor's state with the theme only when it is filled in. */
+const toEditorState = () => ({ title: state.title, settings: state.settings, rounds: state.rounds });
 
 async function save() {
   if (saveProblems.length) { saveProblems = []; render(); } // the page is rebuilt, so look the message box up after this
@@ -457,7 +738,7 @@ async function save() {
       if (r.updated_at) savedAt = r.updated_at;
     }
     else { const r = await api("/api/trivias", { method: "POST", body: toApi() }); baseline = snap(); clearLocal(); location.href = `/builder.html?id=${r.id}`; return; }
-    baseline = snap(); clearLocal(); serverDraft = false; localFailed = false; serverFailed = ""; lastBackup = ""; note();
+    baseline = snap(); clearLocal(); serverDraft = false; localFailed = false; serverFailed = ""; lastBackup = ""; note(); dirtyMark();
     err.style.color = "var(--ok)"; err.textContent = "Saved.";
   } catch (e) {
     err.style.color = "";
@@ -467,8 +748,7 @@ async function save() {
 }
 
 // ---- what went wrong with a save, in words, with a way to get to each question ----
-const hasText = (c) => Object.values(c ?? {}).some((v) => (typeof v === "string" && v.trim()) || (Array.isArray(v) && v.some((x) => typeof x === "string" && x.trim())));
-const blankCount = () => state.rounds.reduce((a, r) => a + r.modules.filter((m) => !hasText(m.config)).length, 0);
+const blankCount = () => state.rounds.reduce((a, r) => a + r.modules.filter(isBlank).length, 0);
 function problemList() {
   if (!saveProblems.length) return null;
   return h("div", { class: "problems" },
@@ -480,11 +760,12 @@ function problemList() {
 function showProblems(problems) {
   saveProblems = problems;
   for (const p of problems.slice(0, 10)) { const m = state.rounds[p.round]?.modules[p.question]; if (m) m.open = true; }
+  if (problems.some((p) => p.question !== null)) tab = "questions";
   render();
 }
 function showQuestion(r, i) {
   const m = state.rounds[r]?.modules[i]; if (!m) return;
-  if (!m.open) { m.open = true; render(); }
+  if (!m.open || tab !== "questions") { m.open = true; tab = "questions"; render(); }
   const card = [...document.querySelectorAll(".round")][r]?.querySelectorAll(".mod")[i];
   card?.scrollIntoView({ block: "center", behavior: "smooth" });
 }

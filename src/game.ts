@@ -109,6 +109,8 @@ export interface Game {
   undo?: UndoPoint;
   createdAt: number;
   endedAt: number | null;
+  /** A practice run: two bot teams join, one always right and one always wrong, and answer when the host closes a question. */
+  practice?: { right: string; wrong: string };
 }
 
 /**
@@ -241,8 +243,20 @@ export function isRoundEnd(g: Game): boolean {
   return !!cur && all[g.cursor + 1]?.roundIdx !== cur.roundIdx;
 }
 
-export function newGame(o: { hostEmail: string; triviaId: string; title: string; rounds: Rounds; code: string; maxGuesses: number; timeLimit?: number; theme?: Theme }): Game {
+export function newGame(o: { hostEmail: string; triviaId: string; title: string; rounds: Rounds; code: string; maxGuesses: number; timeLimit?: number; theme?: Theme; practice?: boolean }): Game {
   if (items(o).length === 0) throw new GameError("this trivia has no questions yet");
+  const g = makeGame(o);
+  if (o.practice) {
+    g.title = `Practice: ${o.title}`.slice(0, 120);
+    g.practice = { right: joinPlayer(g, BOT_RIGHT).player.id, wrong: joinPlayer(g, BOT_WRONG).player.id };
+  }
+  return g;
+}
+
+export const BOT_RIGHT = "Bot Always Right";
+export const BOT_WRONG = "Bot Always Wrong";
+
+function makeGame(o: { hostEmail: string; triviaId: string; title: string; rounds: Rounds; code: string; maxGuesses: number; timeLimit?: number; theme?: Theme }): Game {
   return {
     v: GAME_VERSION, id: randomUUID(), code: o.code, hostEmail: o.hostEmail, triviaId: o.triviaId, title: o.title,
     rounds: o.rounds, maxGuesses: o.maxGuesses, timeLimit: o.timeLimit ?? 0, deadline: null, phase: "lobby", cursor: -1, players: [], answers: [], attempts: {}, guessLog: [],
@@ -538,6 +552,48 @@ const twoStepOf = (it: Item | null) => (it ? getModule(it.type)?.twoStep : undef
 /** True once players can see the question: always, except while a two-step question is waiting for its wagers. */
 const clueOpen = (g: Game) => !twoStepOf(currentItem(g)) || !!g.clueShown;
 
+// ---- practice runs ----
+
+/** What a bot sends: the first accepted answer, or a wrong one. */
+function sampleValue(it: Item, right: boolean): Record<string, unknown> {
+  const mod = getModule(it.type)!;
+  const c = it.config, k = mod.input.key;
+  switch (mod.input.kind) {
+    case "choice": return { [k]: right ? c.correct : (c.correct + 1) % c.options.length };
+    case "number": return { [k]: right ? c.value : c.value > 0 ? c.value - Math.max(1, Math.round(Math.abs(c.value) / 10)) : c.value + Math.max(1, Math.round(Math.abs(c.value) / 10)) };
+    case "texts": return { [k]: right ? c.answers.slice(0, c.count) : [c.answers[0], "no idea"] };
+    default: return { [k]: right ? c.answers[0] : "no idea" };
+  }
+}
+
+const bots = (g: Game) => (g.practice ? [{ id: g.practice.right, right: true }, { id: g.practice.wrong, right: false }] : [])
+  .filter((b) => g.players.some((p) => p.id === b.id && !p.kicked));
+
+/** Final Jeopardy in a practice run: each bot wagers a little just before the question is shown. */
+function botsWager(g: Game): void {
+  const it = currentItem(g);
+  if (!it) return;
+  for (const b of bots(g)) if (g.wagers?.[b.id] === undefined) {
+    try { setWager(g, b.id, Math.min(5, wagerMax(g, it, b.id))); } catch { /* a bot never stops the host */ }
+  }
+}
+
+/** In a practice run the bots answer at the last moment, when the host closes the question, so "Go back" still works until then. */
+function botsAnswer(g: Game): void {
+  const it = currentItem(g);
+  if (!it) return;
+  const deadline = g.deadline, paused = g.paused;
+  g.deadline = null; g.paused = false; // the host is closing anyway: let the bots in first
+  for (const b of bots(g)) {
+    if (g.answers.some((a) => a.playerId === b.id)) continue;
+    const v = sampleValue(it, b.right);
+    const st = stakeFor(g, it, b.id);
+    if (st) v[st.key] = st.options ? st.options[0] : Math.min(5, st.max ?? 0);
+    try { submit(g, b.id, v, "bot"); } catch { /* a bot never stops the host */ }
+  }
+  g.deadline = deadline; g.paused = paused;
+}
+
 /** Resets the per-question state for a question that has just opened. */
 function openItem(g: Game): void {
   g.clueShown = !twoStepOf(currentItem(g));
@@ -579,6 +635,7 @@ export function act(g: Game, a: Action): void {
     case "close":
       need(g.phase === "open", "question is not open");
       need(clueOpen(g), "show the question first");
+      if (g.practice) botsAnswer(g);
       g.phase = "closed";
       g.deadline = null;
       g.paused = false; // closing also ends a pause
@@ -588,6 +645,7 @@ export function act(g: Game, a: Action): void {
       need(g.phase === "open" && !!twoStepOf(currentItem(g)), "this question has no wager step");
       need(!g.clueShown, "the question is already shown");
       need(!g.paused, "resume first");
+      if (g.practice) botsWager(g);
       g.clueShown = true;
       startTimer(g); // the answer clock starts now
       break;
@@ -865,6 +923,7 @@ export function hostView(g: Game) {
     ...base(g),
     id: g.id,
     hostEmail: g.hostEmail,
+    practice: !!g.practice,
     maxGuesses: g.maxGuesses,
     locked: !!g.locked,
     canUndo: canUndoNext(g),
@@ -1006,6 +1065,7 @@ export function reviveGame(raw: unknown): Game {
   if (!isObj(g.wagers)) g.wagers = {};
   if (!isObj(g.theme)) g.theme = null;
   if (!isObj(g.undo)) delete g.undo;
+  if (g.practice !== undefined && !isObj(g.practice)) delete g.practice;
   g.themeRevealed = !!g.themeRevealed;
   if (typeof g.createdAt !== "number") g.createdAt = 0;
   if (typeof g.endedAt !== "number") g.endedAt = null;

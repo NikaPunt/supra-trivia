@@ -6,6 +6,14 @@ Every host finds a trivia called **Spooky OOs (sample)** in their list the first
 - Everyone gets their own. Changing one host's copy never affects anyone else's.
 - It comes from `public/starter.json`, the same file behind **Load sample trivia** in a new builder. To use your own as the starting trivia, replace that file. To turn the feature off, set `SEED_SAMPLE=false`.
 
+## Before your first night
+The builder has a **Ready to host?** tab. It says how long the night will run (the answer time, plus about a minute a question to close, mark and reveal, plus the scoreboard after each round), the most a team can score, when teams see scoreboards, when the secret theme goes public, and which scoring rules your trivia will use. Below that it lists what to check, each linked to its question: empty questions, missing answers or categories, a right answer likely to show as "no match", an N-some that accepts fewer answers than it asks for, and confidence sets with too few values.
+
+On each question, **Preview** shows it as a phone and the TV will, and **Try an answer** shows whether the console would flag a guess as "looks right".
+
+## Practice run
+**Practice run** (in the builder and on the dashboard) starts a session of the saved trivia with two bot teams: **Bot Always Right** and **Bot Always Wrong**. They answer the moment you press **Close answers** (so **Go back to the previous question** still works until then), and on Final Jeopardy they wager 5 when you show the question. Everything else is a normal session: open the projector view on a second screen and join from your phone with the room code to see what players see. The session is titled "Practice: …" and counts towards your 5 active sessions, so end it when you are done.
+
 ## Starting from an old trivia
 On the dashboard, **Duplicate** next to any of your trivias makes a copy called "... (copy)" and opens it in the builder. The copy has everything: rounds, questions, answers, sections, the secret theme, the guess limit and the time limits. It is yours alone, and editing it never changes the original or any game already played from it. An admin copying someone else's trivia gets their own copy, and that is logged.
 

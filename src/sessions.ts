@@ -74,10 +74,11 @@ export function registerSessionRoutes(
     if (!row) return reply.code(404).send({ error: "not found" });
     const u = req.host_session!;
     if (store.activeCountFor(u.email) >= MAX_ACTIVE_PER_HOST) return reply.code(429).send({ error: `at most ${MAX_ACTIVE_PER_HOST} active sessions` });
+    const practice = (req.body as { practice?: unknown } | undefined)?.practice === true;
     try {
-      const g = newGame({ hostEmail: u.email, triviaId: row.id, title: row.title, rounds: roundsSchema.parse(JSON.parse(row.rounds)), code: store.newCode(), ...sessionSettings(row.settings) });
+      const g = newGame({ hostEmail: u.email, triviaId: row.id, title: row.title, rounds: roundsSchema.parse(JSON.parse(row.rounds)), code: store.newCode(), ...sessionSettings(row.settings), practice });
       store.save(g);
-      audit(req, "session.create", `session:${g.id}`, { code: g.code, title: g.title, trivia: row.id, ...(row.host_email !== u.email ? { owner: row.host_email, others: true } : {}) });
+      audit(req, "session.create", `session:${g.id}`, { code: g.code, title: g.title, trivia: row.id, ...(practice ? { practice: true } : {}), ...(row.host_email !== u.email ? { owner: row.host_email, others: true } : {}) });
       return reply.code(201).send({ id: g.id, code: g.code });
     } catch (e) {
       if (e instanceof GameError) return reply.code(e.status).send({ error: e.message });
@@ -91,7 +92,7 @@ export function registerSessionRoutes(
     return store
       .list()
       .filter((g) => all || g.hostEmail === u.email)
-      .map((g) => ({ id: g.id, code: g.code, title: g.title, phase: g.phase, host: g.hostEmail, players: g.players, createdAt: g.createdAt }));
+      .map((g) => ({ id: g.id, code: g.code, title: g.title, practice: !!(g as { practice?: unknown }).practice, phase: g.phase, host: g.hostEmail, players: g.players, createdAt: g.createdAt }));
   });
 
   app.get("/api/sessions/:id", { preHandler: requireHost }, async (req, reply) => {

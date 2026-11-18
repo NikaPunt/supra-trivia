@@ -621,3 +621,56 @@ body.deck .conn { bottom: 0.6rem; font-size: max(13px, 1.1vw); opacity: 0.9; }
 
 .listin input + input { margin-top: 8px; }
 .listin { margin-bottom: 4px; }
+
+/* ---- builder: save bar, labels with ⓘ, previews, practice runs ---- */
+.savebar { position: sticky; top: 0; z-index: 20; background: var(--ground); padding: 0.5rem 0 0.3rem; border-bottom: 1px solid var(--line); }
+.savebar .err:empty { display: none; }
+.savebar #draftnote { margin: 0.2rem 0 0; font-size: 0.85rem; }
+.savebar #draftnote:empty { display: none; }
+.dirty { font-size: 0.9rem; color: var(--text-3); white-space: nowrap; }
+.dirty.on { color: var(--accent-text); font-weight: 700; }
+.builder > aside.palette.card { position: sticky; top: 5.5rem; max-height: calc(100vh - 6.5rem); overflow: auto; }
+.linklike.plain { color: var(--accent-text); }
+.okline { color: var(--ok); font-size: 0.92rem; margin: 0.15rem 0; }
+.lbl { display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; margin-top: 12px; }
+.lbl > label { margin: 0; }
+.lbl label.check { margin-top: 0; }
+.info { min-height: 0; width: 1.35rem; height: 1.35rem; padding: 0; border-radius: 50%; font: italic 700 0.8rem/1 var(--display, serif); display: inline-flex; align-items: center; justify-content: center; }
+.info[aria-expanded="true"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.hint { margin: 0.25rem 0 0.35rem; padding: 0.45rem 0.65rem; border-left: 3px solid var(--accent); background: var(--panel-2); color: var(--text-2); font-size: 0.92rem; }
+.seen { font-size: 0.75rem; color: var(--text-3); border: 1px solid var(--line); border-radius: 999px; padding: 0 0.5rem; white-space: nowrap; }
+.chips { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; margin-top: 0.35rem; }
+.chips:empty { display: none; }
+.chipbtn { min-height: 0; padding: 0.2rem 0.6rem; font-size: 0.88rem; border-style: dashed; }
+.radios label.check { margin-top: 6px; }
+.badge.quiet { opacity: 0.75; font-weight: 400; }
+.mod .sum { flex-wrap: wrap; }
+.try { margin-top: 0.8rem; }
+.try summary, .more summary { cursor: pointer; }
+.roundsum { margin: 0.35rem 0 0; font-size: 0.9rem; }
+.addq { margin-top: 0.4rem; }
+.addrow { display: flex; flex-wrap: wrap; gap: 0.35rem; align-items: center; margin-top: 0.5rem; }
+.addrow button { min-height: 0; padding: 0.35rem 0.7rem; font-size: 0.92rem; }
+.checks li { margin: 0.3rem 0; }
+.undo { position: fixed; left: 50%; bottom: 1rem; transform: translateX(-50%); z-index: 30; display: flex; gap: 0.8rem; align-items: center; background: var(--panel-2); border: 1.5px solid var(--accent); border-radius: var(--radius); padding: 0.5rem 0.6rem 0.5rem 1rem; box-shadow: 0 6px 24px rgba(0,0,0,.35); }
+.preview { margin-top: 0.7rem; border-top: 1px dashed var(--line); padding-top: 0.6rem; }
+.preview .frames { display: grid; grid-template-columns: minmax(0, 20rem) minmax(0, 1fr); gap: 1rem; align-items: start; }
+.preview figure { margin: 0; }
+.preview figcaption { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3); margin-bottom: 0.3rem; }
+.preview .phone { border: 2px solid var(--line-strong); border-radius: 1.4rem; padding: 1rem 0.8rem; background: var(--ground); max-height: 34rem; overflow: auto; }
+.preview .phone input { margin-top: 0.4rem; }
+.preview .phone > button { margin-top: 0.6rem; }
+.preview .phone .board p { font-size: 1.1rem; }
+.preview .tv { aspect-ratio: 16 / 9; border: 6px solid #222; border-radius: 0.4rem; padding: 1rem 1.2rem; background: var(--ground); overflow: hidden; }
+.preview .tv ol { margin: 0 0 0.4rem; }
+.banner.practice { background: var(--panel-2); color: var(--text); font-weight: 400; border-bottom: 2px solid var(--accent); }
+@media (max-width: 760px) { .preview .frames { grid-template-columns: 1fr; } .builder > aside.palette.card { position: relative; top: 0; max-height: none; } }
+/* The TV preview uses the projector's own proportions (sizes relative to the screen's width), then shrinks to fit like the real page. */
+.preview .tv { container-type: inline-size; font-size: calc(2.1cqw * var(--s, 1)); }
+.preview .tv .board .where { font-size: calc(2.2cqw * var(--s, 1)); }
+.preview .tv .board p { font-size: calc(3.5cqw * var(--s, 1)); line-height: 1.4; }
+.preview .tv p.muted, .preview .tv ol { font-size: calc(2.1cqw * var(--s, 1)); }
+.checks .linklike { font-weight: 400; display: inline; }
+.radios { display: grid; gap: 0.1rem; margin-top: 0.3rem; }
+.radios label.check { margin-top: 0; justify-content: flex-start; text-transform: none; letter-spacing: 0; font-size: 1rem; color: var(--text); font-weight: 500; cursor: pointer; }
+.radios input[type="radio"] { width: 1.15rem; height: 1.15rem; min-height: 0; margin: 0; padding: 0; flex: none; accent-color: var(--accent); }

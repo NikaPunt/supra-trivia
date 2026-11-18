@@ -8,7 +8,7 @@ import { norm, type HostDirectory } from "./hosts.js";
 import { SCHEMA_VERSION } from "./db.js";
 import type { GameStore } from "./store.js";
 import { LOGIN_COOKIE, SESSION_COOKIE, SESSION_TTL_S, finishLogin, LoginError, signSession, startLogin, verifySession, type Session } from "./auth.js";
-import { modules, roundsSchema, settingsSchema } from "./modules/index.js";
+import { getModule, modules, roundsSchema, settingsSchema } from "./modules/index.js";
 import { describeProblems } from "./problems.js";
 import { loadSample } from "./sample.js";
 import { registerSessionRoutes } from "./sessions.js";
@@ -145,6 +145,22 @@ export function registerRoutes(app: FastifyInstance, cfg: Config, db: Db, hosts:
   app.get("/api/modules", { preHandler: requireHost }, async () =>
     modules.map((m) => ({ type: m.type, label: m.label, description: m.description, fields: m.fields, input: m.input })),
   );
+
+  // The builder's "Try an answer" box: how the console would see a guess for this question as it stands. Nothing is stored.
+  const tryBody = z.object({ type: z.string().max(40), config: z.unknown(), value: z.unknown() });
+  app.post("/api/modules/try", { preHandler: requireHost, config: { rateLimit: { max: 120, timeWindow: "1 minute" } } }, async (req) => {
+    const b = tryBody.safeParse(req.body);
+    const mod = b.success ? getModule(b.data.type) : undefined;
+    if (!b.success || !mod) return { error: "Unknown question type." };
+    const config = mod.configSchema.safeParse(b.data.config);
+    if (!config.success) return { error: "Fill in this question's boxes first (the question and at least one answer)." };
+    const value = mod.answerSchema.safeParse(b.data.value);
+    if (!value.success) return { error: "Type a guess with at least one letter or number." };
+    const refusal = mod.check?.(config.data, value.data);
+    if (refusal) return { error: `A player's answer ${refusal}.` };
+    const points = mod.score(config.data, value.data);
+    return { points, max: mod.points(config.data), stake: !!mod.stake || !!mod.twoStep };
+  });
 
   // ---- trivias: hosts see their own; admins can see and manage everyone's ----
 

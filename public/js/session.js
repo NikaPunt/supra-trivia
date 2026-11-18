@@ -197,7 +197,10 @@ function tabBar(s) {
 // ---- the page ----
 
 function render(s) {
-  mount($("#banner"), s.hostEmail !== s.you ? h("div", { class: "banner" }, `Admin control: this session belongs to ${s.hostEmail}. Your actions are logged.`) : null);
+  mount($("#banner"),
+    s.hostEmail !== s.you ? h("div", { class: "banner" }, `Admin control: this session belongs to ${s.hostEmail}. Your actions are logged.`) : null,
+    s.practice ? h("div", { class: "banner practice" }, h("strong", {}, "Practice run. "),
+      "Two bot teams play along: Bot Always Right and Bot Always Wrong. They answer the moment you press Close answers, so you can try marking, revealing and Go back. You can also join from your phone with the room code. End the session when you are done.") : null);
   if (!s.theme && tab === "theme") tab = "question";
   const it = s.item;
   if (tab === "theme" && s.theme) for (const g of s.theme.guesses) seenGuesses.add(g.id); // looking at them clears the dot

@@ -57,6 +57,7 @@ A trivia is a list of rounds, and a round is a list of questions. The builder is
 | Closest number | The closest guess wins and ties share. A good tie-breaker for the end of a round |
 | Confidence set | A run of questions that share a list of values such as 8, 6, 4, 2. Each team spends each value once, on the question it feels surest about |
 | Final wager | Answer and wager go in together. Right wins the wager, wrong loses it |
+| N-some | Teams list a set number of things (a threesome is three). Each right one scores, with a bonus for getting them all, and an optional catch-all box the host judges by hand |
 | Final Jeopardy | Teams see only the category and lock in a wager first. The host then shows the question and the answer clock starts |
 
 Questions can carry a **section** label ("Before & After", "Three Actors and a Year"), which numbers them 1/6, 2/6 and so on and groups them in the builder. Each question can also have a fun fact shown at the reveal, its own time limit and its own guess limit. The full list is in [docs/MODULES.md](docs/MODULES.md).
@@ -65,7 +66,10 @@ Things the builder does for you:
 
 - **A worked example.** Every host starts with **Spooky OOs (sample)**, a 29-question night with two rounds, a secret theme, a confidence set in each round and a final Jeopardy. It is their own copy to edit or delete.
 - **Nothing is lost.** Unsaved work is cached in the browser and backed up to the server as a draft, and the builder offers it back after a crash or on another device. Saving over a version that changed elsewhere asks first.
-- **Reuse.** Duplicate any trivia, or export and import it as JSON.
+- **No surprises on the night.** A **Ready to host?** tab says how long the night will run, the most a team can score, when teams see scoreboards and when the secret theme goes public, which scoring rules this trivia will use, and what still needs checking (empty questions, a missing category, a right answer likely to show as "no match"), each linked to its question.
+- **See it before the room does.** **Preview** shows any question as a phone and the TV will show it. **Try an answer** shows whether the console would flag a guess as right, and the builder offers likely spellings to accept ("Beatles" for "The Beatles") in one click.
+- **Rehearse.** A **Practice run** opens the console with two bot teams, one always right and one always wrong, so the host can try every step before the real night.
+- **Reuse.** Duplicate any trivia or question, or export and import a trivia as JSON. A removed question or round can be brought back with **Undo**.
 - **Writing advice.** The app is built around a set of trivia-writing rules: a famous answer with a lateral clue, a round curve of layups, sweet spots and stretches, and a quality checklist ([docs/GUIDELINES.md](docs/GUIDELINES.md), [docs/THEME_BANK.md](docs/THEME_BANK.md)).
 
 ## Four looks

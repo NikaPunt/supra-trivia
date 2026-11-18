@@ -22,6 +22,10 @@ async function render() {
         try { const s = await api(`/api/trivias/${t.id}/sessions`, { method: "POST" }); location.href = `/session.html?id=${s.id}`; }
         catch (e) { alert(e.message); }
       } }, "Host live"),
+      h("button", { title: "A rehearsal with two bot teams, one always right and one always wrong", onclick: async () => {
+        try { const s = await api(`/api/trivias/${t.id}/sessions`, { method: "POST", body: { practice: true } }); location.href = `/session.html?id=${s.id}`; }
+        catch (e) { alert(e.message); }
+      } }, "Practice run"),
       h("button", { class: "danger", onclick: async () => { if (confirm(`Delete "${t.title}"?`)) { await api(`/api/trivias/${t.id}`, { method: "DELETE" }); render(); } } }, "Delete"))) : emptyState("No trivias yet."),
     // Finished sessions are kept: the scores, and what every team answered, stay readable and downloadable.
     past.length ? [h("h1", {}, "Past sessions"),
