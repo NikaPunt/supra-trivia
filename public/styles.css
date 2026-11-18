@@ -754,3 +754,9 @@ button.ok.chosen { background: var(--ok-fill); border-color: var(--ok-fill); col
 button.danger.chosen { background: var(--danger); border-color: var(--danger); color: #fff; }
 .lastmark { margin: 0.3rem 0; padding: 0.4rem 0.6rem; border-left: 3px solid var(--ok); background: var(--panel-2); }
 button.chosen:not(.ok):not(.danger) { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+
+/* The answer just marked: its label pops and sends out one ring in its own colour (green, gold or red), then settles. */
+@keyframes markpop { 0% { transform: scale(0.8); } 35% { transform: scale(1.15); } 60% { transform: scale(0.97); } 100% { transform: scale(1); } }
+@keyframes markring { 0% { box-shadow: 0 0 0 0 currentColor; } 100% { box-shadow: 0 0 0 0.7rem transparent; } }
+tr.justmarked .mark { animation: markpop 0.5s ease-out, markring 0.9s ease-out 0.1s; }
+@media (prefers-reduced-motion: reduce) { tr.justmarked .mark { animation: none; } }
