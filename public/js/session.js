@@ -63,7 +63,7 @@ function controls(s) {
 
 // ---- answers ----
 
-/** The last mark the host gave, so the console can say it in words and point at the row that just moved. */
+/** The last mark the host gave, so the console can say it in words. */
 let lastMark = null; // { id, nickname, text }
 const set = (a, points) => async () => {
   lastMark = { id: a.id, nickname: a.nickname, points, at: Date.now() };
@@ -102,7 +102,7 @@ function answersCard(s, it) {
   const fresh = lastMark && Date.now() - lastMark.at < 8000 ? s.answers.find((a) => a.id === lastMark.id && a.marked) : null;
   const row = (a, kind) => {
     const label = kind === "waiting" ? null : markLabel(a);
-    return h("tr", { class: `${kind}${fresh && fresh.id === a.id ? " justmarked" : ""}` },
+    return h("tr", { class: kind },
       h("td", {}, h("strong", {}, a.nickname)),
       h("td", {}, describeAnswer(it, a.value),
         kind === "waiting" && a.suggest !== null ? h("span", { class: a.suggest > 0 ? "badge" : "muted" }, a.suggest > 0 ? "  looks right" : "  no match") : null),

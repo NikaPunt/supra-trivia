@@ -468,6 +468,9 @@ html[data-design="pirosmani"] .ft { position: relative; border-top: 0; }
 html[data-design="pirosmani"] .ft::before { top: 0; }
 html[data-design="pirosmani"] .tabs { position: relative; border-bottom: 0; }
 html[data-design="pirosmani"] .tabs::after { bottom: 0; }
+/* The chosen tab gets its own stroke of paint, laid over the bar's line; an ordinary underline would sit beneath that line and barely show. */
+html[data-design="pirosmani"] .tabs button.on { border-bottom-color: transparent; }
+html[data-design="pirosmani"] .tabs button.on::after { content: ""; position: absolute; left: 0.3rem; right: 0.3rem; bottom: -1px; height: max(4px, 0.26rem); background: var(--accent); border-radius: 2px; filter: url(#brush); pointer-events: none; z-index: 1; }
 html[data-design="pirosmani"] h1::after { content: ""; display: block; width: 3.4rem; height: max(4px, 0.25rem); margin-top: 0.45rem; background: var(--accent); border-radius: 2px; filter: url(#brush); }
 html[data-design="pirosmani"] .toast::after, html[data-design="pirosmani"] .row > h1::after { display: none; }
 
@@ -750,7 +753,4 @@ button.chosen { outline: 3px solid var(--accent); outline-offset: 1px; font-weig
 button.ok.chosen { background: var(--ok-fill); border-color: var(--ok-fill); color: var(--on-fill, #fff); }
 button.danger.chosen { background: var(--danger); border-color: var(--danger); color: #fff; }
 .lastmark { margin: 0.3rem 0; padding: 0.4rem 0.6rem; border-left: 3px solid var(--ok); background: var(--panel-2); }
-@keyframes justmarked { from { background: color-mix(in srgb, var(--accent) 35%, transparent); } to { background: transparent; } }
-tr.justmarked td { animation: justmarked 2.5s ease-out; }
-@media (prefers-reduced-motion: reduce) { tr.justmarked td { animation: none; background: var(--panel-2); } }
 button.chosen:not(.ok):not(.danger) { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
