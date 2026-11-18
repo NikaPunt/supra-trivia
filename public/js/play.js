@@ -2,7 +2,7 @@ import { foldGuesses } from "./layout.js";
 import { $, api, describeAnswer, enterIfChanged, h, keepAwake, live, mount, questionBlock, revealBlock, art, scoreSign, stable, syncClock, themeNote, timerOf } from "./common.js";
 
 // Typed text survives re-renders caused by live updates.
-const drafts = { answer: "", theme: "", stake: "", key: "", seen: "", wager: "", seenWager: "" };
+const drafts = { items: [], extra: "", answer: "", theme: "", stake: "", key: "", seen: "", wager: "", seenWager: "" };
 
 function board(state) {
   if (!state.leaderboard) return null;
@@ -109,6 +109,31 @@ function wagerInput(state) {
     err);
 }
 
+/** N-some: one box for each thing to list, sent together, plus an optional box for anything else. */
+function listInput(item, mine, open, send, err) {
+  const { count, catchall } = item.public;
+  const saved = mine[0]?.value ?? {};
+  const box = (label, get, set) => {
+    const el = h("input", { type: "text", maxlength: 200, disabled: !open, autocomplete: "off", "aria-label": label, placeholder: label, value: get() });
+    el.addEventListener("input", () => set(el.value));
+    el.addEventListener("keydown", (e) => { if (e.key === "Enter") submit(); });
+    return el;
+  };
+  const boxes = Array.from({ length: count }, (_, i) =>
+    box(`Answer ${i + 1}`, () => drafts.items[i] ?? saved.items?.[i] ?? "", (v) => { drafts.items[i] = v; }));
+  const extra = catchall ? box("Anything else you are thinking of?", () => drafts.extra || (saved.extra ?? ""), (v) => { drafts.extra = v; }) : null;
+  function submit() {
+    const items = boxes.map((b) => b.value.trim()).filter(Boolean);
+    const more = extra ? extra.value.trim() : "";
+    if (![...items, more].filter(Boolean).every((t) => /[\p{L}\p{N}]/u.test(t))) { err.textContent = "Each answer must have at least one letter or number."; return; }
+    if (!items.length) { err.textContent = "Fill in at least one answer."; return; }
+    send({ items, ...(more ? { extra: more } : {}) });
+  }
+  return h("div", {}, h("p", { class: "muted" }, `List ${count} things. You can leave one blank if you are not sure.`), h("div", { class: "listin" }, boxes),
+    extra ? h("p", { class: "muted" }, "Not worth points by itself: only the host can award it.") : null, extra ? h("div", { class: "listin" }, extra) : null,
+    h("div", { class: "row", style: "margin-top:8px" }, h("button", { class: "primary", disabled: !open, onclick: submit }, mine.length ? "Change answer" : "Lock in")), err);
+}
+
 function inputFor(state) {
   const { item } = state;
   if (item.stage === "wager") return wagerInput(state);
@@ -126,12 +151,13 @@ function inputFor(state) {
   const mine = state.myAnswers;
   // If a teammate changed the team's answer, show it instead of whatever was half-typed here.
   const serverVal = mine.length ? JSON.stringify(mine[0].value) : "";
-  if (drafts.seen !== serverVal) { drafts.seen = serverVal; drafts.answer = ""; }
+  if (drafts.seen !== serverVal) { drafts.seen = serverVal; drafts.answer = ""; drafts.items = []; drafts.extra = ""; }
   if (item.input.kind === "choice") {
     const cur = mine[0]?.value[item.input.key];
     return h("div", {}, st?.node, h("div", { class: "choices" }, item.public.options.map((o, i) =>
       h("button", { class: i === cur ? "picked" : "", disabled: !open, onclick: () => send({ [item.input.key]: i }) }, o))), err);
   }
+  if (item.input.kind === "texts") return listInput(item, mine, open, send, err);
   const wagerNote = item.stage === "clue" ? h("p", { class: "muted" }, state.myWager === null ? "You did not wager, so this answer is worth nothing either way." : `Your wager: ${state.myWager} point${state.myWager === 1 ? "" : "s"}, locked in.`) : null;
   const field = h("input", { type: item.input.kind === "number" ? "number" : "text", step: "any", maxlength: 200, disabled: !open, autocomplete: "off", "aria-label": "Your answer",
     value: drafts.answer || (mine[0]?.value[item.input.key] ?? "") });
@@ -149,7 +175,7 @@ const foot = (state) => h("div", { class: "ft" }, h("span", {}, state.me), h("sp
 
 function render(state) {
   const key = `${state.number}:${state.phase === "lobby"}`;
-  if (drafts.key !== key) { drafts.answer = ""; drafts.stake = ""; drafts.seen = ""; drafts.wager = ""; drafts.seenWager = ""; drafts.key = key; }
+  if (drafts.key !== key) { drafts.answer = ""; drafts.items = []; drafts.extra = ""; drafts.stake = ""; drafts.seen = ""; drafts.wager = ""; drafts.seenWager = ""; drafts.key = key; }
   if (state.phase === "lobby") {
     return mount($("#app"), art("table", { size: "wide" }), h("h1", {}, state.title), h("p", { class: "muted" }, `Waiting for the host to begin. ${state.players} at the table.`), themeCard(state), foot(state));
   }

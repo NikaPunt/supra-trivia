@@ -32,6 +32,7 @@ Everything the app limits, so nothing is a surprise. All of these are enforced b
 | PIN | exactly 4 digits. 10 wrong in a row lock the name for 5 minutes; the host can lift the lock |
 | Live-update connections | 20 per team or host per session, 600 per session. Past that a screen checks every 3 seconds instead |
 | An answer | 1 to 200 characters, with at least one letter or number (blank or punctuation-only answers are refused, and so are blank or punctuation-only accepted answers in the builder) |
+| An N-some | 2 to 10 things to list, up to 30 accepted answers; only the first N things a team lists are scored, and the catch-all box is refused unless the question has it |
 | A question | up to 1200 characters; up to 20 accepted answers of up to 200 characters; a multiple choice has 2 to 6 options |
 | A trivia | title up to 120 characters; up to 30 rounds; up to 50 questions per round |
 | Trivias per host | 100 (creating or duplicating beyond that is refused) |

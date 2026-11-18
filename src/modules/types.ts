@@ -19,7 +19,7 @@ export interface Field {
 
 /** How players answer: a text box, one of the listed options, or a number. `key` is the field in the answer object. */
 export interface ModuleInput {
-  kind: "text" | "choice" | "number";
+  kind: "text" | "choice" | "number" | "texts";
   key: string;
   /** Allow several answers per question. Capped by the engine. */
   multi?: boolean;
@@ -43,6 +43,10 @@ export interface TriviaModule<C = any, A = any> {
   input: ModuleInput;
   configSchema: ZodType<C>;
   answerSchema: ZodType<A>;
+  /** Optional. A reason to refuse an answer that fits the schema but not this question (too many items). */
+  check?(config: C, answer: A): string | undefined;
+  /** True when the automatic score can be part of the full points (a list where some items are right). */
+  partialCredit?: boolean;
   /** Pure. Returns points awarded; 0 means wrong (a wager may be negative). */
   score(config: C, answer: A): number;
   /** Optional. Scores all answers together, e.g. closest-wins. Replaces `score` when present. */

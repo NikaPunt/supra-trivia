@@ -332,6 +332,9 @@ export function submit(g: Game, playerId: string, value: unknown, device?: strin
     throw new GameError(custom ? `Your answer ${custom.message}` : "invalid answer");
   }
 
+  const refusal = mod.check?.(it.config, parsed.data);
+  if (refusal) throw new GameError(refusal);
+
   const st = stakeFor(g, it, playerId);
   if (st) {
     const v = (parsed.data as Record<string, unknown>)[st.key];
@@ -365,12 +368,17 @@ export function setWager(g: Game, playerId: string, value: unknown): void {
   (g.wagers ??= {})[playerId] = value;
 }
 
+/** A list answer on one line: the items, then anything typed in the catch-all box. */
+const listText = (items: unknown, extra: unknown): string =>
+  (Array.isArray(items) ? items.join(", ") : "") + (typeof extra === "string" && extra ? `  (anything else: ${extra})` : "");
+
 /** An answer as a person would read it: the option's text for a choice, with any stake after it. */
 function answerText(it: Item, value: unknown): string {
   const mod = getModule(it.type)!;
   const v = (value ?? {}) as Record<string, unknown>;
   const raw = v[mod.input.key];
-  const main = mod.input.kind === "choice" ? String(it.config.options?.[raw as number] ?? raw) : String(raw ?? "");
+  const main = mod.input.kind === "choice" ? String(it.config.options?.[raw as number] ?? raw)
+    : mod.input.kind === "texts" ? listText(raw, v.extra) : String(raw ?? "");
   const stakeKey = mod.stake?.(it.config, [])?.key ?? (mod.twoStep ? "wager" : undefined);
   return stakeKey && v[stakeKey] !== undefined ? `${main} (stake ${String(v[stakeKey])})` : main;
 }
@@ -923,7 +931,7 @@ export function playerHistory(g: Game, playerId: string, records: { kind: string
       const lost: number | undefined = d.forfeits?.[me];
       const stake = !!getModule(d.type)?.stake || !!getModule(d.type)?.twoStep;
       const right = points > 0;
-      const partial = right && !stake && !!mine?.marked && points < d.worth;
+      const partial = right && !stake && (!!mine?.marked || !!getModule(d.type)?.partialCredit) && points < d.worth;
       return {
         number: d.number as number, round: d.round as string, section: (d.section ?? null) as string | null, question: d.question as string,
         yourAnswer: mine?.answer ?? null,
@@ -943,7 +951,7 @@ export function playerHistory(g: Game, playerId: string, records: { kind: string
     const lost = forfeits(g).get(playerId);
     const stake = !!mod.stake || !!mod.twoStep;
     const right = points > 0;
-    const partial = right && !stake && !!mine?.marked && points < mod.points(it.config);
+    const partial = right && !stake && (!!mine?.marked || !!mod.partialCredit) && points < mod.points(it.config);
     rows.push({
       number: g.cursor + 1, round: it.roundTitle, section: it.section ?? null, question: String(mod.publicView(it.config, true).question ?? ""),
       yourAnswer: mine ? answerText(it, mine.value) : null, points, result: right ? (partial ? "partial" : "right") : mine ? "wrong" : "none",

@@ -79,7 +79,8 @@ export function enterIfChanged(key, state) {
 /** What a player answered, with any stake (confidence points, wager) appended. */
 export function describeAnswer(item, value) {
   const v = value?.[item.input.key];
-  const text = item.input.kind === "choice" ? (item.public.options?.[v] ?? "?") : String(v);
+  const text = item.input.kind === "choice" ? (item.public.options?.[v] ?? "?")
+    : item.input.kind === "texts" ? (Array.isArray(v) ? v.join(", ") : "") + (value?.extra ? `  (anything else: ${value.extra})` : "") : String(v);
   const stake = item.stakeKey ? value?.[item.stakeKey] : undefined;
   return stake === undefined ? text : `${text}  (stake ${stake})`;
 }

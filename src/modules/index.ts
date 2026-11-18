@@ -6,8 +6,9 @@ import { numericClosest } from "./numeric_closest.js";
 import { confidence } from "./confidence.js";
 import { wager } from "./wager.js";
 import { jeopardy } from "./jeopardy.js";
+import { nsome } from "./nsome.js";
 
-export const modules: TriviaModule[] = [textQa, multipleChoice, numericClosest, confidence, wager, jeopardy];
+export const modules: TriviaModule[] = [textQa, multipleChoice, numericClosest, confidence, wager, jeopardy, nsome];
 const byType = new Map(modules.map((m) => [m.type, m]));
 export const getModule = (type: string) => byType.get(type);
 

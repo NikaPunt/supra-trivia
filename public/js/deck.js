@@ -24,6 +24,7 @@ function render(s) {
   mount($("#app"),
     questionBlock(it, timerOf(s)),
     s.paused ? h("div", { class: "paused-banner" }, art("bear", { size: "thumb" }), h("span", {}, "Paused")) : null,
+    it.public.count ? h("p", { class: "muted" }, `List ${it.public.count} things${it.public.catchall ? ", plus anything else you like" : ""}.`) : null,
     it.public.options ? h("ol", {}, it.public.options.map((o) => h("li", {}, o))) : null,
     s.phase === "revealed" ? revealBlock(it) : h("p", { class: "muted" }, s.phase === "closed" ? "Answers closed" : it.stage === "wager" ? `${s.wagered}/${s.players} wagered` : `${s.answered}/${s.players} locked in`),
     themeNote(s.theme), board(s), foot(s));
