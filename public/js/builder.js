@@ -377,7 +377,7 @@ function previewBlock(r, i, m) {
 }
 
 const describeGuesses = (n) => (n === 0 ? "unlimited guesses" : `${n} guess${n === 1 ? "" : "es"}`);
-const describeTime = (n) => (n === 0 ? "no timer" : n >= 60 ? `${n} seconds (${+(n / 60).toFixed(1)} minutes)` : `${n} seconds`);
+const describeTime = (n) => (n === 0 ? "no timer" : n >= 60 ? `${n} seconds (${+(n / 60).toFixed(1)} minute${n === 60 ? "" : "s"})` : `${n} second${n === 1 ? "" : "s"}`);
 
 /**
  * A per-question setting that starts filled in with the trivia's own default and says so. Typing the default back in
@@ -404,7 +404,7 @@ function badges(m) {
 }
 
 // ---- removing, with a way back ----
-let removed = null; // { kind: "question" | "round", r, i?, item }
+let removed = null; // { kind: "question" | "round", r, i?, item } or { kind: "questions", items: [{ r, i, item }] }
 let undoTimer;
 function remember(entry) {
   removed = entry;
@@ -414,11 +414,13 @@ function remember(entry) {
 function undoRemove() {
   if (!removed) return;
   if (removed.kind === "round") state.rounds.splice(removed.r, 0, removed.item);
+  // Put them back in their old order: each lands where it was, because the ones before it are already back.
+  else if (removed.kind === "questions") for (const x of removed.items) state.rounds[Math.min(x.r, state.rounds.length - 1)].modules.splice(x.i, 0, x.item);
   else state.rounds[Math.min(removed.r, state.rounds.length - 1)].modules.splice(removed.i, 0, removed.item);
   removed = null; clearTimeout(undoTimer); render();
 }
 const undoToast = () => removed ? h("div", { class: "undo", id: "undo", role: "status" },
-  h("span", {}, removed.kind === "round" ? `Removed "${removed.item.title}".` : "Question removed."),
+  h("span", {}, removed.kind === "round" ? `Removed "${removed.item.title}".` : removed.kind === "questions" ? `Removed ${removed.items.length} questions.` : "Removed the question."),
   h("button", { class: "primary", onclick: undoRemove }, "Undo")) : null;
 
 /** After collapsing a long question from its bottom, bring its folded card back into view. */
@@ -438,7 +440,7 @@ function card(r, i, m) {
   const move = (d) => () => { const j = i + d; if (j < 0 || j >= list.length) return; [list[i], list[j]] = [list[j], list[i]]; render(); };
   const toggle = () => { m.open = !m.open; render(); };
   const duplicate = () => { const copy = JSON.parse(JSON.stringify(m)); copy.open = true; copy._preview = false; list.splice(i + 1, 0, copy); render(); };
-  const remove = () => { list.splice(i, 1); remember({ kind: "question", r, i, item: m }); render(); };
+  const remove = () => { list.splice(i, 1); confirming = null; selected.delete(m); remember({ kind: "question", r, i, item: m }); render(); };
   const q = String(m.config.question ?? "").trim().split("\n")[0];
   const main = def.fields.filter((f) => !f.advanced);
   const more = def.fields.filter((f) => f.advanced);
@@ -448,6 +450,7 @@ function card(r, i, m) {
   if (inRun) el.classList.add("inrun");
   const bad = saveProblems.filter((p) => p.round === r && p.question === i);
   if (bad.length) el.classList.add("bad");
+  if (selecting && selected.has(m)) el.classList.add("picked");
   const bar = first && (isConf || inRun)
     ? h("div", { class: "runbar" }, h("strong", {}, isConf ? `Confidence set${secKey(m.section) ? ` · ${canon(m.section)}` : ""}` : canon(m.section)),
         h("span", { class: "muted" }, `${n} question${n === 1 ? "" : "s"}${isConf ? ` · values ${(m.config.poolValues ?? []).join(", ")}` : ""}`),
@@ -459,7 +462,8 @@ function card(r, i, m) {
   };
   mount(el, bar,
     bad.length ? h("div", { class: "badnote", role: "alert" }, bad.map((p) => h("p", {}, p.detail))) : null,
-    h("div", { class: "head" }, h("strong", { class: "grow title", role: "button", tabindex: "0", "aria-expanded": m.open ? "true" : "false",
+    h("div", { class: "head" }, selecting ? h("input", { type: "checkbox", class: "pick", checked: selected.has(m), "aria-label": `Select question ${i + 1}`,
+      onchange: (e) => { if (e.target.checked) selected.add(m); else selected.delete(m); render(); } }) : null, h("strong", { class: "grow title", role: "button", tabindex: "0", "aria-expanded": m.open ? "true" : "false",
       title: m.open ? "Click to collapse this question" : "Click to open this question",
       onclick: toggle, onkeydown: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } } },
       h("span", { class: "chev", "aria-hidden": "true" }, m.open ? "▾" : "▸"), ` ${i + 1}. ${def.label}`), h("div", { class: "tools" }, h("span", { class: "group" },
@@ -467,7 +471,11 @@ function card(r, i, m) {
       h("button", { onclick: () => { m._preview = !m._preview; render(); }, "aria-expanded": m._preview ? "true" : "false", title: "See it as a phone and the TV will show it" }, m._preview ? "Hide preview" : "Preview"),
       h("button", { onclick: duplicate, title: "Make a copy just below" }, "Duplicate")), h("span", { class: "group" },
       h("button", { onclick: move(-1), "aria-label": "Move up", title: "Move up" }, "↑"), h("button", { onclick: move(1), "aria-label": "Move down", title: "Move down" }, "↓"),
-      h("button", { class: "danger", onclick: remove, "aria-label": "Remove", title: "Remove (you can undo)" }, "✕")))),
+      confirming === m ? null : h("button", { class: "danger", onclick: () => { confirming = m; render(); }, "aria-label": "Remove this question", title: "Remove this question" }, "✕"))),
+      confirming === m ? h("div", { class: "confirm", role: "alertdialog", "aria-label": "Remove this question?" },
+        h("span", {}, "Remove this question?"),
+        h("button", { class: "danger solid", onclick: remove }, "Yes, remove it"),
+        h("button", { onclick: () => { confirming = null; render(); } }, "Keep it")) : null),
     m.open ? [
       isConf ? sectionPicker(m, "Confidence set", "Confidence questions in a row with the same section share one list of values, and each team spends each value once.") : null,
       main.map((f) => fieldRow(m, f, extras)),
@@ -598,6 +606,79 @@ function draftBanner() {
       h("button", { onclick: () => { pendingDraft = null; clearDraft(); render(); } }, "Discard")));
 }
 
+// ---- selecting several questions at once ----
+let selecting = false;
+const selected = new Set(); // question objects; not part of the trivia, so selecting never counts as a change
+let bulk = null; // which bulk action's form is open: "guesses" | "time" | "section" | "remove"
+let confirming = null; // the question whose ✕ was pressed and is waiting for "Yes, remove it"
+
+function bulkBar() {
+  const n = selected.size;
+  const all = allMods();
+  const picked = all.filter((m) => selected.has(m)); // in trivia order
+  const msg = h("p", { class: "muted", role: "status" });
+  const done = (text) => { bulk = null; render(); const s = $("#bulkmsg"); if (s) s.textContent = text; };
+  const action = (key, label, cls = "") => h("button", { class: `${cls}${bulk === key ? " collapse-btn" : ""}`, disabled: !n, "aria-expanded": String(bulk === key), onclick: () => { bulk = bulk === key ? null : key; render(); } }, label);
+
+  /** A number box for guesses or time, where an empty box means "use the trivia's default". */
+  function numberForm(key, { label, help, min, max, def, describe }) {
+    const box = h("input", { type: "number", min, max, step: 1, placeholder: `Empty: use the default, ${describe(def)}`, "aria-label": label });
+    const apply = () => {
+      const raw = box.value.trim();
+      const v = raw === "" ? undefined : Number(raw);
+      if (v !== undefined && !(Number.isInteger(v) && v >= min && v <= max)) { msg.textContent = `Please type a whole number from ${min} to ${max}, or leave the box empty to use the default.`; return; }
+      for (const m of picked) m[key] = v === Number(def) ? undefined : v;
+      done(v === undefined ? `The ${n} selected question${n === 1 ? " now uses" : "s now use"} the trivia's default: ${describe(def)}.` : `The ${n} selected question${n === 1 ? " now has" : "s now have"} ${describe(v)}.`);
+    };
+    box.addEventListener("keydown", (e) => { if (e.key === "Enter") apply(); });
+    return h("div", { class: "bulkform" }, h("label", {}, label), h("p", { class: "muted" }, help), h("div", { class: "row" }, h("span", { class: "grow" }, box), h("button", { class: "primary", onclick: apply }, "Apply")), msg);
+  }
+
+  function sectionForm() {
+    const names = sectionNames();
+    const conf = picked.filter((m) => m.type === "confidence").length;
+    const text = h("input", { type: "text", maxlength: 60, placeholder: "Name of the new section", "aria-label": "New section name", hidden: true });
+    const select = h("select", { "aria-label": "Section", onchange: () => { text.hidden = select.value !== "__new"; if (!text.hidden) text.focus(); } },
+      h("option", { value: "" }, "No section"), names.map((x) => h("option", { value: x }, x)), h("option", { value: "__new" }, "New section…"));
+    const apply = () => {
+      let name = select.value === "__new" ? canon(text.value) : select.value;
+      if (select.value === "__new" && !name) { msg.textContent = "Please type a name for the new section."; return; }
+      name = names.find((x) => secKey(x) === secKey(name)) ?? name; // the first spelling wins, as everywhere else
+      for (const m of picked) m.section = name || undefined;
+      done(name ? `The ${n} selected question${n === 1 ? " is" : "s are"} now in the section "${name}".` : `The ${n} selected question${n === 1 ? " is" : "s are"} no longer in a section.`);
+    };
+    return h("div", { class: "bulkform" }, h("label", {}, "Section"),
+      h("p", { class: "muted" }, "Questions in a row with the same section are grouped and numbered together." + (conf ? ` ${conf} of the selected questions ${conf === 1 ? "is a confidence question, and moving it changes which confidence set it belongs to" : "are confidence questions, and moving them changes which confidence sets they belong to"}.` : "")),
+      h("div", { class: "row" }, h("span", { class: "grow" }, select), h("button", { class: "primary", onclick: apply }, "Apply")), text, msg);
+  }
+
+  function removeForm() {
+    const go = () => {
+      const items = [];
+      state.rounds.forEach((r, ri) => r.modules.forEach((m, i) => { if (selected.has(m)) items.push({ r: ri, i, item: m }); }));
+      for (const x of [...items].reverse()) state.rounds[x.r].modules.splice(x.i, 1);
+      selected.clear();
+      remember({ kind: "questions", items });
+      done("");
+    };
+    return h("div", { class: "bulkform" }, h("p", {}, `Remove the ${n} selected question${n === 1 ? "" : "s"}? You can undo it for a few seconds afterwards.`),
+      h("div", { class: "row" }, h("button", { class: "danger solid", onclick: go }, `Yes, remove ${n === 1 ? "it" : `all ${n}`}`), h("button", { onclick: () => { bulk = null; render(); } }, n === 1 ? "Keep it" : "Keep them")));
+  }
+
+  return h("div", { class: "bulkbar", role: "region", "aria-label": "Change the selected questions" },
+    h("div", { class: "row" },
+      h("strong", { class: "grow" }, n ? `${n} question${n === 1 ? "" : "s"} selected.` : "Tick the questions you want to change."),
+      h("button", { class: "linklike plain", onclick: () => { for (const m of all) selected.add(m); render(); } }, "Select all"),
+      n ? h("button", { class: "linklike plain", onclick: () => { selected.clear(); bulk = null; render(); } }, "Clear") : null),
+    h("div", { class: "row" },
+      action("guesses", "Guesses"), action("time", "Time limit"), action("section", "Section"), action("remove", "Remove", "danger")),
+    n && bulk === "guesses" ? numberForm("maxGuesses", { label: "Guesses per question", help: "How many guesses each team gets on these questions. 0 means unlimited, up to 20.", min: 0, max: 50, def: Number(state.settings.maxGuesses), describe: describeGuesses }) : null,
+    n && bulk === "time" ? numberForm("timeLimit", { label: "Time limit in seconds", help: "How long these questions stay open. 0 means there is no timer.", min: 0, max: 3600, def: Number(state.settings.timeLimit), describe: describeTime }) : null,
+    n && bulk === "section" ? sectionForm() : null,
+    n && bulk === "remove" ? removeForm() : null,
+    h("p", { class: "muted", id: "bulkmsg", role: "status" }));
+}
+
 // ---- the page: a save bar that stays in view, then tabs ----
 let tab = (() => { try { return sessionStorage.getItem("builder-tab") || "questions"; } catch { return "questions"; } })();
 let addingTo = null; // the round whose "+ Add question" list is open
@@ -648,6 +729,7 @@ function questionsTab(total) {
       h("span", { class: "muted" }, `${total} question${total === 1 ? "" : "s"}`),
       blankCount() ? h("span", { class: "warnline" }, `${blankCount()} empty question${blankCount() === 1 ? "" : "s"}: fill ${blankCount() === 1 ? "it" : "them"} in or remove ${blankCount() === 1 ? "it" : "them"} before saving`) : null,
       h("span", { class: "grow" }),
+      total ? h("button", { class: selecting ? "collapse-btn" : "", onclick: () => { selecting = !selecting; selected.clear(); bulk = null; render(); } }, selecting ? "Stop selecting" : "Select questions") : null,
       total ? h("button", { onclick: () => { const open = !all.every((m) => m.open); for (const m of all) m.open = open; render(); } }, all.every((m) => m.open) ? "Collapse all" : "Expand all") : null,
       h("button", { onclick: exportJson }, "Export JSON"), h("button", { onclick: () => $("#file").click() }, "Import JSON"),
       !id && !total ? h("button", { onclick: loadSample }, "Load sample trivia") : null,
@@ -668,7 +750,9 @@ function questionsTab(total) {
         const sum = roundSummary(r, state.settings);
         return h("div", { class: "round" },
           h("div", { class: "row" }, h("input", { class: "grow", value: r.title, maxlength: 100, "aria-label": "Round title", oninput: (e) => { r.title = e.target.value; } }),
-            state.rounds.length > 1 ? h("button", { class: "danger", onclick: () => { state.rounds.splice(ri, 1); remember({ kind: "round", r: ri, item: r }); render(); } }, "Remove round") : null),
+            state.rounds.length > 1 ? h("button", { class: "danger", onclick: () => {
+              if (r.modules.length && !confirm(`Remove "${r.title}" and its ${r.modules.length} question${r.modules.length === 1 ? "" : "s"}? You can undo it for a few seconds afterwards.`)) return;
+              state.rounds.splice(ri, 1); remember({ kind: "round", r: ri, item: r }); render(); } }, "Remove round") : null),
           sum.count ? h("p", { class: "muted roundsum" }, `This round has ${sum.count} question${sum.count === 1 ? "" : "s"}, worth up to ${sum.points} point${sum.points === 1 ? "" : "s"}${sum.open ? " plus wagers" : ""}, and takes about ${formatMinutes(sum.minutes)}.`) : null,
           zone, addRow(ri));
       }), h("button", { onclick: () => { state.rounds.push({ title: `Round ${state.rounds.length + 1}`, modules: [] }); render(); } }, "+ Add round"))),
@@ -704,6 +788,7 @@ function readyTab(report) {
 }
 
 function render() {
+  for (const m of selected) if (!allMods().includes(m)) selected.delete(m); // removed or undone elsewhere
   syncRuns();
   cacheDraft();
   const total = state.rounds.reduce((a, r) => a + r.modules.length, 0);
@@ -713,7 +798,9 @@ function render() {
     saveBar(),
     tabs(report),
     tab === "settings" ? settingsTab() : tab === "tips" ? helpCards() : tab === "ready" ? readyTab(report) : questionsTab(total),
+    tab === "questions" && selecting ? bulkBar() : null,
     undoToast());
+  document.body.classList.toggle("selecting", tab === "questions" && selecting);
   dirtyMark();
   note();
   requestAnimationFrame(fitPreviews);

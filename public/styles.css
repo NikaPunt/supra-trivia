@@ -721,3 +721,18 @@ body.deck .conn { bottom: 0.6rem; font-size: max(13px, 1.1vw); opacity: 0.9; }
 .collapsebar { display: block; width: 100%; margin-top: 0.9rem; border-style: dashed; color: var(--text-2); }
 .collapsebar:hover { color: var(--text); border-color: var(--accent); }
 .collapse-btn { border-color: var(--accent); color: var(--accent-text); }
+
+/* ---- removing asks first; selecting several questions ---- */
+.mod .confirm { flex-basis: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; padding: 0.5rem 0.6rem; border: 1.5px solid var(--danger); border-radius: var(--radius); background: var(--panel-2); }
+.mod .confirm > span { font-weight: 700; margin-right: auto; }
+button.danger.solid { background: var(--danger); border-color: var(--danger); color: #fff; }
+.mod .head input.pick { width: 1.4rem; height: 1.4rem; min-height: 0; margin: 0; flex: none; accent-color: var(--accent); cursor: pointer; }
+.mod.picked { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent) inset; }
+.bulkbar { position: fixed; left: 50%; bottom: 0.75rem; transform: translateX(-50%); z-index: 25; width: min(46rem, calc(100vw - 1.5rem)); max-height: 70vh; overflow: auto; background: var(--panel-2); border: 1.5px solid var(--accent); border-radius: var(--radius); padding: 0.6rem 0.8rem; box-shadow: 0 8px 28px rgba(0,0,0,.35); }
+.bulkbar .row + .row { margin-top: 0.45rem; }
+.bulkbar .bulkform { border-top: 1px solid var(--line); margin-top: 0.6rem; padding-top: 0.2rem; }
+.bulkbar .bulkform input[hidden] { display: none; }
+.bulkbar #bulkmsg:empty, .bulkbar .bulkform p.muted:empty { display: none; }
+.bulkbar #bulkmsg { margin: 0.4rem 0 0; }
+body.selecting main { padding-bottom: 16rem; }
+body.selecting .undo { bottom: auto; top: 1rem; }

@@ -69,7 +69,7 @@ Things the builder does for you:
 - **No surprises on the night.** A **Ready to host?** tab says how long the night will run, the most a team can score, when teams see scoreboards and when the secret theme goes public, which scoring rules this trivia will use, and what still needs checking (empty questions, a missing category, a right answer likely to show as "no match"), each linked to its question.
 - **See it before the room does.** **Preview** shows any question as a phone and the TV will show it. **Try an answer** shows whether the console would flag a guess as right, and the builder offers likely spellings to accept ("Beatles" for "The Beatles") in one click.
 - **Rehearse.** A **Practice run** opens the console with two bot teams, one always right and one always wrong, so the host can try every step before the real night.
-- **Reuse.** Duplicate any trivia or question, or export and import a trivia as JSON. A removed question or round can be brought back with **Undo**.
+- **Reuse.** Duplicate any trivia or question, or export and import a trivia as JSON. Removing a question asks first, and a removed question or round can be brought back with **Undo**. **Select questions** ticks several at once to change their guesses, time limit or section together, or to remove them.
 - **Writing advice.** The app is built around a set of trivia-writing rules: a famous answer with a lateral clue, a round curve of layups, sweet spots and stretches, and a quality checklist ([docs/GUIDELINES.md](docs/GUIDELINES.md), [docs/THEME_BANK.md](docs/THEME_BANK.md)).
 
 ## Four looks
