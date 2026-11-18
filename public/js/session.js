@@ -1,4 +1,4 @@
-import { answerOrder } from "./layout.js";
+import { markGroups, markLabel } from "./layout.js";
 import { $, api, clock, connectionNote, describeAnswer, enterIfChanged, h, hostHeader, keepAwake, live, mount, questionBlock, revealBlock, stable, syncClock, timerOf } from "./common.js";
 await hostHeader($("#bar"));
 const id = new URLSearchParams(location.search).get("id");
@@ -63,13 +63,22 @@ function controls(s) {
 
 // ---- answers ----
 
-const set = (a, points) => act({ action: "review", answerId: a.id, points });
-function award(a) {
-  const custom = h("input", { type: "number", step: "0.5", min: -1000, max: 1000, placeholder: "pts", style: "width:5em", "aria-label": "Custom points" });
+/** The last mark the host gave, so the console can say it in words and point at the row that just moved. */
+let lastMark = null; // { id, nickname, text }
+const set = (a, points) => async () => {
+  lastMark = { id: a.id, nickname: a.nickname, points, at: Date.now() };
+  await act({ action: "review", answerId: a.id, points })();
+};
+
+/** The marking buttons. On a marked answer the one it got is filled in, so what each team got is plain to see. */
+function award(a, chosen) {
+  const custom = h("input", { type: "number", step: "0.5", min: -1000, max: 1000, placeholder: "pts", style: "width:5em", "aria-label": `Custom points for ${a.nickname}` });
+  // Once an answer is marked, only the button it got keeps its colour; the others go plain, so the choice stands out.
+  const b = (kind, label, points, cls = "") => h("button", { class: !chosen ? cls : chosen === kind ? `${cls} chosen` : "", "aria-pressed": String(chosen === kind), onclick: set(a, points) }, label);
   return h("span", { class: "row" },
-    h("button", { class: "ok", onclick: set(a, a.full) }, `Right (${fmt(a.full)})`),
-    a.full > 0 ? h("button", { onclick: set(a, a.full / 2) }, `Half (${fmt(a.full / 2)})`) : null,
-    h("button", { class: "danger", onclick: set(a, a.wrong) }, `Wrong (${fmt(a.wrong)})`), custom,
+    b("right", `Right (${fmt(a.full)})`, a.full, "ok"),
+    a.full > 0 ? b("half", `Half (${fmt(a.full / 2)})`, a.full / 2) : null,
+    b("wrong", `Wrong (${fmt(a.wrong)})`, a.wrong, "danger"), custom,
     h("button", { onclick: () => { if (custom.value !== "") set(a, Number(custom.value))(); } }, "Set"));
 }
 
@@ -80,13 +89,39 @@ function wagersCard(s) {
     h("table", { class: "stack" }, s.wagers.map((w) => h("tr", {}, h("td", {}, w.nickname), h("td", {}, w.wager === null ? h("span", { class: "muted" }, "not yet") : `${w.wager} points`)))));
 }
 
+/** Who has not sent anything yet, so the host knows who is still to come. */
+function notYet(s) {
+  if (s.phase !== "open" && s.phase !== "closed") return null;
+  const missing = s.playerList.filter((p) => !p.kicked && !p.answered).map((p) => p.nickname);
+  if (!missing.length) return null;
+  return h("p", { class: "muted" }, `${s.phase === "open" ? "Still to answer" : "Did not answer"}: ${missing.join(", ")}.`);
+}
+
 function answersCard(s, it) {
+  const { waiting, marked, auto } = markGroups(s.answers);
+  const fresh = lastMark && Date.now() - lastMark.at < 8000 ? s.answers.find((a) => a.id === lastMark.id && a.marked) : null;
+  const row = (a, kind) => {
+    const label = kind === "waiting" ? null : markLabel(a);
+    return h("tr", { class: `${kind}${fresh && fresh.id === a.id ? " justmarked" : ""}` },
+      h("td", {}, h("strong", {}, a.nickname)),
+      h("td", {}, describeAnswer(it, a.value),
+        kind === "waiting" && a.suggest !== null ? h("span", { class: a.suggest > 0 ? "badge" : "muted" }, a.suggest > 0 ? "  looks right" : "  no match") : null),
+      h("td", {}, label ? h("span", { class: `mark ${label.kind}` }, label.text) : h("span", { class: "mark waiting" }, "Not marked yet")),
+      h("td", {}, award(a, label?.kind)));
+  };
+  const group = (title, note, list, kind) => list.length ? [h("h3", { class: `group-title ${kind}` }, `${title} (${list.length})`), note ? h("p", { class: "muted" }, note) : null,
+    h("table", { class: "stack answers" }, list.map((a) => row(a, kind)))] : null;
+  const summary = !s.answers.length ? "No answers yet."
+    : waiting.length ? `${waiting.length} answer${waiting.length === 1 ? " is" : "s are"} waiting for a mark, and ${marked.length} ${marked.length === 1 ? "has" : "have"} been marked.`
+    : auto.length ? `You marked ${marked.length} answer${marked.length === 1 ? "" : "s"}. The other ${auto.length} ${auto.length === 1 ? "was" : "were"} scored automatically by matching the accepted answers, and you can still change ${auto.length === 1 ? "it" : "them"}.`
+    : "Every answer has been marked.";
   return h("div", { class: "card" }, h("h2", {}, `Answers (${s.answers.length})`),
-    // Waiting answers first and the newest on top, so the one that just arrived is where the host is already looking; marked ones settle below.
-    s.answers.length ? h("table", { class: "stack" }, answerOrder(s.answers).map((a) => h("tr", {}, h("td", {}, a.nickname),
-      h("td", {}, describeAnswer(it, a.value), a.status === "pending" && a.suggest !== null ? h("span", { class: a.suggest > 0 ? "badge" : "muted" }, a.suggest > 0 ? "  looks right" : "  no match") : null),
-      h("td", {}, a.status === "pending" ? "" : a.points > 0 ? `${fmt(a.points)}` : a.points < 0 ? `${a.points}` : "0"),
-      h("td", {}, award(a))))) : h("p", { class: "muted" }, "None yet."),
+    h("p", { class: waiting.length ? "warnline" : "okline" }, summary),
+    fresh ? h("p", { class: "lastmark", role: "status" }, `You marked the answer from ${fresh.nickname}: ${markLabel(fresh).text}.`) : null,
+    notYet(s),
+    group("Still to mark", "Answers you leave unmarked are scored automatically when you reveal the answer: a match with an accepted answer gets full points, anything else gets nothing.", waiting, "waiting"),
+    group("Marked by you", null, marked, "marked"),
+    group("Scored automatically", "Nobody marked these, so they were scored by matching the accepted answers.", auto, "auto"),
     // Final Jeopardy: teams that wagered and sent nothing lose the wager, once answers are closed.
     s.forfeits?.length ? h("p", { class: "muted" }, "No answer, so the wager is lost: " + s.forfeits.map((f) => `${f.nickname} (${fmt(-f.lost)})`).join(", ")) : null);
 }

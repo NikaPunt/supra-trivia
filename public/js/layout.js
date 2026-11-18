@@ -4,6 +4,31 @@
 export const answerOrder = (answers) =>
   [...answers].sort((a, b) => (a.status === "pending" ? 0 : 1) - (b.status === "pending" ? 0 : 1) || (b.at ?? 0) - (a.at ?? 0));
 
+/**
+ * The host's answers in three groups, each newest first: still to mark, marked by the host, and (after the reveal)
+ * scored automatically because nobody marked them. An answer never moves within its group.
+ */
+export function markGroups(answers) {
+  const by = (want) => answerOrder(answers.filter(want));
+  return {
+    waiting: by((a) => a.status === "pending"),
+    marked: by((a) => a.status !== "pending" && a.marked),
+    auto: by((a) => a.status !== "pending" && !a.marked),
+  };
+}
+
+const num = (n) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
+const signed = (n) => (n > 0 ? `+${num(n)}` : num(n));
+
+/** What a marked answer got, in words: which button it matches (Right, Half, Wrong) or the amount typed. */
+export function markLabel(a) {
+  const pts = `${signed(a.points)} point${Math.abs(a.points) === 1 ? "" : "s"}`;
+  if (a.points === a.full && a.full !== 0) return { kind: "right", text: `Right, ${pts}` };
+  if (a.full > 0 && a.points === a.full / 2) return { kind: "half", text: `Half, ${pts}` };
+  if (a.points === a.wrong) return { kind: "wrong", text: a.points < 0 ? `Wrong, ${pts}` : "Wrong, no points" };
+  return { kind: a.points > 0 ? "custom" : "wrong", text: `Set to ${pts}` };
+}
+
 /** How the projector scoreboard is laid out: about twelve rows to a column, up to four columns. */
 export function deckGrid(n) {
   const cols = Math.min(4, Math.max(1, Math.ceil(n / 12)));

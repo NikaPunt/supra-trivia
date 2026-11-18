@@ -9,7 +9,7 @@ import { signSession } from "../src/auth.js";
 import { HostDirectory } from "../src/hosts.js";
 import { buildApp } from "../src/app.js";
 // @ts-expect-error plain browser module with no types
-import { answerOrder, deckGrid, foldGuesses } from "../public/js/layout.js";
+import { answerOrder, deckGrid, foldGuesses, markGroups, markLabel } from "../public/js/layout.js";
 
 // What a team sees of its own finished questions, what the host sees of the whole night, and the host and projector layouts.
 
@@ -237,4 +237,23 @@ test("theme guesses fold: the latest five show, the rest sit behind one line, an
   assert.deepEqual([few.shown.length, few.hiddenCount, few.canFold, few.folded], [5, 0, false, false], "five or fewer never fold, and offer no toggle");
   assert.deepEqual(foldGuesses([]).shown, []);
   assert.equal(foldGuesses(list.slice(0, 6)).hiddenCount, 1);
+});
+
+test("host marking: answers split into still to mark, marked by you, and scored automatically, with the mark in words", () => {
+  const rows = [
+    { id: "a", status: "approved", marked: true, points: 4, full: 4, wrong: 0, at: 50 },
+    { id: "b", status: "pending", at: 10 },
+    { id: "c", status: "rejected", marked: true, points: 0, full: 4, wrong: 0, at: 30 },
+    { id: "d", status: "approved", marked: false, points: 4, full: 4, wrong: 0, at: 40 },
+    { id: "e", status: "pending", at: 20 },
+  ];
+  const g = markGroups(rows);
+  assert.deepEqual([g.waiting, g.marked, g.auto].map((l: any[]) => l.map((r) => r.id)), [["e", "b"], ["a", "c"], ["d"]]);
+  assert.deepEqual(markLabel({ points: 4, full: 4, wrong: 0 }), { kind: "right", text: "Right, +4 points" });
+  assert.deepEqual(markLabel({ points: 2, full: 4, wrong: 0 }), { kind: "half", text: "Half, +2 points" });
+  assert.deepEqual(markLabel({ points: 0, full: 4, wrong: 0 }), { kind: "wrong", text: "Wrong, no points" });
+  assert.deepEqual(markLabel({ points: -15, full: 15, wrong: -15 }), { kind: "wrong", text: "Wrong, -15 points" });
+  assert.deepEqual(markLabel({ points: 3, full: 4, wrong: 0 }), { kind: "custom", text: "Set to +3 points" });
+  assert.deepEqual(markLabel({ points: 1, full: 4, wrong: 0 }).text, "Set to +1 point");
+  assert.deepEqual(markLabel({ points: 1.5, full: 3, wrong: 0 }).text, "Half, +1.5 points");
 });

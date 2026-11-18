@@ -736,3 +736,21 @@ button.danger.solid { background: var(--danger); border-color: var(--danger); co
 .bulkbar #bulkmsg { margin: 0.4rem 0 0; }
 body.selecting main { padding-bottom: 16rem; }
 body.selecting .undo { bottom: auto; top: 1rem; }
+
+/* ---- host console: answers grouped by whether they are marked ---- */
+.group-title { font-size: 1rem; margin: 1rem 0 0.2rem; padding-top: 0.6rem; border-top: 1px solid var(--line); }
+.group-title.waiting { color: var(--accent-text); }
+.mark { display: inline-block; white-space: nowrap; font-weight: 700; font-size: 0.92rem; padding: 0.1rem 0.55rem; border-radius: 999px; border: 1.5px solid var(--line); }
+.mark.right, .mark.custom { color: var(--ok); border-color: var(--ok); }
+.mark.half { color: var(--accent-text); border-color: var(--accent); }
+.mark.wrong { color: var(--danger); border-color: var(--danger); }
+.mark.waiting { color: var(--text-3); border-style: dashed; font-weight: 400; }
+table.answers tr.waiting td:first-child { border-left: 4px solid var(--accent); padding-left: 0.5rem; }
+button.chosen { outline: 3px solid var(--accent); outline-offset: 1px; font-weight: 800; }
+button.ok.chosen { background: var(--ok-fill); border-color: var(--ok-fill); color: var(--on-fill, #fff); }
+button.danger.chosen { background: var(--danger); border-color: var(--danger); color: #fff; }
+.lastmark { margin: 0.3rem 0; padding: 0.4rem 0.6rem; border-left: 3px solid var(--ok); background: var(--panel-2); }
+@keyframes justmarked { from { background: color-mix(in srgb, var(--accent) 35%, transparent); } to { background: transparent; } }
+tr.justmarked td { animation: justmarked 2.5s ease-out; }
+@media (prefers-reduced-motion: reduce) { tr.justmarked td { animation: none; background: var(--panel-2); } }
+button.chosen:not(.ok):not(.danger) { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }

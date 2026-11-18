@@ -120,7 +120,7 @@ test("the new screens are wired in: My answers on phones, All questions on the h
   assert.match(play, /foldGuesses\(t\.myGuesses, showAllTheme\)/, "older theme guesses fold away");
   assert.match(session, /\/api\/sessions\/\$\{id\}\/outline/);
   assert.match(session, /"All questions"/);
-  assert.match(session, /answerOrder\(s\.answers\)/);
+  assert.match(session, /markGroups\(s\.answers\)/);
   assert.match(session, /g\.status === "rejected" \? "struck"/);
   assert.match(common, /deckGrid\(rows\.length\)/);
   assert.match(deck, /deck: true/);

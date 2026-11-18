@@ -934,7 +934,7 @@ export function hostView(g: Game) {
     wagers: twoStepOf(it) ? g.players.filter((p) => !p.kicked).map((p) => ({ nickname: p.nickname, wager: g.wagers?.[p.id] ?? null })) : null,
     playerList: g.players.map((p) => ({ id: p.id, nickname: p.nickname, kicked: p.kicked, answered: answered.has(p.id), hasPin: !!p.pin, pinLocked: (p.pinLockedUntil ?? 0) > Date.now() })),
     answers: g.answers.map((a) => ({
-      id: a.id, playerId: a.playerId, nickname: nick.get(a.playerId) ?? "?", value: a.value, status: a.status, points: a.points, at: a.at,
+      id: a.id, playerId: a.playerId, nickname: nick.get(a.playerId) ?? "?", value: a.value, status: a.status, points: a.points, at: a.at, marked: !!a.marked,
       // What each button awards. Stakes make "Right" and "Wrong" depend on the answer.
       full: mod!.fullPoints?.(it!.config, a.value) ?? mod!.points(it!.config),
       wrong: mod!.wrongPoints?.(it!.config, a.value) ?? 0,
