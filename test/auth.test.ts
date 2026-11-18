@@ -183,7 +183,9 @@ test("kicked players are locked out", async () => {
   const player = { cookie: String(join.headers["set-cookie"]).split(";")[0]!, origin: cfg.BASE_URL };
   const pid = (await app.inject({ url: `/api/sessions/${id}`, headers: alice })).json().playerList[0].id;
   await app.inject({ method: "POST", url: `/api/sessions/${id}/action`, headers: alice, payload: { action: "kick", playerId: pid } });
-  assert.equal((await app.inject({ url: "/api/play/state", headers: player })).statusCode, 401);
+  const gone = await app.inject({ url: "/api/play/state", headers: player });
+  assert.equal(gone.statusCode, 200, "a removed team is told without a 401 (the ban list counts those)");
+  assert.equal(gone.json().gone, true);
   await app.close();
 });
 

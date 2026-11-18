@@ -41,13 +41,20 @@ export function registerPlayRoutes(app: FastifyInstance, ctx: Ctx) {
     throw e;
   };
 
-  /** Resolves the player from their cookie, or answers 401/403 and returns null. */
+  /**
+   * Resolves the player from their cookie. A phone that is not at a table (no cookie, a removed team, a game that is gone)
+   * is told so without a 401 or 403: the proxy's ban list blocks an address after three of those, and everyone at a venue
+   * shares one address. Reads answer 200 with `gone`; an action (sending an answer) answers 409, which the ban list ignores.
+   * Either way the phone goes back to the home page.
+   */
   const me = async (req: FastifyRequest, reply: FastifyReply): Promise<{ g: Game; pid: string } | null> => {
     const t = await verifyPlayer(cfg, req.cookies[PLAYER_COOKIE]);
     const g = t && store.get(t.sid);
     const p = g && g.players.find((x) => x.id === t.pid);
     if (!t || !g || !p || p.kicked) {
-      reply.clearCookie(PLAYER_COOKIE, cookieOpts).code(401).send({ error: "not in a session" });
+      reply.clearCookie(PLAYER_COOKIE, cookieOpts);
+      if (req.method === "GET") reply.send({ gone: true, error: "You are not at a table in this game." });
+      else reply.code(409).send({ gone: true, error: "You are no longer in this game." });
       return null;
     }
     req.who = `player:${p.nickname}@${g.code}`;
@@ -136,7 +143,11 @@ export function registerPlayRoutes(app: FastifyInstance, ctx: Ctx) {
   });
 
   app.get("/api/play/events", { config: { rateLimit: { max: 60, timeWindow: "1 minute" } } }, async (req, reply) => {
-    const s = await me(req, reply);
-    if (s) return openStream(req, reply, ctx, s.g.id, `p:${s.pid}`);
+    const t = await verifyPlayer(cfg, req.cookies[PLAYER_COOKIE]);
+    const g = t && store.get(t.sid);
+    const p = g && g.players.find((x) => x.id === t.pid);
+    // Not at a table: a one-line stream that says so and ends, and asks the browser not to reconnect for a minute.
+    if (!t || !g || !p || p.kicked) return reply.type("text/event-stream").header("cache-control", "no-cache").send("retry: 60000\nevent: gone\ndata: 1\n\n");
+    return openStream(req, reply, ctx, g.id, `p:${p.id}`);
   });
 }

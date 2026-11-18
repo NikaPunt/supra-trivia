@@ -53,7 +53,7 @@ function themeCard(state) {
   const send = async () => {
     if (!field.value.trim()) return;
     try { await api("/api/play/theme", { method: "POST", body: { guess: field.value } }); drafts.theme = ""; err.textContent = ""; await refresh(); }
-    catch (e) { err.textContent = e.message; }
+    catch (e) { if (e.gone) { location.href = "/"; return; } err.textContent = e.message; }
   };
   field.addEventListener("keydown", (e) => { if (e.key === "Enter") send(); });
   return themeNote(t,
@@ -98,7 +98,7 @@ function wagerInput(state) {
     const n = Number(field.value);
     if (field.value === "" || !Number.isInteger(n) || n < 0 || n > max) { err.textContent = `A wager is a whole number from 0 to ${max}.`; return; }
     try { await api("/api/play/wager", { method: "POST", body: { value: n } }); err.textContent = ""; drafts.wager = ""; await refresh(); }
-    catch (e) { err.textContent = e.message; }
+    catch (e) { if (e.gone) { location.href = "/"; return; } err.textContent = e.message; }
   };
   field.addEventListener("keydown", (e) => { if (e.key === "Enter") send(); });
   return h("div", {},
@@ -145,7 +145,7 @@ function inputFor(state) {
       value[state.stake.key] = Number(st.el.value);
     }
     try { await api("/api/play/answer", { method: "POST", body: { value } }); err.textContent = ""; await refresh(); }
-    catch (e) { err.textContent = e.message; }
+    catch (e) { if (e.gone) { location.href = "/"; return; } err.textContent = e.message; }
   };
   const open = state.phase === "open" && state.guessesLeft !== 0 && !state.paused;
   const mine = state.myAnswers;
@@ -236,7 +236,7 @@ function historyView(state) {
 }
 
 async function loadHistory() {
-  try { history = await api("/api/play/history"); } catch (e) { if (e.status === 401) location.href = "/"; }
+  try { history = await api("/api/play/history"); if (history.gone) { history = null; location.href = "/"; return; } } catch (e) { if (e.gone || e.status === 401) location.href = "/"; }
 }
 function drawHistory(state) {
   mount($("#app"), viewTabs(), historyView(state), foot(state));
@@ -271,6 +271,7 @@ let lastSig = "";
 async function refresh() {
   try {
     const state = await api("/api/play/state");
+    if (state.gone) { location.href = "/"; return; } // not at a table (removed, or the game is gone): back to the home page
     syncClock(state.timer);
     lastState = state;
     if (view === "history" && state.phase !== "lobby") {
@@ -306,7 +307,7 @@ async function refresh() {
     }
     enterIfChanged(`${state.number}:${state.phase}`, anim);
   }
-  catch (e) { if (e.status === 401) location.href = "/"; }
+  catch (e) { if (e.gone || e.status === 401) location.href = "/"; }
 }
 refresh();
 live("/api/play/events", refresh);

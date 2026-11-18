@@ -43,7 +43,8 @@ test("the home page's questions to the server never get a 4xx for an ordinary vi
 
 test("the home page can tell a player who is already at a table (no PIN needed) from a stranger", async () => {
   const { app, host, id, code } = await setup();
-  assert.equal((await app.inject({ url: "/api/play/state" })).statusCode, 401, "the game screen itself still refuses a stranger");
+  const stranger = await app.inject({ url: "/api/play/state" });
+  assert.deepEqual([stranger.statusCode, stranger.json().gone], [200, true], "the game screen tells a stranger they are not at a table, without a 401");
 
   const j = await app.inject({ method: "POST", url: "/api/join", headers: { origin: cfg.BASE_URL }, payload: { code, nickname: "NoPin" } });
   const cookie = String(j.headers["set-cookie"]).split(";")[0]!;
@@ -126,4 +127,31 @@ test("the new screens are wired in: My answers on phones, All questions on the h
   assert.match(deck, /deck: true/);
   assert.match(css, /\.struck/);
   assert.match(css, /body\.deck \.sign\.big/);
+});
+
+test("a phone that is not at a table never gets a 401 or 403, whatever it asks (a ban list counts those, and a venue shares one address)", async () => {
+  const { app, host, id, code } = await setup();
+  const j = await app.inject({ method: "POST", url: "/api/join", headers: { origin: cfg.BASE_URL }, payload: { code, nickname: "Gone" } });
+  const removed = String(j.headers["set-cookie"]).split(";")[0]!;
+  const pid = (await app.inject({ url: `/api/sessions/${id}`, headers: host })).json().playerList[0].id;
+  await app.inject({ method: "POST", url: `/api/sessions/${id}/action`, headers: host, payload: { action: "begin" } });
+  await app.inject({ method: "POST", url: `/api/sessions/${id}/action`, headers: host, payload: { action: "kick", playerId: pid } });
+  for (const who of [{}, { cookie: removed }, { cookie: "trivia_player=not.a.token" }]) {
+    for (const url of ["/api/play/state", "/api/play/history", "/api/play/where"]) {
+      const r = await app.inject({ url, headers: who });
+      assert.equal(r.statusCode, 200, `${url} with ${JSON.stringify(who)}`);
+    }
+    const ev = await app.inject({ url: "/api/play/events", headers: who });
+    assert.equal(ev.statusCode, 200);
+    assert.match(ev.body, /event: gone/);
+    assert.match(ev.body, /retry: 60000/, "the browser waits a minute before trying the stream again");
+    for (const url of ["/api/play/answer", "/api/play/wager", "/api/play/theme"]) {
+      const r = await app.inject({ method: "POST", url, headers: { ...who, origin: cfg.BASE_URL }, payload: { value: { text: "x" }, guess: "x" } });
+      assert.equal(r.statusCode, 409, `${url} answers 409, which the ban list ignores`);
+      assert.equal(r.json().gone, true);
+    }
+  }
+  const js = src("js/play.js");
+  assert.match(js, /state\.gone/, "the game page goes home when told it is not at a table");
+  assert.match(src("js/common.js"), /addEventListener\("gone"/, "the live stream stops on gone");
 });

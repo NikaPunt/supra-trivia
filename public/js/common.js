@@ -40,7 +40,7 @@ export async function api(path, { method = "GET", body } = {}) {
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw Object.assign(new Error(data.error || `error ${res.status}`), { status: res.status, conflict: !!data.conflict, problems: Array.isArray(data.problems) ? data.problems : null });
+  if (!res.ok) throw Object.assign(new Error(data.error || `error ${res.status}`), { status: res.status, conflict: !!data.conflict, gone: !!data.gone, problems: Array.isArray(data.problems) ? data.problems : null });
   return data;
 }
 
@@ -56,6 +56,7 @@ export function live(url, refresh) {
     es = new EventSource(url);
     es.addEventListener("changed", () => { lastBeat = Date.now(); kick(); });
     es.addEventListener("ping", () => { lastBeat = Date.now(); });
+    es.addEventListener("gone", () => { es.close(); refresh(); }); // not at a table: the page's own fetch says so and leaves
     es.addEventListener("open", () => kick()); // catch up after a (re)connect; only a real ping or change counts as proof the stream delivers
     es.addEventListener("error", () => { if (es.readyState === 2) setTimeout(connect, 3000); });
   };

@@ -187,7 +187,8 @@ test("over HTTP: a team gets only its own history; only the owner gets the outli
   await app.inject({ method: "POST", url: "/api/play/answer", headers: bob, payload: { value: { text: "SECRETBOB" } } });
   for (const a of ["close", "reveal", "next"]) await act2(a);
 
-  assert.equal((await app.inject({ url: "/api/play/history" })).statusCode, 401, "no cookie, no history");
+  const none = await app.inject({ url: "/api/play/history" });
+  assert.deepEqual([none.statusCode, none.json().gone, none.json().rows], [200, true, undefined], "no cookie, no history (and no 401)");
   const h = (await app.inject({ url: "/api/play/history", headers: ann })).json();
   assert.equal(h.total, 1);
   assert.deepEqual(h.rows.map((r: any) => [r.number, r.yourAnswer, r.result]), [[1, "one", "right"]]);
