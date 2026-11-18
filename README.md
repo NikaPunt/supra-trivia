@@ -131,6 +131,7 @@ The same page covers backups and restoring them, updating, monitoring and a hard
 | Storage | SQLite through better-sqlite3, one file; live games also held in memory and saved after every answer |
 | Live updates | Server-sent events to phones, the projector and the console, with a polling fallback when a proxy holds the stream back |
 | Front end | Plain JavaScript modules and one stylesheet. No framework and no build step |
+| Loading | Styles, scripts and API answers are compressed. The pages point at their files under a fingerprint of `public/`, so phones keep those files for a year and still get new ones the moment anything changes; fonts are kept too, and the fonts a look needs are asked for before the stylesheet has finished loading. See `src/assets.ts` |
 | Question types | One file each in `src/modules/`, registered in one place. The builder reads each type's fields from the server, so a new type needs no front-end code |
 | Tests | `npm test` runs the suite under `test/`; CI runs the typecheck, the tests on Node 20 and 22, a dependency audit and a Docker build on every push |
 

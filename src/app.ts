@@ -3,6 +3,8 @@ import cookie from "@fastify/cookie";
 import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
 import fastifyStatic from "@fastify/static";
+import compress from "@fastify/compress";
+import { registerPages } from "./assets.js";
 import { fileURLToPath } from "node:url";
 import { ZodError } from "zod";
 import type { Config } from "./config.js";
@@ -53,6 +55,9 @@ export async function buildApp(cfg: Config, db: Db, hosts: HostDirectory) {
     }, "request");
   });
   await app.register(helmet);
+  // Pages, styles, scripts and API answers go out gzip- or brotli-compressed when the browser accepts it (fonts and images
+  // are compressed already). Live-update streams take over the connection themselves, so they are never compressed.
+  await app.register(compress, { threshold: 1024 });
   await app.register(cookie);
   await app.register(rateLimit, {
     max: 300,
@@ -69,11 +74,15 @@ export async function buildApp(cfg: Config, db: Db, hosts: HostDirectory) {
       return p ? `p:${p.sid}:${p.pid}` : req.ip;
     },
   });
+  const publicDir = fileURLToPath(new URL("../public", import.meta.url));
   await app.register(fastifyStatic, {
-    root: fileURLToPath(new URL("../public", import.meta.url)),
+    root: publicDir,
     // The sample trivia holds its own answers; signed-in hosts get it from a route of its own.
     allowedPath: (pathName) => !/starter\.json$/i.test(pathName),
+    // Fonts never change under the same name (a changed font gets a new file name), so a phone keeps them for a year.
+    setHeaders: (res, path) => { if (/[\\/]fonts[\\/][^\\/]+\.woff2$/.test(path)) res.header("cache-control", "public, max-age=31536000, immutable"); },
   });
+  registerPages(app, publicDir);
   const store = new GameStore(db, cfg.GAME_RETENTION_DAYS);
   app.addHook("onClose", async () => store.close());
   app.log.info({ games: store.counts, retentionDays: cfg.GAME_RETENTION_DAYS }, "games loaded");
