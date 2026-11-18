@@ -368,11 +368,11 @@ function previewBlock(r, i, m) {
   return h("div", { class: "preview" },
     jeopardy,
     h("div", { class: "frames" },
-      h("figure", {}, h("figcaption", {}, "On a phone"), h("div", { class: "phone" }, block(), stake, input, h("button", { class: "primary", disabled: true }, "Lock in"))),
-      h("figure", {}, h("figcaption", {}, "On the TV"), h("div", { class: "tv" }, block(),
+      h("figure", { class: "phonefig" }, h("figcaption", {}, "On a phone"), h("div", { class: "phone" }, block(), stake, input, h("button", { class: "primary", disabled: true }, "Lock in"))),
+      h("figure", { class: "tvfig" }, h("figcaption", {}, "On the TV"), h("div", { class: "tvframe" }, h("div", { class: "tv" }, block(),
         pub.options ? h("ol", {}, pub.options.map((o) => h("li", {}, o))) : null,
         pub.count ? h("p", { class: "muted" }, `List ${pub.count} things${pub.catchall ? ", plus anything else you like" : ""}.`) : null,
-        h("p", { class: "muted" }, "0/8 locked in")), h("p", { class: "muted fitnote" }))),
+        h("p", { class: "muted" }, "0/8 locked in"))), h("p", { class: "muted fitnote" }))),
     h("p", { class: "muted" }, "The real TV page shrinks a long question until it fits the screen. Answers and the fun fact appear only at the reveal."));
 }
 
@@ -453,12 +453,12 @@ function card(r, i, m) {
   };
   mount(el, bar,
     bad.length ? h("div", { class: "badnote", role: "alert" }, bad.map((p) => h("p", {}, p.detail))) : null,
-    h("div", { class: "head" }, h("strong", { class: "grow" }, `⠿ ${i + 1}. ${def.label}`),
+    h("div", { class: "head" }, h("strong", { class: "grow" }, `⠿ ${i + 1}. ${def.label}`), h("div", { class: "tools" }, h("span", { class: "group" },
       h("button", { onclick: toggle, "aria-expanded": m.open ? "true" : "false" }, m.open ? "Done" : "Edit"),
       h("button", { onclick: () => { m._preview = !m._preview; render(); }, "aria-expanded": m._preview ? "true" : "false", title: "See it as a phone and the TV will show it" }, m._preview ? "Hide preview" : "Preview"),
-      h("button", { onclick: duplicate, title: "Make a copy just below" }, "Duplicate"),
+      h("button", { onclick: duplicate, title: "Make a copy just below" }, "Duplicate")), h("span", { class: "group" },
       h("button", { onclick: move(-1), "aria-label": "Move up", title: "Move up" }, "↑"), h("button", { onclick: move(1), "aria-label": "Move down", title: "Move down" }, "↓"),
-      h("button", { class: "danger", onclick: remove, "aria-label": "Remove", title: "Remove (you can undo)" }, "✕")),
+      h("button", { class: "danger", onclick: remove, "aria-label": "Remove", title: "Remove (you can undo)" }, "✕")))),
     m.open ? [
       isConf ? sectionPicker(m, "Confidence set", "Confidence questions in a row with the same section share one list of values, and each team spends each value once.") : null,
       main.map((f) => fieldRow(m, f, extras)),
@@ -605,21 +605,21 @@ async function practice(e) {
 }
 
 function saveBar() {
-  return h("div", { class: "savebar" },
+  return [h("input", { class: "titlebox", value: state.title, maxlength: 120, "aria-label": "Trivia title", oninput: (e) => { state.title = e.target.value; } }),
+    h("div", { class: "savebar" },
     h("div", { class: "row" },
-      h("input", { class: "grow", value: state.title, maxlength: 120, "aria-label": "Trivia title", oninput: (e) => { state.title = e.target.value; } }),
-      h("span", { id: "dirty", class: "dirty" }),
+      h("span", { id: "dirty", class: "dirty grow" }),
       h("button", { class: "primary", onclick: save }, "Save"),
       id ? h("button", { onclick: practice, title: "Rehearse with two bot teams before the real night" }, "Practice run") : null,
       h("a", { class: "btn", href: "/host.html" }, "Back")),
     h("div", { class: "err", id: "err", role: "alert" }, problemList()),
-    id ? h("p", { class: "muted", id: "draftnote" }) : null);
+    id ? h("p", { class: "muted", id: "draftnote" }) : null)];
 }
 
 function tabs(report) {
   const n = report.warnings.length;
   const defs = [["questions", "Questions"], ["settings", "Settings & theme"], ["tips", "Tips & examples"], ["ready", n ? `Ready to host? (${n} to check)` : "Ready to host?"]];
-  return h("div", { class: "tabs", role: "tablist", "aria-label": "Builder" }, defs.map(([key, label]) =>
+  return h("div", { class: "tabs builder-tabs", role: "tablist", "aria-label": "Builder" }, defs.map(([key, label]) =>
     h("button", { role: "tab", "aria-selected": String(tab === key), class: tab === key ? "on" : "", onclick: () => go(key) }, label)));
 }
 
@@ -642,7 +642,7 @@ function questionsTab(total) {
       h("button", { onclick: exportJson }, "Export JSON"), h("button", { onclick: () => $("#file").click() }, "Import JSON"),
       !id && !total ? h("button", { onclick: loadSample }, "Load sample trivia") : null,
       h("input", { id: "file", type: "file", accept: "application/json,.json", style: "display:none", onchange: importFile })),
-    total === 0 ? h("div", { class: "card note" }, h("strong", {}, "New here? "), "Add a question from the list on the left, or load the sample trivia to see a whole night put together. ",
+    total === 0 ? h("div", { class: "card note" }, h("strong", {}, "New here? "), "Add a question with + Add question below, or load the sample trivia to see a whole night put together. ",
       h("button", { class: "linklike plain", onclick: () => go("tips") }, "Tips and an example of every question type"), " are in their own tab.") : null,
     typoCard(),
     h("div", { class: "builder" },
@@ -709,13 +709,17 @@ function render() {
   requestAnimationFrame(fitPreviews);
 }
 
+addEventListener("resize", () => requestAnimationFrame(fitPreviews));
+
 /** Shrinks each TV preview's text until it fits, as the real projector page does, and says so. */
 function fitPreviews() {
   for (const tv of document.querySelectorAll(".preview .tv")) {
+    // The TV is laid out at 1280 by 720, like a real screen, then scaled down as a whole to fit this page.
+    tv.style.setProperty("--k", String(tv.parentElement.clientWidth / 1280));
     let size = 1;
     tv.style.setProperty("--s", "1");
     while (tv.scrollHeight > tv.clientHeight + 1 && size > 0.35) { size -= 0.05; tv.style.setProperty("--s", String(size)); }
-    const say = tv.parentElement.querySelector(".fitnote");
+    const say = tv.closest("figure").querySelector(".fitnote");
     if (say) say.textContent = size < 0.999 ? `The TV will shrink this question's text to ${Math.round(size * 100)}% of its usual size so that it fits.${size < 0.6 ? " That may be hard to read from the back of the room." : ""}` : "";
   }
 }

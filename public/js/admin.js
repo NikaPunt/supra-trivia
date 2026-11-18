@@ -75,7 +75,7 @@ function sessionsCard() {
   return [
     h("h1", {}, "Sessions"),
     h("div", { class: "tabs", role: "tablist", "aria-label": "Sessions" }, tab("active", `Live (${live.length})`), tab("ended", `Finished (${done.length})`)),
-    list.length ? h("table", { class: "stack" }, h("tr", {}, ["Code", "Title", "Host", "Players", "State", "Opened", ""].map((x) => h("th", {}, x))),
+    list.length ? h("table", { class: "stack wide" }, h("tr", {}, ["Code", "Title", "Host", "Players", "State", "Opened", ""].map((x) => h("th", {}, x))),
       list.slice(0, view.shown).map((s) => h("tr", {}, h("td", {}, s.code), h("td", {}, s.title), h("td", {}, s.host), h("td", { "data-label": "Players" }, s.players), h("td", { "data-label": "State" }, s.phase), h("td", { class: "muted", title: when(s.createdAt), "data-label": "Opened" }, ago(s.createdAt)),
         h("td", {}, h("span", { class: "row" },
           s.phase !== "ended" ? h("a", { class: "btn", href: `/session.html?id=${s.id}` }, "Control") : null,
@@ -88,7 +88,7 @@ function sessionsCard() {
 function triviasCard() {
   return [
     h("h1", {}, "Trivias"),
-    data.trivias.length ? h("table", { class: "stack" }, h("tr", {}, ["Title", "Owner", "Last saved", ""].map((x) => h("th", {}, x))),
+    data.trivias.length ? h("table", { class: "stack wide" }, h("tr", {}, ["Title", "Owner", "Last saved", ""].map((x) => h("th", {}, x))),
       data.trivias.map((t) => h("tr", {}, h("td", {}, t.title), h("td", {}, t.owner), h("td", { class: "muted", title: when(t.updated_at), "data-label": "Last saved" }, ago(t.updated_at)),
         h("td", {}, h("span", { class: "row" }, h("a", { class: "btn", href: `/builder.html?id=${t.id}` }, "Edit"),
           h("button", { class: "danger", onclick: async () => { if (confirm(`Delete "${t.title}" by ${t.owner}? This cannot be undone and is logged.`)) { try { await api(`/api/trivias/${t.id}`, { method: "DELETE" }); } catch (e) { alert(e.message); } load(); } } }, "Delete")))))) : h("p", { class: "muted" }, "None."),
@@ -99,7 +99,7 @@ function hostsCard() {
   return [
     h("h1", {}, "Hosts"),
     h("p", { class: "muted" }, "Who may host is the list in config/hosts.json on the server; a change there applies at once, and removing someone locks them out at once. Sign-in times are known from when this log began."),
-    h("table", { class: "stack" }, h("tr", {}, ["Email", "Role", "Last signed in", "Trivias", "Sessions", ""].map((x) => h("th", {}, x))),
+    h("table", { class: "stack wide" }, h("tr", {}, ["Email", "Role", "Last signed in", "Trivias", "Sessions", ""].map((x) => h("th", {}, x))),
       data.hosts.map((x) => h("tr", {}, h("td", {}, x.email), h("td", {}, h("span", { class: `badge ${x.role}` }, x.role)), h("td", { class: "muted", title: when(x.lastLogin), "data-label": "Last signed in" }, ago(x.lastLogin)), h("td", { "data-label": "Trivias" }, x.trivias),
         h("td", { "data-label": "Sessions" }, x.active ? `${x.sessions} (${x.active} live)` : x.sessions),
         h("td", {}, h("button", { title: "End every sign-in this host has, on every device. They can sign in again.", onclick: async () => {
@@ -118,7 +118,7 @@ function auditCard() {
     h("h1", {}, "Audit log"),
     h("p", { class: "muted" }, "Everything hosts and admins change: sign-ins, trivias created, saved and deleted, sessions opened, started and ended, players removed. Entries cannot be edited or removed from here. What players answered is in each session's Record."),
     h("div", { class: "row" }, search, h("span", { class: "grow" }), h("a", { class: "btn", href: "/api/admin/audit.csv", download: "trivia-audit.csv" }, "Download all (CSV)")),
-    view.audit.length ? h("table", { class: "stack" }, h("tr", {}, ["When", "Who", "Did", "On", "Details", "From"].map((x) => h("th", {}, x))),
+    view.audit.length ? h("table", { class: "stack wide" }, h("tr", {}, ["When", "Who", "Did", "On", "Details", "From"].map((x) => h("th", {}, x))),
       view.audit.map((a) => h("tr", {}, h("td", { title: when(a.at) }, when(a.at)), h("td", {}, a.actor),
         h("td", {}, ACTIONS[a.action] ?? a.action, onOthers(a.detail) ? h("span", { class: "badge admin", title: "An admin acting on somebody else's trivia or session" }, "as admin") : null),
         h("td", { class: "muted" }, a.target), h("td", { class: "muted" }, detailText(a.detail)), a.ip ? h("td", { class: "muted", "data-label": "From" }, a.ip) : h("td", {})))) : h("p", { class: "muted" }, view.q ? "Nothing matches." : "Nothing yet."),

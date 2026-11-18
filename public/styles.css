@@ -653,23 +653,63 @@ body.deck .conn { bottom: 0.6rem; font-size: max(13px, 1.1vw); opacity: 0.9; }
 .checks li { margin: 0.3rem 0; }
 .undo { position: fixed; left: 50%; bottom: 1rem; transform: translateX(-50%); z-index: 30; display: flex; gap: 0.8rem; align-items: center; background: var(--panel-2); border: 1.5px solid var(--accent); border-radius: var(--radius); padding: 0.5rem 0.6rem 0.5rem 1rem; box-shadow: 0 6px 24px rgba(0,0,0,.35); }
 .preview { margin-top: 0.7rem; border-top: 1px dashed var(--line); padding-top: 0.6rem; }
-.preview .frames { display: grid; grid-template-columns: minmax(0, 20rem) minmax(0, 1fr); gap: 1rem; align-items: start; }
 .preview figure { margin: 0; }
 .preview figcaption { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3); margin-bottom: 0.3rem; }
 .preview .phone { border: 2px solid var(--line-strong); border-radius: 1.4rem; padding: 1rem 0.8rem; background: var(--ground); max-height: 34rem; overflow: auto; }
 .preview .phone input { margin-top: 0.4rem; }
 .preview .phone > button { margin-top: 0.6rem; }
 .preview .phone .board p { font-size: 1.1rem; }
-.preview .tv { aspect-ratio: 16 / 9; border: 6px solid #222; border-radius: 0.4rem; padding: 1rem 1.2rem; background: var(--ground); overflow: hidden; }
-.preview .tv ol { margin: 0 0 0.4rem; }
 .banner.practice { background: var(--panel-2); color: var(--text); font-weight: 400; border-bottom: 2px solid var(--accent); }
-@media (max-width: 760px) { .preview .frames { grid-template-columns: 1fr; } .builder > aside.palette.card { position: relative; top: 0; max-height: none; } }
+@media (max-width: 760px) { .builder > aside.palette.card { position: relative; top: 0; max-height: none; } }
 /* The TV preview uses the projector's own proportions (sizes relative to the screen's width), then shrinks to fit like the real page. */
-.preview .tv { container-type: inline-size; font-size: calc(2.1cqw * var(--s, 1)); }
-.preview .tv .board .where { font-size: calc(2.2cqw * var(--s, 1)); }
-.preview .tv .board p { font-size: calc(3.5cqw * var(--s, 1)); line-height: 1.4; }
-.preview .tv p.muted, .preview .tv ol { font-size: calc(2.1cqw * var(--s, 1)); }
 .checks .linklike { font-weight: 400; display: inline; }
 .radios { display: grid; gap: 0.1rem; margin-top: 0.3rem; }
 .radios label.check { margin-top: 0; justify-content: flex-start; text-transform: none; letter-spacing: 0; font-size: 1rem; color: var(--text); font-weight: 500; cursor: pointer; }
 .radios input[type="radio"] { width: 1.15rem; height: 1.15rem; min-height: 0; margin: 0; padding: 0; flex: none; accent-color: var(--accent); }
+
+/* ---- builder on small screens ---- */
+.titlebox { width: 100%; margin-top: 0.5rem; font-size: 1.1rem; }
+.savebar .dirty { text-align: left; }
+.mod .head { flex-wrap: wrap; row-gap: 0.4rem; }
+.mod .head > strong { flex: 1 1 14rem; min-width: 0; }
+.mod .head .tools { display: flex; flex-wrap: wrap; gap: 0.4rem; justify-content: flex-end; }
+@media (max-width: 760px) {
+  /* Dragging does not work on touch screens, and each round has its own + Add question, so the type list is not needed here. */
+  .builder > aside.palette.card { display: none; }
+  .builder-tabs { flex-wrap: wrap; }
+  .builder-tabs button { flex: 1 1 40%; }
+  .mod .head .tools { justify-content: flex-start; }
+  .mod .head .tools button, .addrow button { min-height: 2.5rem; padding: 0.3rem 0.7rem; }
+  .savebar .row { flex-wrap: nowrap; }
+  .savebar .dirty { white-space: normal; font-size: 0.85rem; line-height: 1.25; }
+  .savebar .row > :is(button, a.btn) { flex: none; padding-inline: 0.75rem; }
+}
+/* The admin tables have many columns, so they stack on tablets too, before the columns get too narrow to read. */
+@media (min-width: 641px) and (max-width: 900px) {
+  table.stack.wide, table.stack.wide tbody, table.stack.wide tr, table.stack.wide td { display: block; width: 100%; }
+  table.stack.wide tr { padding: 0.55rem 0; border-bottom: 1px solid var(--line); }
+  table.stack.wide td { border: 0; padding: 0.15rem 0; }
+  table.stack.wide tr:has(> th) { display: none; }
+  table.stack.wide td[data-label]::before { content: attr(data-label) ": "; color: var(--text-3); }
+}
+.savebar .row > .dirty { flex: 1 1 auto; min-width: 0; }
+.mod .head .tools { justify-content: flex-start; }
+.mod .head .tools button { min-height: 2.4rem; padding: 0.3rem 0.7rem; }
+
+/* Previews: the phone at a phone's width, the TV beside it when there is room, below it when not. */
+.preview .frames { display: flex; flex-wrap: wrap; gap: 1rem; align-items: flex-start; }
+.preview .phonefig { flex: 0 1 20rem; min-width: 0; }
+.preview .tvfig { flex: 1 1 18rem; min-width: 0; }
+/* The TV is drawn at 1280 by 720 with the projector page's own sizes, then scaled down whole (--k), so it looks like the real screen in miniature. */
+.preview .tvframe { aspect-ratio: 16 / 9; border: 6px solid #222; border-radius: 0.4rem; overflow: hidden; background: var(--ground); position: relative; }
+.preview .tv { position: absolute; top: 0; left: 0; width: 1280px; height: 720px; overflow: hidden; padding: 32px 38px; box-sizing: border-box; transform: scale(var(--k, 0.3)); transform-origin: top left; font-size: calc(27px * var(--s, 1)); }
+.preview .tv .board .where { font-size: calc(28px * var(--s, 1)); }
+.preview .tv .board p { font-size: calc(45px * var(--s, 1)); line-height: 1.4; }
+.preview .tv .clock { font-size: inherit; }
+.preview .tv ol { margin: 0 0 0.4em; }
+.mod .head .tools .group { display: inline-flex; gap: 0.4rem; flex-wrap: nowrap; }
+@media (max-width: 760px) {
+  .round { padding: 0.5rem; }
+  .mod { padding: 0.5rem 0.6rem; }
+  .mod .sum > span:first-child { flex-basis: 100%; }
+}
